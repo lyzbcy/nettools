@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>捞鱼的网络工具</title>
+<style>
+/* ===== lyzbcy 视觉系统 ===== */
+:root{
+  --cream:#FAF6EB; --paper:#F3EDDD; --forest:#1E3A24;
+  --sky:#BCD8EE; --sage:#AFCDA8; --ink:#1A2018;
+  --marker:#F5E08A; --brick:#B5482A;
+  --correct:#2F7D46; --wrong:#B5482A;
+  --font-display:"Archivo Black","Noto Sans SC","PingFang SC",sans-serif;
+  --font-head:"Poppins","Noto Sans SC","PingFang SC",sans-serif;
+  --font-body:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;
+  --font-mono:"SF Mono","Roboto Mono",monospace;
+  --radius-pill:999px; --radius-card:14px;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  font-family:var(--font-body); color:var(--ink); background:var(--cream);
+  display:flex; overflow:hidden;
+}
+
+/* ===== 左侧固定侧边栏 ===== */
+.sidebar{
+  width:240px; flex-shrink:0; background:var(--forest); color:var(--cream);
+  display:flex; flex-direction:column; padding:1.4rem 1rem;
+  height:100vh; position:sticky; top:0;
+}
+.sidebar .brand{
+  font-family:var(--font-display); font-size:1.15rem; line-height:1.2;
+  padding-bottom:1rem; border-bottom:1px solid rgba(250,246,235,.15);
+}
+.sidebar .brand small{ display:block; font-family:var(--font-body);
+  font-size:.7rem; opacity:.6; font-weight:400; margin-top:.2rem; letter-spacing:.05em;}
+.nav-section{ margin-top:1.2rem; }
+.nav-section .nav-title{ font-size:.7rem; opacity:.5; letter-spacing:.1em;
+  text-transform:uppercase; margin-bottom:.5rem; padding-left:.3rem;}
+.nav-item{
+  display:flex; align-items:center; gap:.6rem; padding:.55rem .7rem;
+  border-radius:10px; cursor:pointer; font-size:.92rem; font-weight:500;
+  transition:background .15s; margin-bottom:.15rem;
+}
+.nav-item:hover{ background:rgba(250,246,235,.1); }
+.nav-item.active{ background:var(--sage); color:var(--forest); font-weight:600; }
+.nav-item .ico{ font-size:1.1rem; }
+
+/* 侧边栏底部作者区 */
+.sidebar .author{
+  margin-top:auto; padding-top:1rem; border-top:1px solid rgba(250,246,235,.15);
+  display:flex; align-items:center; gap:.7rem;
+}
+.author-avatar{
+  width:46px; height:46px; border-radius:50%; object-fit:cover;
+  border:2px solid var(--marker); flex-shrink:0;
+}
+.author-info{ min-width:0; }
+.author-info .name{ font-weight:600; font-size:.9rem; }
+.author-info .sig{ font-size:.72rem; opacity:.6; line-height:1.3; }
+
+/* ===== 右侧主区 ===== */
+.main{ flex:1; overflow-y:auto; padding:2rem 2.5rem; }
+.page{ display:none; }
+.page.active{ display:block; animation:fadeIn .25s ease; }
+@keyframes fadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+
+/* Hero 区 */
+.hero{
+  background:var(--paper); border-radius:var(--radius-card); padding:1.6rem 1.8rem;
+  margin-bottom:1.5rem; display:flex; align-items:center; gap:1.5rem;
+  border-left:5px solid var(--forest);
+}
+.hero-text{ flex:1; }
+.hero h1{ font-family:var(--font-head); font-size:1.7rem; color:var(--forest); margin-bottom:.3rem;}
+.hero .status-bar{ font-size:.9rem; display:flex; gap:1.5rem; flex-wrap:wrap; }
+.status-pill{ display:inline-flex; align-items:center; gap:.4rem; }
+.status-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+.dot-online{ background:var(--correct); }
+.dot-offline{ background:var(--wrong); }
+.mascot{ width:80px; height:80px; flex-shrink:0; }
+
+/* 功能卡片网格（仪表盘用） */
+.grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));
+  gap:1rem; margin-bottom:1.5rem;
+}
+.card{
+  background:#fff; border-radius:var(--radius-card); padding:1.3rem 1.4rem;
+  border:1.5px solid var(--paper); transition:all .2s;
+}
+.card:hover{ border-color:var(--sage); transform:translateY(-2px); }
+.card-head{ display:flex; align-items:center; gap:.6rem; margin-bottom:.6rem; }
+.card-head .ico{ font-size:1.4rem; }
+.card-head h3{ font-size:1.05rem; color:var(--forest); }
+.card p{ font-size:.85rem; color:#555; line-height:1.5; margin-bottom:.9rem;}
+.btn{
+  display:inline-flex; align-items:center; gap:.4rem;
+  padding:.55rem 1.2rem; border-radius:var(--radius-pill); border:none;
+  font-family:var(--font-body); font-weight:600; font-size:.88rem;
+  cursor:pointer; transition:all .15s;
+}
+.btn-primary{ background:var(--forest); color:var(--cream); }
+.btn-primary:hover{ background:#2a4d33; }
+.btn-primary:active{ transform:translateY(1px); }
+.btn-primary:disabled{ background:#aaa; cursor:not-allowed; }
+.btn-sm{ padding:.4rem .9rem; font-size:.8rem; }
+.btn-ghost{ background:transparent; color:var(--forest); border:1.5px solid var(--forest); }
+.btn-ghost:hover{ background:var(--paper); }
+
+/* 结果容器 */
+.result-box{
+  background:#fff; border-radius:var(--radius-card); padding:1.4rem;
+  border:1.5px solid var(--paper); margin-top:1rem; display:none;
+}
+.result-box.show{ display:block; }
+.result-box h4{ font-size:1rem; color:var(--forest); margin-bottom:.8rem;
+  display:flex; align-items:center; gap:.5rem;}
+
+/* 诊断结果项 */
+.diag-item{
+  display:flex; gap:.7rem; padding:.7rem .9rem; border-radius:10px;
+  margin-bottom:.5rem; align-items:flex-start;
+}
+.diag-item.ok{ background:rgba(175,205,168,.25); }
+.diag-item.warn{ background:rgba(245,224,138,.3); }
+.diag-item.err{ background:rgba(181,72,42,.12); }
+.diag-item.info{ background:var(--paper); }
+.diag-icon{ font-size:1.1rem; flex-shrink:0; line-height:1.4; }
+/* 星星布丁表情贴图（诊断结果项图标）*/
+.diag-sticker{ width:28px; height:28px; flex-shrink:0; object-fit:contain; }
+.diag-body{ flex:1; }
+.diag-name{ font-weight:600; font-size:.92rem; }
+.diag-detail{ font-size:.82rem; color:#555; margin-top:.15rem; white-space:pre-line; line-height:1.5;}
+.diag-advice{ font-size:.78rem; color:var(--brick); margin-top:.2rem; font-style:italic; }
+
+/* WiFi 信息表 */
+.info-table{ width:100%; font-size:.9rem; }
+.info-table tr td{ padding:.45rem .8rem; border-bottom:1px solid var(--paper); }
+.info-table tr td:first-child{ color:#777; width:40%; }
+.info-table .val{ font-weight:600; color:var(--forest); font-family:var(--font-mono); }
+.tag{
+  display:inline-block; padding:.15rem .6rem; border-radius:var(--radius-pill);
+  font-size:.75rem; font-weight:600;
+}
+.tag.ok{ background:var(--sage); color:var(--forest); }
+.tag.warn{ background:var(--marker); color:var(--ink); }
+.tag.err{ background:rgba(181,72,42,.2); color:var(--wrong); }
+
+/* ping 结果行 */
+.ping-row{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:.5rem .8rem; border-bottom:1px solid var(--paper); font-size:.88rem;
+  font-family:var(--font-mono);
+}
+
+/* wt-final 结果条（lyzbcy 风格） */
+.final{
+  background:var(--marker); color:var(--correct); padding:.8rem 1.2rem;
+  border-radius:10px; margin-top:1rem; font-weight:600; display:flex;
+  align-items:center; gap:.6rem; display:none;
+}
+.final.show{ display:flex; }
+.final .final-stamp{ width:32px; height:32px; object-fit:contain; }
+
+/* loading 旋转 */
+.spinner{ display:inline-block; width:14px; height:14px; border:2px solid var(--cream);
+  border-top-color:transparent; border-radius:50%; animation:spin .6s linear infinite; }
+@keyframes spin{ to{ transform:rotate(360deg);} }
+
+/* ===== 关于/赞赏页 ===== */
+.about-hero{
+  text-align:center; padding:2rem; background:var(--paper);
+  border-radius:var(--radius-card); margin-bottom:1.5rem;
+  position:relative;
+}
+.about-hero .big-avatar{
+  width:96px; height:96px; border-radius:50%; border:4px solid var(--marker);
+  object-fit:cover; margin-bottom:1rem;
+}
+.about-hero .hero-mascot{
+  position:absolute; right:1.5rem; bottom:1rem; width:96px; height:96px;
+  object-fit:contain;
+}
+.about-hero h2{ font-family:var(--font-head); color:var(--forest); }
+.about-hero .studio-tag{
+  display:inline-block; background:var(--forest); color:var(--cream);
+  padding:.2rem .8rem; border-radius:var(--radius-pill); font-size:.75rem;
+  margin-top:.5rem;
+}
+.about-hero .sig{ font-size:.9rem; color:#666; margin-top:.6rem; }
+
+.qr-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1.2rem; margin-bottom:1.5rem;}
+.qr-card{ background:#fff; border-radius:var(--radius-card); padding:1.5rem; text-align:center; border:1.5px solid var(--paper);}
+.qr-card img{ width:180px; height:180px; object-fit:contain; margin-bottom:.8rem; border-radius:8px; background:#fff; }
+.qr-card h4{ color:var(--forest); margin-bottom:.3rem; }
+.qr-card p{ font-size:.82rem; color:#666; line-height:1.5; }
+
+.intro-card{ background:#fff; border-radius:var(--radius-card); padding:1.5rem; border:1.5px solid var(--paper); margin-bottom:1.5rem;}
+.intro-card h3{ color:var(--forest); margin-bottom:.6rem; }
+.intro-card p{ line-height:1.7; color:#444; }
+
+footer{ text-align:center; padding:1.5rem; color:#888; font-size:.82rem; margin-top:1rem;}
+footer a{ color:var(--forest); font-weight:600; text-decoration:underline; }
+
+/* ===== 公网连通守护 ===== */
+.guardian-card{ margin-bottom:1.5rem; border:1.5px solid var(--sage); }
+.guardian-head{ display:flex; justify-content:space-between; align-items:center; }
+.guardian-card p{ font-size:.85rem; color:#555; line-height:1.6; margin:.8rem 0 1rem; }
+
+/* iOS 风格开关 */
+.switch{ position:relative; display:inline-block; width:50px; height:30px; flex-shrink:0; }
+.switch input{ opacity:0; width:0; height:0; }
+.slider{
+  position:absolute; cursor:pointer; inset:0; background:#ccc;
+  border-radius:999px; transition:.25s;
+}
+.slider:before{
+  content:""; position:absolute; height:24px; width:24px; left:3px; top:3px;
+  background:#fff; border-radius:50%; transition:.25s; box-shadow:0 1px 3px rgba(0,0,0,.2);
+}
+.switch input:checked + .slider{ background:var(--correct); }
+.switch input:checked + .slider:before{ transform:translateX(20px); }
+
+/* 状态面板 */
+.guardian-panel{
+  background:var(--paper); border-radius:10px; padding:1rem; margin-top:.5rem;
+}
+.gauge-row{ display:grid; grid-template-columns:repeat(4, 1fr); gap:.6rem; margin-bottom:.8rem; }
+.gauge{
+  background:#fff; border-radius:8px; padding:.7rem; display:flex; align-items:center; gap:.5rem;
+  border-left:3px solid #ccc; transition:border-color .3s;
+}
+.gauge.ok{ border-left-color:var(--correct); }
+.gauge.warn{ border-left-color:#e0b020; }
+.gauge.err{ border-left-color:var(--wrong); }
+.gauge-ico{ font-size:1.4rem; }
+.gauge-name{ font-size:.72rem; color:#888; }
+.gauge-val{ font-size:.82rem; font-weight:700; color:var(--forest); }
+.gauge.err .gauge-val{ color:var(--wrong); }
+.gauge.warn .gauge-val{ color:#a07d10; }
+
+.guardian-meta{
+  display:flex; gap:1.2rem; flex-wrap:wrap; font-size:.78rem; color:#666;
+  padding-top:.6rem; border-top:1px dashed rgba(0,0,0,.1);
+}
+
+/* 日志区 */
+.guardian-log{
+  background:#fff; border-radius:8px; padding:.6rem .8rem; margin-top:.8rem;
+  max-height:140px; overflow-y:auto; font-family:var(--font-mono); font-size:.74rem;
+  line-height:1.6;
+}
+.log-line{ padding:.1rem 0; }
+.log-info{ color:#555; }
+.log-ok{ color:var(--correct); }
+.log-warn{ color:#a07d10; }
+.log-err{ color:var(--wrong); }
+.log-fix{ color:var(--forest); font-weight:600; }
+.log-line .ts{ color:#aaa; margin-right:.4rem; }
+
+/* 守护状态点颜色 */
+.dot-guard-on{ background:var(--correct); }
+.dot-guard-off{ background:#bbb; }
+.dot-guard-fix{ background:#e0b020; }
+
+/* toast 提示 */
+.toast{
+  position:fixed; bottom:2rem; left:50%; transform:translateX(-50%) translateY(100px);
+  background:var(--forest); color:var(--cream); padding:.8rem 1.5rem; border-radius:var(--radius-pill);
+  font-size:.9rem; box-shadow:0 4px 16px rgba(0,0,0,.2); transition:transform .3s; z-index:999;
+  display:flex; align-items:center; gap:.5rem;
+}
+.toast.show{ transform:translateX(-50%) translateY(0); }
+.toast .toast-sticker{ width:22px; height:22px; object-fit:contain; }
+
+/* ===== lyzbcy 自推广：右下浮条 + 模态框 ===== */
+.float-btn{
+  position:fixed; right:1.5rem; bottom:1.5rem; z-index:998;
+  width:56px; height:56px; border-radius:50%; cursor:pointer;
+  background:var(--forest); color:var(--cream); border:3px solid var(--marker);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-size:.62rem; font-weight:700; gap:1px; box-shadow:0 4px 14px rgba(0,0,0,.25);
+  transition:transform .2s, box-shadow .2s;
+  font-family:var(--font-body);
+}
+.float-btn:hover{ transform:translateY(-3px); box-shadow:0 6px 18px rgba(0,0,0,.3); }
+.float-btn .fish{ font-size:1.5rem; line-height:1; }
+.float-btn .lbl{ letter-spacing:.02em; }
+
+/* 模态框 */
+.modal-mask{
+  position:fixed; inset:0; background:rgba(30,58,36,.45); backdrop-filter:blur(2px);
+  display:none; align-items:center; justify-content:center; z-index:999;
+  animation:fadeIn .2s ease;
+}
+.modal-mask.show{ display:flex; }
+.modal{
+  background:var(--cream); border-radius:18px; width:440px; max-width:92vw;
+  max-height:88vh; overflow-y:auto; box-shadow:0 16px 48px rgba(0,0,0,.3);
+  border:2px solid var(--marker);
+}
+.modal-close{
+  position:absolute; top:.8rem; right:1rem; font-size:1.6rem; line-height:1;
+  cursor:pointer; color:#999; transition:color .15s; background:none; border:none;
+}
+.modal-close:hover{ color:var(--wrong); }
+/* 模态框作者区 */
+.modal-author{
+  text-align:center; padding:1.8rem 1.5rem 1rem; background:var(--paper);
+  border-radius:16px 16px 0 0; position:relative;
+}
+.modal-author img.av{
+  width:72px; height:72px; border-radius:50%; border:3px solid var(--marker); object-fit:cover;
+}
+.modal-author .name{ font-family:var(--font-head); font-size:1.2rem; color:var(--forest); margin-top:.5rem; }
+.modal-author .studio{
+  display:inline-block; background:var(--forest); color:var(--cream);
+  padding:.15rem .7rem; border-radius:var(--radius-pill); font-size:.7rem; margin-top:.3rem;
+}
+.modal-author .sig{ font-size:.82rem; color:#666; margin-top:.4rem; }
+.modal-author .more-btn{
+  margin-top:.8rem; display:inline-flex; align-items:center; gap:.4rem;
+}
+/* 模态框三栏二维码 */
+.modal-qr{
+  display:grid; grid-template-columns:repeat(3, 1fr); gap:.6rem; padding:1rem 1.2rem 1.4rem;
+}
+.modal-qr .qc{ background:#fff; border-radius:12px; padding:.8rem .5rem; text-align:center; border:1.5px solid var(--paper); }
+.modal-qr .qc img{ width:84px; height:84px; object-fit:contain; margin-bottom:.4rem; border-radius:6px; }
+.modal-qr .qc h5{ font-size:.78rem; color:var(--forest); }
+.modal-qr .qc p{ font-size:.66rem; color:#888; line-height:1.3; margin-top:.15rem; }
+.modal-foot{ text-align:center; padding:.6rem; font-size:.72rem; color:#999; border-top:1px solid var(--paper); }
+.modal-foot a{ color:var(--forest); font-weight:600; text-decoration:underline; }
+</style>
+</head>
+<body>
+
+<!-- ===== 左侧边栏 ===== -->
+<aside class="sidebar">
+  <div class="brand">🌐 捞鱼的网络工具<small>v4.2 · macOS</small></div>
+
+  <div class="nav-section">
+    <div class="nav-title">功能</div>
+    <div class="nav-item active" data-page="dashboard"><span class="ico">📊</span> 仪表盘</div>
+    <div class="nav-item" data-page="wsvpn"><span class="ico">🔒</span> <span id="vpn-nav-label">公司 VPN</span></div>
+    <div class="nav-item" data-page="diagnose"><span class="ico">🚀</span> 一键诊断</div>
+    <div class="nav-item" data-page="wifi"><span class="ico">📶</span> WiFi 与测速</div>
+    <div class="nav-item" data-page="tools"><span class="ico">🛠️</span> 修复工具</div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-title">关于</div>
+    <div class="nav-item" data-page="about"><span class="ico">💖</span> 关于捞鱼</div>
+  </div>
+
+  <div class="author">
+    <img class="author-avatar" src="img/avatar.png" alt="捞鱼">
+    <div class="author-info">
+      <div class="name">捞鱼工作室</div>
+      <div class="sig">一个弱小但有梦想的开发者</div>
+    </div>
+  </div>
+</aside>
+
+<!-- ===== 右侧主区 ===== -->
+<main class="main">
+
+  <!-- 仪表盘页 -->
+  <section class="page active" id="page-dashboard">
+    <div class="hero">
+      <div class="hero-text">
+        <h1>欢迎来到捞鱼的网络工具</h1>
+        <div class="status-bar">
+          <span class="status-pill"><span class="status-dot" id="status-dot"></span><span id="status-text">检测中…</span></span>
+          <span>网卡：<strong id="status-iface">—</strong></span>
+          <span>系统：<strong id="status-os">—</strong></span>
+        </div>
+      </div>
+      <img class="mascot" src="img/sticker/mascot.png" alt="星星布丁" title="星星布丁·飞天">
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-head"><span class="ico">🚀</span><h3>一键智能诊断</h3></div>
+        <p>全链路体检：网卡、路由、公网、DNS、网页、代理、hosts、VPN，找出网页打不开的真凶。</p>
+        <button class="btn btn-primary" onclick="runDiagnose()">开始诊断</button>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="ico">🛡️</span><h3>处理失效代理</h3></div>
+        <p>代理端口失效时临时关闭当前系统代理，保留 Git/npm 配置，并可恢复。</p>
+        <button class="btn btn-primary" onclick="clearProxy()">临时关闭</button>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="ico">🧹</span><h3>清空 DNS 缓存</h3></div>
+        <p>某些网站打不开、解析到错误 IP？清一下缓存，立刻刷新。</p>
+        <button class="btn btn-primary" onclick="flushDns()">清空缓存</button>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="ico">📶</span><h3>WiFi 与网速</h3></div>
+        <p>查看信号强度、信道、延迟，测一下实际下载速度。</p>
+        <button class="btn btn-ghost" onclick="switchPage('wifi')">前往查看</button>
+      </div>
+    </div>
+
+    <div class="result-box" id="dash-result">
+      <h4>📋 诊断报告</h4>
+      <div id="dash-diag-list"></div>
+      <div class="final" id="dash-final"></div>
+    </div>
+  </section>
+
+  <!-- 公司 VPN 页 -->
+  <section class="page" id="page-wsvpn">
+    <div class="hero">
+      <div class="hero-text">
+        <h1>🔒 <span id="vpn-page-title">公司 VPN</span></h1>
+        <p style="margin-top:.4rem; color:#555;">连接公司内网 + 与梯子共存，一键搞定。</p>
+      </div>
+    </div>
+
+    <!-- 未配置时的引导区块 -->
+    <div class="card" id="vpn-setup-hint" style="border-color:var(--marker); display:none;">
+      <div class="card-head"><span class="ico">⚙️</span><h3>VPN 功能未配置</h3></div>
+      <p>要使用 VPN 共存功能，需要先填写你公司的内网信息。请编辑配置文件：</p>
+      <pre style="background:#fff; padding:.8rem; border-radius:8px; font-size:.78rem; overflow-x:auto; margin:.5rem 0;">~/Library/Application Support/local.zeen.nettools/config.json</pre>
+      <p style="font-size:.85rem;">填入以下字段后重新打开 app：</p>
+      <pre style="background:#fff; padding:.8rem; border-radius:8px; font-size:.75rem; overflow-x:auto;">{
+  "company": {
+    "name": "你的公司名",
+    "intranetCIDR": "如 10.0.0.0/8",
+    "intranetDNS": ["内网DNS1", "内网DNS2"],
+    "resolverDomain": "如 corp.example.com",
+    "internalHost": "如 gitlab.corp.example.com",
+    "internalProbeIP": "如 10.0.0.5"
+  },
+  "vpn": { "enabled": true, "configName": "Tunnelblick配置名" }
+}</pre>
+      <p style="font-size:.8rem; color:#888; margin-top:.5rem;">不知道这些值？问你的网络管理员，或用 <code>dig</code> / <code>ifconfig</code> 自查。</p>
+    </div>
+
+    <!-- VPN 状态面板 -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="guardian-head">
+        <div class="card-head"><span class="ico">📡</span><h3>当前状态</h3></div>
+        <button class="btn btn-primary btn-sm" id="vpn-refresh-btn" onclick="refreshVpnStatus()">🔄 刷新</button>
+      </div>
+      <div class="gauge-row" style="margin-top:1rem;">
+        <div class="gauge" id="ws-gauge-vpn"><span class="gauge-ico">🔒</span><div><div class="gauge-name">VPN 隧道</div><div class="gauge-val" id="ws-vpn-val">检测中…</div></div></div>
+        <div class="gauge" id="ws-gauge-route"><span class="gauge-ico">🛤️</span><div><div class="gauge-name">劫持路由</div><div class="gauge-val" id="ws-route-val">检测中…</div></div></div>
+        <div class="gauge" id="ws-gauge-dns"><span class="gauge-ico">📓</span><div><div class="gauge-name">公司DNS</div><div class="gauge-val" id="ws-dns-val">检测中…</div></div></div>
+        <div class="gauge" id="ws-gauge-gitlab"><span class="gauge-ico">🏢</span><div><div class="gauge-name">内网服务</div><div class="gauge-val" id="ws-gitlab-val">检测中…</div></div></div>
+      </div>
+      <div class="diag-item info" style="margin-top:.6rem;">
+        <div class="diag-icon">💡</div>
+        <div class="diag-body"><div class="diag-detail" id="ws-detail">点「刷新」开始检测…</div></div>
+      </div>
+    </div>
+
+    <!-- 连接公司 VPN -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-head"><span class="ico">🔌</span><h3>① 连接公司 VPN</h3></div>
+      <p>通过 Tunnelblick 连接 <strong id="vpn-config-name">（未配置）</strong>。首次连接可能需要输入你的 VPN 账号密码。</p>
+      <button class="btn btn-primary" id="vpn-connect-btn" onclick="connectVpn()">🔌 连接 VPN</button>
+      <div id="vpn-connect-result" style="margin-top:1rem;"></div>
+    </div>
+
+    <!-- VPN 与梯子共存 -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-head"><span class="ico">🤝</span><h3>② VPN 与梯子共存</h3></div>
+      <p>真正的三层分流：<strong>①</strong> 公司网段与公司 DNS 只走 VPN；<strong>②</strong> 公司域名单独问公司 DNS（分域 DNS），Tailscale 和公共 DNS 保持原样；<strong>③</strong> 把公司域名加入系统代理直连名单，避免梯子抢走内网流量。不会再把公司 DNS 粗暴设成全局 DNS。</p>
+      <button class="btn btn-primary" id="vpn-coexist-btn" onclick="coexistVpn()">🤝 一键启用共存</button>
+      <button class="btn btn-ghost" id="vpn-reset-btn" onclick="resetCoexist()">↩ 恢复共存设置</button>
+      <div id="vpn-coexist-result" style="margin-top:1rem;"></div>
+    </div>
+
+    <!-- 操作指引 -->
+    <div class="card">
+      <div class="card-head"><span class="ico">📖</span><h3>正确使用顺序</h3></div>
+      <div class="diag-item ok"><div class="diag-icon">1</div><div class="diag-body"><div class="diag-name">点「连接 VPN」</div><div class="diag-detail">调起 Tunnelblick 连接公司 VPN</div></div></div>
+      <div class="diag-item ok"><div class="diag-icon">2</div><div class="diag-body"><div class="diag-name">打开你的梯子</div><div class="diag-detail">正常开启梯子即可</div></div></div>
+      <div class="diag-item ok"><div class="diag-icon">3</div><div class="diag-body"><div class="diag-name">回到这里点「一键启用共存」</div><div class="diag-detail">精确路由 + 分域 DNS + 代理直连，输一次开机密码即可</div></div></div>
+      <div class="diag-item info"><div class="diag-icon">✓</div><div class="diag-body"><div class="diag-detail">完成后内网域名应解析为内网 IP，公共网站仍使用原来的 DNS 与梯子。VPN 断开重连后需重新点一次「共存」。</div></div></div>
+    </div>
+  </section>
+
+  <!-- 诊断页 -->
+  <section class="page" id="page-diagnose">
+    <div class="hero">
+      <div class="hero-text">
+        <h1>🚀 一键智能诊断</h1>
+        <p style="margin-top:.4rem; color:#555;">只读检查，不会改动任何配置。点开始，完整网络链路自动跑完。</p>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="diag-btn" onclick="runDiagnose(true)">🚀 开始诊断</button>
+    <div class="result-box" id="diag-result">
+      <h4>📋 体检报告 <span id="diag-emoji"></span></h4>
+      <div id="diag-list"></div>
+      <div class="final" id="diag-final"></div>
+    </div>
+  </section>
+
+  <!-- WiFi 页 -->
+  <section class="page" id="page-wifi">
+    <div class="hero">
+      <div class="hero-text">
+        <h1>📶 WiFi 与网速测试</h1>
+        <p style="margin-top:.4rem; color:#555;">查看信号质量、延迟、下载速度。</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-head"><span class="ico">📡</span><h3>WiFi 物理层信息</h3></div>
+      <button class="btn btn-primary btn-sm" onclick="loadWifi()">刷新</button>
+      <div id="wifi-info" style="margin-top:1rem;">点「刷新」获取…</div>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-head"><span class="ico">⏱️</span><h3>延迟测试</h3></div>
+      <button class="btn btn-primary btn-sm" onclick="runPing()">测试延迟</button>
+      <div id="ping-result" style="margin-top:1rem;"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="ico">⚡</span><h3>下载速度测试</h3></div>
+      <button class="btn btn-primary btn-sm" id="speed-btn" onclick="runSpeed()">开始测速</button>
+      <div id="speed-result" style="margin-top:1rem;"></div>
+    </div>
+  </section>
+
+  <!-- 修复工具页 -->
+  <section class="page" id="page-tools">
+    <div class="hero">
+      <div class="hero-text">
+        <h1>🛠️ 修复工具箱</h1>
+        <p style="margin-top:.4rem; color:#555;">网络诊断与修复。安装免密授权后，所有操作和守护都不再弹密码框。</p>
+      </div>
+    </div>
+
+    <!-- 免密授权卡片 -->
+    <div class="card guardian-card" id="auth-card" style="border-color:var(--marker);">
+      <div class="guardian-head">
+        <div class="card-head"><span class="ico">🔐</span><h3>免密授权</h3></div>
+        <span class="tag" id="auth-tag" style="background:#eee;color:#888;">检测中…</span>
+      </div>
+      <p id="auth-desc">安装免密授权后，<strong>所有特权操作（清 DNS、换 DNS、清代理、续租、VPN 共存）和公网守护都不再弹密码框</strong>，守护可以真正无人值守。安装只需输一次开机密码，之后永久免密（重启也不影响）。</p>
+      <div style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.6rem;">
+        <button class="btn btn-primary" id="auth-install-btn" onclick="installHelper()">🔐 安装免密授权（输一次密码）</button>
+        <button class="btn btn-ghost btn-sm" id="auth-uninstall-btn" onclick="uninstallHelper()" style="display:none;">卸载授权</button>
+      </div>
+      <div id="auth-result" style="margin-top:.8rem;"></div>
+    </div>
+
+    <!-- 公网连通守护（独立大卡片，跨两列） -->
+    <div class="card guardian-card" id="guardian-card">
+      <div class="guardian-head">
+        <div class="card-head"><span class="ico">🛡️</span><h3>公网连通守护</h3></div>
+        <label class="switch">
+          <input type="checkbox" id="guardian-toggle" onchange="toggleGuardian(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <p>App 运行期间每 <strong>30 秒</strong>综合检查网卡、IP 直连、DNS、网页与代理端口。异常时只做<strong>对症修复</strong>：DNS 坏了才刷新 DNS、代理端口失效才临时关闭代理、没有 IP/路由才续租 DHCP；不会因为某个节点禁 ping 就误删你的梯子配置。<span id="guardian-auth-hint"><strong>未安装免密授权时，守护触发修复会弹密码框，无法无人值守。</strong></span></p>
+
+      <!-- 实时状态面板 -->
+      <div class="guardian-panel" id="guardian-panel">
+        <div class="gauge-row">
+          <div class="gauge" id="gauge-base"><span class="gauge-ico">🌐</span><div><div class="gauge-name">基础网络</div><div class="gauge-val" id="gauge-base-val">—</div></div></div>
+          <div class="gauge" id="gauge-pub"><span class="gauge-ico">🛰️</span><div><div class="gauge-name">公网连通</div><div class="gauge-val" id="gauge-pub-val">—</div></div></div>
+          <div class="gauge" id="gauge-fix"><span class="gauge-ico">🔧</span><div><div class="gauge-name">上次修复</div><div class="gauge-val" id="gauge-fix-val">—</div></div></div>
+          <div class="gauge" id="gauge-next"><span class="gauge-ico">⏱️</span><div><div class="gauge-name">下次检查</div><div class="gauge-val" id="gauge-next-val">—</div></div></div>
+        </div>
+        <div class="guardian-meta">
+          <span class="status-pill"><span class="status-dot" id="guardian-dot"></span><span id="guardian-state">守护未启动</span></span>
+          <span id="guardian-lastfix">—</span>
+          <span id="guardian-failcnt">—</span>
+        </div>
+        <!-- 日志区 -->
+        <div class="guardian-log" id="guardian-log">
+          <div class="log-line log-info">守护未启动。打开开关后，每 30 秒自动检查公网连通性。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-head"><span class="ico">🧹</span><h3>清空 DNS 缓存</h3></div>
+        <p>刷新 DNS 解析缓存。安全、快速。</p>
+        <button class="btn btn-primary" onclick="flushDns()">执行</button>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="ico">🔧</span><h3>换公共 DNS</h3></div>
+        <p>换用更快的公共 DNS。</p>
+        <select id="dns-select" style="width:100%; padding:.5rem; margin:.5rem 0; border-radius:8px; border:1.5px solid var(--paper); font-family:var(--font-body);">
+          <option value="223.5.5.5,223.6.6.6">阿里 DNS（223.5.5.5）</option>
+          <option value="119.29.29.29,223.5.5.5">腾讯 DNS（119.29.29.29）</option>
+          <option value="114.114.114.114,223.6.6.6">114 DNS（114.114.114.114）</option>
+          <option value="8.8.8.8,8.8.4.4">Google DNS（8.8.8.8）</option>
+          <option value="empty">还原为自动获取</option>
+        </select>
+        <button class="btn btn-primary" onclick="setDns()">应用</button>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="ico">🛡️</span><h3>处理失效代理</h3></div>
+        <p>仅临时关闭当前网络服务的系统代理，不删除 Git/npm 配置；执行前自动备份。</p>
+        <button class="btn btn-primary" onclick="clearProxy()">临时关闭</button>
+        <button class="btn btn-ghost" onclick="restoreProxy()">恢复上次配置</button>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="ico">🔄</span><h3>续租 DHCP</h3></div>
+        <p>重获 IP 和 DNS，切换 WiFi 后异常时用。</p>
+        <button class="btn btn-primary" onclick="renewDhcp()">执行</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 关于/赞赏页 -->
+  <section class="page" id="page-about">
+    <div class="about-hero">
+      <img class="big-avatar" src="img/avatar.png" alt="捞鱼">
+      <h2>捞鱼的网络工具 v4.2</h2>
+      <div class="studio-tag">捞鱼工作室出品</div>
+      <p class="sig">「一个弱小但有梦想的开发者」</p>
+      <img class="hero-mascot" src="img/sticker/mascot.png" alt="星星布丁·飞天">
+    </div>
+
+    <div class="intro-card">
+      <h3>📌 这个工具是什么</h3>
+      <p>捞鱼的网络工具是一个 macOS 网络自诊断、自修复工具。它使用 macOS 原生能力完成 DNS、代理、DHCP、WiFi、测速和公司内网 VPN 分流。VPN 共存使用精确路由、分域 DNS 与代理直连，不再用全局公司 DNS 换来"假共存"。支持通过 config.json 配置任意公司的内网信息。<br><br>
+      它的哲学是：<strong>先诊断、再修复，绝不瞎操作</strong>。所有只读检查无需密码，所有修复操作都会明确提示并请求授权。</p>
+    </div>
+
+    <div class="intro-card">
+      <h3>💖 如果帮到了你</h3>
+      <p>这个工具完全免费、开源、无广告。如果它帮你的 Mac 起死回生，欢迎请捞鱼喝杯奶茶 🧋，你的支持是持续维护的动力。</p>
+      <div class="qr-grid">
+        <div class="qr-card">
+          <img src="img/sticker-qr.png" alt="微信表情包">
+          <h4>⭐ 星星布丁表情包</h4>
+          <p>微信扫码下载<br>捞鱼与星星布丁的专属表情包</p>
+        </div>
+        <div class="qr-card">
+          <img src="img/reward-qr.jpg" alt="赞赏码">
+          <h4>🧋 请喝奶茶</h4>
+          <p>微信扫码赞赏<br>金额随意，心意到就好</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="intro-card">
+      <h3>🔗 了解更多</h3>
+      <p>访问捞鱼的主页，看更多作品与文章：</p>
+      <a href="https://lyzbcy.github.io/" target="_blank" rel="noopener" class="btn btn-primary" style="margin-top:.8rem;">🌐 访问捞鱼主页</a>
+    </div>
+
+    <footer>
+      由 <a href="https://lyzbcy.github.io/" target="_blank" rel="noopener">捞鱼</a> 制作 · 捞鱼的网络工具 v4.2 · 2026
+    </footer>
+  </section>
+
+</main>
+
+<!-- ===== lyzbcy 自推广：右下浮条 ===== -->
+<div class="float-btn" id="about-fab" onclick="openAboutModal()" title="关于捞鱼">
+  <span class="fish">🐟</span>
+  <span class="lbl">捞鱼</span>
+</div>
+
+<!-- ===== lyzbcy 自推广：模态框 ===== -->
+<div class="modal-mask" id="about-modal" onclick="if(event.target===this)closeAboutModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeAboutModal()" aria-label="关闭">×</button>
+    <div class="modal-author">
+      <img class="av" src="img/avatar.png" alt="捞鱼">
+      <div class="name">捞鱼</div>
+      <div class="studio">捞鱼工作室</div>
+      <div class="sig">「一个弱小但有梦想的开发者」</div>
+      <a href="https://lyzbcy.github.io/about/" target="_blank" rel="noopener" class="btn btn-primary btn-sm more-btn">
+        🌐 了解更多
+      </a>
+    </div>
+    <div class="modal-qr">
+      <div class="qc">
+        <img src="img/sticker-qr.png" alt="表情包二维码">
+        <h5>⭐ 表情包</h5>
+        <p>星星布丁<br>专属表情包</p>
+      </div>
+      <div class="qc">
+        <img src="img/reward-qr.jpg" alt="赞赏码">
+        <h5>🧋 赞赏</h5>
+        <p>请喝奶茶<br>金额随意</p>
+      </div>
+      <div class="qc">
+        <a href="https://lyzbcy.github.io/" target="_blank" rel="noopener" style="display:block; text-decoration:none;">
+          <img src="img/sticker/final.png" alt="主页" style="border-radius:50%;">
+          <h5>🌐 主页</h5>
+          <p>更多作品<br>与文章</p>
+        </a>
+      </div>
+    </div>
+    <div class="modal-foot">
+      由 <a href="https://lyzbcy.github.io/" target="_blank" rel="noopener">捞鱼</a> 制作 · 2026
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== 页面切换 =====
+function switchPage(name){
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('.nav-item[data-page="'+name+'"]').classList.add('active');
+}
+document.querySelectorAll('.nav-item').forEach(n => {
+  n.addEventListener('click', () => switchPage(n.dataset.page));
+});
+
+// ===== Swift 通信层 =====
+let reqSeq = 1;
+const pending = {};   // reqId -> {resolve, reject}
+
+function callSwift(action, args){
+  const reqId = reqSeq++;
+  return new Promise((resolve, reject) => {
+    const privileged = ['flush-dns','set-dns','clear-proxy','restore-proxy','renew-dhcp','vpn-coexist','vpn-coexist-reset'].includes(action);
+    const timer = setTimeout(() => {
+      if(!pending[reqId]) return;
+      delete pending[reqId];
+      reject(new Error('操作等待超时，请确认系统授权窗口是否被遮挡'));
+    }, privileged ? 150000 : 35000);
+    pending[reqId] = { resolve, reject, timer };
+    try {
+      window.webkit.messageHandlers.netrepair.postMessage({ action: action, args: args || {}, reqId: reqId });
+    } catch(e){
+      clearTimeout(timer);
+      delete pending[reqId];
+      reject(e);
+    }
+  });
+}
+
+// Swift 回调入口（由 evaluateJavaScript 调用）
+window.__handleResult = function(payload){
+  const p = (typeof payload === 'string') ? JSON.parse(payload) : payload;
+  const slot = pending[p.reqId];
+  if(!slot) return;
+  clearTimeout(slot.timer);
+  delete pending[p.reqId];
+  if(p.ok) slot.resolve(p.data);
+  else slot.reject(new Error(p.error || '操作失败'));
+};
+
+// ===== Toast（成功时附星星布丁贴图）=====
+function toast(msg, ms, sticker){
+  const t = document.getElementById('toast');
+  const stickerHtml = sticker ? '<img class="toast-sticker" src="img/sticker/' + sticker + '" alt="">' : '';
+  t.innerHTML = stickerHtml + msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), ms || 2500);
+}
+
+// ===== 星星布丁贴图映射（按状态语义）=====
+const STICKER = {
+  ok:   'img/sticker/ok.png',     // 好的
+  warn: 'img/sticker/warn.png',   // 哦哟
+  err:  'img/sticker/no.png',     // 大哭
+  final:'img/sticker/final.png',  // 自信/通关
+};
+// 诊断结果项的图标 → 表情贴图（替代 ✓/⚠/✗）
+function diagIcon(status){
+  const map = { ok: STICKER.ok, warn: STICKER.warn, err: STICKER.err };
+  const src = map[status];
+  if(src) return '<img class="diag-sticker" src="' + src + '" alt="' + status + '">';
+  return '<div class="diag-icon">•</div>';
+}
+
+// ===== 初始状态 =====
+async function loadStatus(){
+  try{
+    const s = await callSwift('get-status');
+    document.getElementById('status-dot').className = 'status-dot ' + (s.online ? 'dot-online' : 'dot-offline');
+    document.getElementById('status-text').textContent = s.online ? '已接入·检查公网中' : '未接入网络';
+    document.getElementById('status-iface').textContent = s.iface;
+    document.getElementById('status-os').textContent = 'macOS ' + s.os;
+    if(s.online){
+      const check = await callSwift('network-check');
+      document.getElementById('status-dot').className = 'status-dot ' + (check.ok ? 'dot-online' : 'dot-offline');
+      document.getElementById('status-text').textContent = check.ok ? '网页连接正常' : issueText(check.issue);
+    }
+  }catch(e){
+    document.getElementById('status-text').textContent = '获取失败';
+  }
+}
+
+// ===== 一键诊断 =====
+async function runDiagnose(useDiagPage){
+  const btn = useDiagPage ? document.querySelector('#diag-btn') : null;
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 诊断中…'; }
+  const resultBox = document.getElementById(useDiagPage ? 'diag-result' : 'dash-result');
+  const listDiv = document.getElementById(useDiagPage ? 'diag-list' : 'dash-diag-list');
+  const finalDiv = document.getElementById(useDiagPage ? 'diag-final' : 'dash-final');
+
+  resultBox.classList.add('show');
+  listDiv.innerHTML = '<div style="text-align:center; padding:1rem; color:#888;"><span class="spinner"></span> 正在体检…</div>';
+  finalDiv.classList.remove('show');
+
+  try{
+    const data = await callSwift('diagnose');
+    const items = data.items || [];
+    let html = '';
+    let errCnt = 0, warnCnt = 0;
+    items.forEach(it => {
+      // info 项保留原字符图标（如 ① ② ③ 步骤），ok/warn/err 用表情贴图
+      const icon = it.status === 'info' ? '<div class="diag-icon">•</div>' : diagIcon(it.status);
+      html += '<div class="diag-item ' + it.status + '">' +
+                icon +
+                '<div class="diag-body">' +
+                  '<div class="diag-name">' + escapeHtml(it.name) + '</div>' +
+                  '<div class="diag-detail">' + escapeHtml(it.detail) + '</div>' +
+                  (it.advice ? '<div class="diag-advice">→ ' + escapeHtml(it.advice) + '</div>' : '') +
+                '</div>' +
+              '</div>';
+      if(it.status==='err') errCnt++;
+      if(it.status==='warn') warnCnt++;
+    });
+    listDiv.innerHTML = html;
+
+    // 通关总结（开头贴 final.png 表情）
+    let sticker, msg;
+    if(errCnt === 0 && warnCnt === 0){
+      sticker = '<img class="final-stamp" src="' + STICKER.final + '" alt="">';
+      msg = '体检全部通过，网络健康！';
+    } else if(errCnt > 0){
+      sticker = '<img class="final-stamp" src="' + STICKER.err + '" alt="">';
+      msg = '发现 ' + errCnt + ' 个问题、' + warnCnt + ' 个提醒，建议尽快处理标 ✗ 的项';
+    } else {
+      sticker = '<img class="final-stamp" src="' + STICKER.warn + '" alt="">';
+      msg = '发现 ' + warnCnt + ' 个提醒，留意但不紧急';
+    }
+    finalDiv.innerHTML = sticker + msg;
+    finalDiv.classList.add('show');
+  }catch(e){
+    listDiv.innerHTML = '<div class="diag-item err">' + diagIcon('err') + '<div class="diag-body">诊断失败：' + escapeHtml(e.message) + '</div></div>';
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = '🚀 开始诊断'; }
+  }
+}
+
+// ===== 清 DNS =====
+async function flushDns(){
+  toast('🧹 清空 DNS 缓存，请输入密码…');
+  try{
+    const d = await callSwift('flush-dns');
+    toast('✓ ' + d.message, 3000, 'ok.png');
+  }catch(e){ toast('✗ ' + e.message); }
+}
+
+// ===== 换 DNS =====
+async function setDns(){
+  const val = document.getElementById('dns-select').value;
+  const parts = val.split(',');
+  toast('🔧 设置 DNS，请输入密码…');
+  try{
+    // 获取主网卡
+    const s = await callSwift('get-status');
+    const d = await callSwift('set-dns', { iface: s.iface==='无'?'en0':s.iface, primary: parts[0], secondary: parts[1]||'' });
+    toast('✓ ' + d.message, 3000, 'ok.png');
+  }catch(e){ toast('✗ ' + e.message); }
+}
+
+// ===== 清代理 =====
+async function clearProxy(){
+  toast('🛡️ 临时关闭当前系统代理，请输入密码…');
+  try{
+    const d = await callSwift('clear-proxy');
+    toast('✓ ' + d.message, 3000, 'ok.png');
+  }catch(e){ toast('✗ ' + e.message); }
+}
+
+async function restoreProxy(){
+  toast('↩ 恢复上一次代理配置，请输入密码…');
+  try{
+    const d = await callSwift('restore-proxy');
+    toast('✓ ' + d.message, 3500, 'ok.png');
+  }catch(e){ toast('✗ ' + e.message, 4000); }
+}
+
+// ===== 续租 DHCP =====
+async function renewDhcp(){
+  toast('🔄 续租 DHCP，请输入密码…');
+  try{
+    const d = await callSwift('renew-dhcp');
+    toast('✓ ' + d.message, 3000, 'ok.png');
+  }catch(e){ toast('✗ ' + e.message); }
+}
+
+// ===== WiFi 信息 =====
+async function loadWifi(){
+  const div = document.getElementById('wifi-info');
+  div.innerHTML = '<span class="spinner"></span> 获取中…';
+  try{
+    const d = await callSwift('wifi-info');
+    if(!d.connected){
+      div.innerHTML = '<div class="diag-item warn">' + diagIcon('warn') + '<div class="diag-body">未获取到 WiFi 信息，可能是未连接 WiFi 或纯有线网络。</div></div>';
+      return;
+    }
+    div.innerHTML =
+      '<table class="info-table">' +
+        '<tr><td>信号强度 RSSI</td><td><span class="val">' + d.rssi + ' dBm</span> <span class="tag ' + d.signalLevel + '">' + d.signalLabel + '</span></td></tr>' +
+        '<tr><td>噪声 Noise</td><td><span class="val">' + d.noise + ' dBm</span></td></tr>' +
+        '<tr><td>信噪比 SNR</td><td><span class="val">' + d.snr + ' dB</span> <span class="tag ' + (d.snr>=40?'ok':(d.snr>=20?'warn':'err')) + '">' + d.snrLabel + '</span></td></tr>' +
+        '<tr><td>信道 Channel</td><td><span class="val">' + d.channel + ' (' + d.band + ')</span></td></tr>' +
+        '<tr><td>速率 Tx Rate</td><td><span class="val">' + d.txrate + ' Mbps</span></td></tr>' +
+        '<tr><td>安全协议</td><td><span class="val">' + (d.security||'—') + '</span></td></tr>' +
+      '</table>';
+  }catch(e){ div.innerHTML = '获取失败：' + escapeHtml(e.message); }
+}
+
+// ===== Ping 测试 =====
+async function runPing(){
+  const div = document.getElementById('ping-result');
+  div.innerHTML = '<span class="spinner"></span> 测试中…';
+  try{
+    const data = await callSwift('ping-test');
+    let html = '';
+    (data.items||[]).forEach(it => {
+      html += '<div class="ping-row"><span>' + it.ip + ' [' + it.name + ']</span>' +
+        (it.ok ? '<span>丢包 ' + it.loss + ' · 延迟 ' + it.avg + ' ms ✓</span>'
+               : '<span style="color:var(--wrong);">不通 ✗</span>') + '</div>';
+    });
+    div.innerHTML = html;
+  }catch(e){ div.innerHTML = '失败：' + escapeHtml(e.message); }
+}
+
+// ===== 测速 =====
+async function runSpeed(){
+  const btn = document.getElementById('speed-btn');
+  const div = document.getElementById('speed-result');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 测速中…';
+  div.innerHTML = '<span class="spinner"></span> 正在下载测试文件（约 10 秒）…';
+  try{
+    const d = await callSwift('speedtest');
+    if(!d.ok) throw new Error(d.message || '测速源不可达');
+    let level = d.mbps >= 100 ? 'ok' : (d.mbps >= 20 ? 'warn' : 'err');
+    div.innerHTML = '<div class="diag-item ' + level + '">' + diagIcon(level) + '<div class="diag-body">' +
+      '<div class="diag-name">下载速度：<span class="val">' + d.mbps + ' Mbps</span>（' + d.source + '）</div>' +
+      '<div class="diag-detail">解读：<20 慢 · 20-100 一般 · >100 快 · >500 极快</div></div></div>';
+  }catch(e){
+    div.innerHTML = '<div class="diag-item warn">' + diagIcon('warn') + '<div class="diag-body">' + escapeHtml(e.message) + '，已降级为仅延迟测试。</div></div>';
+  }finally{ btn.disabled = false; btn.innerHTML = '开始测速'; }
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ====================================================================
+// ===== 公网连通守护（每 30 秒检查公网 + 自动排查修复）=====
+// ====================================================================
+// 严格对应《初心与使命》第三条：
+// "远程连接维护（开启后每 30 秒检查一次公网连接是否通畅，
+//  不通畅的话自动排查原因并尝试修复）"
+//
+// 实现要点：
+//   - 综合检查网卡/IP、原始 IP、DNS、HTTPS 和代理端口，避免 ping 误判
+//   - 根据故障类型只执行一个对症修复，不盲目串行改配置
+//   - 每步后重新跑完整网络检查，验证网页真的恢复
+//   - 连续 3 轮（约 90s）都没修好，停止守护
+//   - 只有代理已启用且端口无监听时，才临时关闭并保留可恢复备份
+const GUARDIAN = {
+  interval: 30000,      // 检查间隔 30 秒（使命硬性要求）
+  cooldown: 180000,     // 修复成功后冷却 3 分钟（避免和正在切换的 WiFi/梯子打架）
+  maxFail: 3,           // 连续修复失败上限
+  timer: null,
+  running: false,
+  lastFix: 0,           // 上次修复成功时间戳
+  failCount: 0,         // 连续修复失败次数
+  lastFixResult: '—',   // '成功' / '失败' / '无需修复'
+  nextCheckAt: 0,
+  countdownTimer: null,
+};
+
+// 写守护日志
+function glog(msg, type){
+  const box = document.getElementById('guardian-log');
+  const line = document.createElement('div');
+  line.className = 'log-line log-' + (type||'info');
+  const ts = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+  line.innerHTML = '<span class="ts">' + ts + '</span>' + escapeHtml(msg);
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+  while(box.children.length > 80) box.removeChild(box.firstChild);
+}
+
+// 更新单个仪表
+function setGauge(id, status, val){
+  const el = document.getElementById(id);
+  if(el) el.className = 'gauge ' + status;
+  const valEl = document.getElementById(id + '-val');
+  if(valEl) valEl.textContent = val;
+}
+
+// 更新守护状态指示
+function setGuardianState(state, text){
+  const dot = document.getElementById('guardian-dot');
+  const lbl = document.getElementById('guardian-state');
+  const map = {on:'dot-guard-on', off:'dot-guard-off', fix:'dot-guard-fix'};
+  if(dot) dot.className = 'status-dot ' + (map[state]||'dot-guard-off');
+  if(lbl) lbl.textContent = text;
+}
+
+// 单步对症修复：只修诊断明确指出的那一层，修完用完整网络检查复测。
+async function tryFixStep(stepName, action){
+  glog('   → ' + stepName + '…', 'fix');
+  try{
+    await callSwift(action);
+    glog('     ✓ ' + stepName + ' 已执行', 'ok');
+  }catch(e){
+    glog('     ✗ ' + stepName + ' 失败：' + e.message, 'err');
+    return false;
+  }
+  await new Promise(r => setTimeout(r, 1500));
+  const re = await callSwift('network-check');
+  if(re.ok){
+    glog('     🎉 完整复测通过，网页、DNS 与公网均正常', 'ok');
+    return true;
+  }
+  glog('     复测仍异常：' + issueText(re.issue), 'warn');
+  return false;
+}
+
+function issueText(issue){
+  return ({
+    'no-link':'网卡没有有效 IP',
+    'stale-proxy':'系统代理已开启，但代理端口没有进程监听',
+    'no-route':'IP 直连失败',
+    'dns':'DNS 解析失败',
+    'http':'IP 与 DNS 正常，但网页请求失败',
+    'ok':'网络正常'
+  })[issue] || issue;
+}
+
+async function publicFix(issue){
+  glog('🔧 已定位：' + issueText(issue) + '，开始对症修复…', 'fix');
+  if(issue === 'dns') return tryFixStep('刷新 DNS 缓存', 'flush-dns');
+  if(issue === 'stale-proxy') return tryFixStep('备份并临时关闭失效代理', 'clear-proxy');
+  if(issue === 'no-route') return tryFixStep('为当前物理网卡续租 DHCP', 'renew-dhcp');
+  if(issue === 'http') return tryFixStep('刷新 DNS 缓存后重新建立网页连接', 'flush-dns');
+  glog('❌ 当前没有可安全自动执行的修复动作，请检查 WiFi/网线', 'err');
+  return false;
+}
+
+// 守护主检查：更新仪表 + 判定是否需要修复
+async function guardianCheck(){
+  const d = await callSwift('network-check');
+  const baseOk = !!d.ip;
+
+  setGauge('gauge-base', baseOk ? 'ok' : 'err',
+           baseOk ? (d.service + ' · ' + d.ip) : '无有效 IP');
+
+  if(d.ok){
+    setGauge('gauge-pub', 'ok', '网页正常 · HTTP ' + d.httpCode);
+  }else{
+    setGauge('gauge-pub', 'err', issueText(d.issue));
+  }
+
+  if(d.issue === 'no-link'){
+    glog('🚨 没有有效 IP，无法安全判断该操作哪块网卡，请检查 WiFi/网线。', 'err');
+    setGuardianState('fix', '基础网络异常');
+    return { needFix:false, emergency:true };
+  }
+
+  if(!d.ok){
+    glog('⚠️ ' + issueText(d.issue) + '，准备对症修复…', 'warn');
+    setGuardianState('fix', '异常·准备修复');
+    return { needFix:true, issue:d.issue };
+  }
+
+  setGuardianState('on', '守护中·公网正常');
+  GUARDIAN.failCount = 0;
+  return { needFix:false };
+}
+
+// 守护主循环
+async function guardianLoop(){
+  if(!GUARDIAN.running) return;
+
+  try{
+    const result = await guardianCheck();
+
+    if(result.emergency){
+      GUARDIAN.failCount++;
+      setGauge('gauge-fix', 'err', '无法修复 ' + GUARDIAN.failCount + '/' + GUARDIAN.maxFail);
+      updateFailcnt();
+      if(GUARDIAN.failCount >= GUARDIAN.maxFail){
+        glog('🛑 连续 3 轮没有有效网络接口，停止守护。请检查 WiFi/网线后重新开启。', 'err');
+        stopGuardian();
+        const toggle = document.getElementById('guardian-toggle');
+        if(toggle) toggle.checked = false;
+        return;
+      }
+    }else if(result.needFix){
+      // 冷却期内不重复修
+      const sinceFix = Date.now() - GUARDIAN.lastFix;
+      if(sinceFix < GUARDIAN.cooldown && GUARDIAN.lastFix > 0){
+        const left = Math.ceil((GUARDIAN.cooldown - sinceFix)/1000);
+        glog('⏳ 冷却中，' + left + 's 后才再次修复（避免和正在切换的网络打架）', 'info');
+      }else{
+        const ok = await publicFix(result.issue);
+        if(ok){
+          GUARDIAN.lastFix = Date.now();
+          GUARDIAN.failCount = 0;
+          GUARDIAN.lastFixResult = '成功';
+          setGauge('gauge-fix', 'ok', '成功');
+          setGuardianState('on', '已修复·守护中');
+        }else{
+          GUARDIAN.failCount++;
+          GUARDIAN.lastFixResult = '失败·' + GUARDIAN.failCount + '/' + GUARDIAN.maxFail;
+          setGauge('gauge-fix', 'err', '失败 ' + GUARDIAN.failCount + '/' + GUARDIAN.maxFail);
+          updateFailcnt();
+          if(GUARDIAN.failCount >= GUARDIAN.maxFail){
+            glog('🛑 连续修复失败 ' + GUARDIAN.maxFail + ' 次，停止守护。请手动排查：重启路由器 / 检查网线 / 联系运营商', 'err');
+            stopGuardian();
+            const toggle = document.getElementById('guardian-toggle');
+            if(toggle) toggle.checked = false;
+            return;
+          }
+        }
+      }
+    }
+  }catch(e){
+    glog('检查异常：' + e.message, 'err');
+  }
+
+  // 安排下一次（显示倒计时）
+  if(GUARDIAN.running){
+    GUARDIAN.nextCheckAt = Date.now() + GUARDIAN.interval;
+    startCountdown();
+    GUARDIAN.timer = setTimeout(guardianLoop, GUARDIAN.interval);
+  }
+}
+
+// 倒计时显示
+function startCountdown(){
+  clearInterval(GUARDIAN.countdownTimer);
+  GUARDIAN.countdownTimer = setInterval(updateNextCheck, 1000);
+}
+function updateNextCheck(){
+  if(!GUARDIAN.running){
+    const el = document.getElementById('gauge-next-val');
+    if(el) el.textContent = '—';
+    clearInterval(GUARDIAN.countdownTimer);
+    return;
+  }
+  const left = Math.max(0, Math.ceil((GUARDIAN.nextCheckAt - Date.now())/1000));
+  const el = document.getElementById('gauge-next-val');
+  if(el) el.textContent = left + 's';
+  if(GUARDIAN.lastFix){
+    const ago = Math.floor((Date.now()-GUARDIAN.lastFix)/1000);
+    const lf = document.getElementById('guardian-lastfix');
+    if(lf) lf.textContent = '🔧 上次修复：' + ago + 's 前';
+  }
+}
+function updateFailcnt(){
+  const el = document.getElementById('guardian-failcnt');
+  if(el) el.textContent = '连续失败：' + GUARDIAN.failCount + '/' + GUARDIAN.maxFail;
+}
+
+// 开关守护
+async function toggleGuardian(on){
+  if(on){
+    GUARDIAN.running = true;
+    GUARDIAN.failCount = 0;
+    GUARDIAN.lastFix = 0;
+    GUARDIAN.lastFixResult = '—';
+    setGauge('gauge-fix', 'warn', '—');
+    document.getElementById('guardian-panel').style.opacity = '1';
+    glog('🛡️ 公网连通守护已启动（每 ' + (GUARDIAN.interval/1000) + 's 检查一次）', 'ok');
+    setGuardianState('off', '首次检查中…');
+    await guardianLoop();
+  }else{
+    stopGuardian();
+  }
+}
+function stopGuardian(){
+  GUARDIAN.running = false;
+  clearTimeout(GUARDIAN.timer);
+  clearInterval(GUARDIAN.countdownTimer);
+  setGuardianState('off', '守护已停止');
+  const el = document.getElementById('gauge-next-val');
+  if(el) el.textContent = '—';
+  glog('🛑 守护已停止', 'warn');
+}
+
+// ====================================================================
+// ===== 公司 VPN 页面逻辑 =====
+// ====================================================================
+
+// 设状态仪表（复用守护的 setGauge，但用 ws- 前缀的 id）
+function wsSetGauge(baseId, status, val){
+  document.getElementById(baseId).className = 'gauge ' + status;
+  document.getElementById(baseId.replace('gauge','val')).textContent = val;
+}
+
+// 刷新 VPN 状态
+async function refreshVpnStatus(){
+  const btn = document.getElementById('vpn-refresh-btn');
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 检测中…'; }
+  try{
+    const d = await callSwift('vpn-status');
+    // VPN 隧道
+    wsSetGauge('ws-gauge-vpn', d.vpnConnected ? 'ok' : 'err',
+      d.vpnConnected ? '已连接' : (d.processAlive ? '连接中…' : '未连接'));
+    // 劫持路由
+    wsSetGauge('ws-gauge-route', d.routeHijacked ? 'err' : 'ok',
+      d.routeHijacked ? '存在(抢路由)' : '无');
+    // 公司 DNS 直查
+    wsSetGauge('ws-gauge-dns', d.companyDnsOk ? 'ok' : 'err',
+      d.companyDnsOk ? '可达' : '不可达');
+    // 系统实际解析（会暴露 Tailscale 抢答问题）
+    wsSetGauge('ws-gauge-gitlab', d.intranetOk ? 'ok' : 'err',
+      d.intranetOk ? ('正确·'+d.systemGitlabIp) : ('异常·'+(d.systemGitlabIp||'未解析')));
+
+    document.getElementById('ws-detail').textContent = d.detail +
+      ' · 分域DNS：' + (d.resolverInstalled ? '已安装' : '未安装') +
+      ' · 代理直连：' + (d.proxyBypassOk ? '已配置' : '未配置');
+
+    // 如果 VPN 连了但内网异常，提示用共存
+    if(d.vpnConnected && !d.intranetOk){
+      toast('⚠️ VPN已连但内网异常，建议点「一键启用共存」', 4000);
+    }
+  }catch(e){
+    document.getElementById('ws-detail').textContent = '检测失败：' + e.message;
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = '🔄 刷新'; }
+  }
+}
+
+// 连接 VPN
+async function connectVpn(){
+  const btn = document.getElementById('vpn-connect-btn');
+  const div = document.getElementById('vpn-connect-result');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 连接中…';
+  div.innerHTML = '<span class="spinner"></span> 正在调起 Tunnelblick…';
+  try{
+    const d = await callSwift('vpn-connect');
+    const level = d.alreadyConnected ? 'info' : 'ok';
+    const icon = d.alreadyConnected ? diagIcon('ok') : '<div class="diag-icon">🔌</div>';
+    div.innerHTML = '<div class="diag-item ' + level + '">' + icon + '<div class="diag-body"><div class="diag-name">' +
+      escapeHtml(d.message) + '</div></div></div>';
+    toast(d.message, 3000, d.alreadyConnected ? '' : 'ok.png');
+    // 自动刷新状态
+    setTimeout(refreshVpnStatus, 2500);
+  }catch(e){
+    div.innerHTML = '<div class="diag-item err">' + diagIcon('err') + '<div class="diag-body">连接失败：' + escapeHtml(e.message) + '</div></div>';
+  }finally{
+    btn.disabled = false; btn.innerHTML = '🔌 连接 VPN';
+  }
+}
+
+// 一键启用共存
+async function coexistVpn(){
+  const btn = document.getElementById('vpn-coexist-btn');
+  const div = document.getElementById('vpn-coexist-result');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 执行中…（请输密码）';
+  div.innerHTML = '<div class="diag-item info"><div class="diag-icon">🔐</div><div class="diag-body">请在弹出的密码框输入开机密码…</div></div>';
+  try{
+    const d = await callSwift('vpn-coexist');
+    let html = '';
+    const icon = d.allOk ? diagIcon('ok') : diagIcon('warn');
+    // 顶部总结
+    html += '<div class="diag-item ' + (d.allOk ? 'ok' : 'warn') + '">' + icon + '<div class="diag-body"><div class="diag-name">' + escapeHtml(d.message) + '</div></div></div>';
+    // 每步详情
+    (d.steps||[]).forEach(s => {
+      const stepIcon = s.ok ? diagIcon('ok') : diagIcon('err');
+      html += '<div class="diag-item ' + (s.ok ? 'ok' : 'err') + '">' + stepIcon + '<div class="diag-body"><div class="diag-name">' + escapeHtml(s.name) + '</div><div class="diag-detail">' + escapeHtml(s.detail) + '</div></div></div>';
+    });
+
+    div.innerHTML = html;
+    toast(d.allOk ? '共存已启用' : d.message, 4000, d.allOk ? 'ok.png' : 'warn.png');
+    // 刷新状态面板确认结果
+    setTimeout(refreshVpnStatus, 500);
+  }catch(e){
+    div.innerHTML = '<div class="diag-item err">' + diagIcon('err') + '<div class="diag-body">执行失败：' + escapeHtml(e.message) + '</div></div>';
+  }finally{
+    btn.disabled = false; btn.innerHTML = '🤝 一键启用共存';
+  }
+}
+
+async function resetCoexist(){
+  const btn = document.getElementById('vpn-reset-btn');
+  const div = document.getElementById('vpn-coexist-result');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 恢复中…';
+  try{
+    const d = await callSwift('vpn-coexist-reset');
+    div.innerHTML = '<div class="diag-item ok">' + diagIcon('ok') + '<div class="diag-body"><div class="diag-name">' + escapeHtml(d.message) + '</div></div></div>';
+    toast('✓ ' + d.message, 4500, 'ok.png');
+    setTimeout(refreshVpnStatus, 500);
+  }catch(e){
+    div.innerHTML = '<div class="diag-item err">' + diagIcon('err') + '<div class="diag-body">恢复失败：' + escapeHtml(e.message) + '</div></div>';
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = '↩ 恢复共存设置';
+  }
+}
+
+// ====================================================================
+// ===== lyzbcy 自推广：模态框 =====
+// ====================================================================
+function openAboutModal(){
+  document.getElementById('about-modal').classList.add('show');
+}
+function closeAboutModal(){
+  document.getElementById('about-modal').classList.remove('show');
+}
+// ESC 关闭
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape') closeAboutModal();
+});
+
+// ====================================================================
+// ===== 免密授权（helper 安装/卸载/状态检测）=====
+// ====================================================================
+
+// 检测授权状态，更新 UI
+async function checkHelperStatus(){
+  try{
+    const d = await callSwift('helper-status');
+    const installed = d.installed === true;
+    const tag = document.getElementById('auth-tag');
+    const desc = document.getElementById('auth-desc');
+    const installBtn = document.getElementById('auth-install-btn');
+    const uninstallBtn = document.getElementById('auth-uninstall-btn');
+    const hint = document.getElementById('guardian-auth-hint');
+
+    if(installed){
+      tag.textContent = '✓ 已启用';
+      tag.className = 'tag ok';
+      installBtn.style.display = 'none';
+      uninstallBtn.style.display = '';
+      if(hint) hint.innerHTML = '<strong style="color:var(--correct);">已启用免密授权，守护可无人值守保活远程连接。</strong>';
+    }else{
+      tag.textContent = '✗ 未启用';
+      tag.className = 'tag err';
+      installBtn.style.display = '';
+      uninstallBtn.style.display = 'none';
+      if(hint) hint.innerHTML = '<strong>未安装免密授权时，守护触发修复会弹密码框，无法无人值守。</strong>';
+    }
+    return installed;
+  }catch(e){
+    document.getElementById('auth-tag').textContent = '检测失败';
+    return false;
+  }
+}
+
+// 安装免密授权
+async function installHelper(){
+  const btn = document.getElementById('auth-install-btn');
+  const div = document.getElementById('auth-result');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 安装中…（请输密码）';
+  div.innerHTML = '<div class="diag-item info"><div class="diag-icon">🔐</div><div class="diag-body">请在弹出的密码框输入开机密码（<strong>这是最后一次输密码</strong>）…</div></div>';
+  try{
+    const d = await callSwift('install-helper');
+    div.innerHTML = '<div class="diag-item ok">' + diagIcon('ok') + '<div class="diag-body"><div class="diag-name">' + escapeHtml(d.message) + '</div><div class="diag-detail">所有特权操作和守护都不再需要密码。守护现在可以无人值守保活远程连接。</div></div></div>';
+    toast('✓ 免密授权已安装', 3000, 'ok.png');
+    await checkHelperStatus();
+  }catch(e){
+    div.innerHTML = '<div class="diag-item warn">' + diagIcon('warn') + '<div class="diag-body"><div class="diag-name">安装未完成</div><div class="diag-detail">' + escapeHtml(e.message) + '</div></div></div>';
+  }finally{
+    btn.disabled = false; btn.innerHTML = '🔐 安装免密授权（输一次密码）';
+  }
+}
+
+// 卸载免密授权
+async function uninstallHelper(){
+  const btn = document.getElementById('auth-uninstall-btn');
+  const div = document.getElementById('auth-result');
+  btn.disabled = true;
+  div.innerHTML = '<div class="diag-item info"><div class="diag-icon">🔐</div><div class="diag-body">请在弹出的密码框输入开机密码以卸载…</div></div>';
+  try{
+    const d = await callSwift('uninstall-helper');
+    div.innerHTML = '<div class="diag-item ok">' + diagIcon('ok') + '<div class="diag-body"><div class="diag-name">' + escapeHtml(d.message) + '</div></div></div>';
+    toast('免密授权已卸载', 2500);
+    await checkHelperStatus();
+  }catch(e){
+    div.innerHTML = '<div class="diag-item err">' + diagIcon('err') + '<div class="diag-body">卸载失败：' + escapeHtml(e.message) + '</div></div>';
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// 根据配置动态填充 VPN 页文案 + 控制引导区块
+async function applyVpnConfig(){
+  try{
+    const d = await callSwift('get-config');
+    const name = d.companyName || '公司';
+    // 填充各处公司名
+    const set = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
+    set('vpn-nav-label', name + ' VPN');
+    set('vpn-page-title', name + ' VPN');
+    set('vpn-config-name', d.vpnConfigured ? (d.configName || '（已配置）') : '（未配置）');
+    // 未配置时显示引导区块
+    const hint = document.getElementById('vpn-setup-hint');
+    if(hint) hint.style.display = d.vpnEnabled ? 'none' : 'block';
+  }catch(e){ /* 忽略，用默认文案 */ }
+}
+
+// 启动
+loadStatus();
+checkHelperStatus();
+applyVpnConfig();
+</script>
+</body>
+</html>

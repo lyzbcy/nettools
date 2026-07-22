@@ -1,0 +1,15 @@
+{
+  "company": {
+    "name": "",
+    "intranetCIDR": "",
+    "intranetDNS": [],
+    "resolverDomain": "",
+    "internalHost": "",
+    "internalProbeIP": ""
+  },
+  "vpn": {
+    "enabled": false,
+    "configName": "",
+    "clientAppPath": "/Applications/Tunnelblick.app"
+  }
+}
