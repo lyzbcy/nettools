@@ -179,6 +179,8 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
         case "uninstall-helper": return try uninstallHelper()
         case "get-config": return getConfig()
         case "save-config": return try saveConfig(args)
+        case "export-config": return exportConfig()
+        case "import-config": return try importConfig(args)
         default: throw AppFailure(message: "不支持的操作：\(action)")
         }
     }
@@ -263,36 +265,70 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
 
     // MARK: - 配置管理
 
-    /// 把配置回传给前端（脱敏：只返回 UI 需要的字段）
+    /// 把配置回传给前端（返回完整字段值，供表单回填）
     private func getConfig() -> [String: Any] {
         return [
             "companyName": companyName,
             "vpnEnabled": config.vpnEnabled,
             "vpnConfigured": !vpnName.isEmpty,
-            "configName": vpnName.isEmpty ? "" : "（已配置）",  // 不回传真实配置名，只报是否已配
+            "configName": vpnName,                    // 回传真实配置名供表单回填
             "resolverDomain": resolverDomain,
             "internalHost": gitlabHost,
+            "internalProbeIP": gitlabIP,
             "intranetCIDR": intranetCIDR,
+            "intranetDNS": companyDNS.joined(separator: ", "),  // 数组转逗号分隔供表单
             "vpnClientAppPath": vpnClientAppPath,
             "vpnClientExists": FileManager.default.fileExists(atPath: vpnClientAppPath),
             "message": config.vpnEnabled
                 ? "\(companyName) VPN 功能已启用"
-                : "VPN 功能未配置，请在 config.json 填写公司内网信息"
+                : "VPN 功能未配置，请填写下方表单或导入配置"
         ]
     }
 
     /// 保存配置（前端传完整 config 对象）
     private func saveConfig(_ args: [String: Any]) throws -> [String: Any] {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("local.zeen.nettools", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        // args 里直接传 config 对象
+        let dir = configDir()
         guard let cfg = args["config"] as? [String: Any] else {
             throw AppFailure(message: "缺少 config 参数")
         }
         let data = try JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys])
         try data.write(to: dir.appendingPathComponent("config.json"), options: .atomic)
         return ["message": "配置已保存，重新打开 app 生效"]
+    }
+
+    /// 导出配置：返回 config.json 的完整文本（含真实值），供用户复制分享给同事
+    private func exportConfig() -> [String: Any] {
+        let path = configDir().appendingPathComponent("config.json")
+        if let data = try? Data(contentsOf: path),
+           let text = String(data: data, encoding: .utf8) {
+            return ["json": text, "message": "已读取当前配置，点「复制」发给同事"]
+        }
+        return ["json": "", "message": "还没有配置文件"]
+    }
+
+    /// 导入配置：接收一段 JSON 文本，校验后覆盖写入 config.json
+    private func importConfig(_ args: [String: Any]) throws -> [String: Any] {
+        guard let text = args["json"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AppFailure(message: "请粘贴配置 JSON 文本")
+        }
+        // 校验是合法 JSON，且结构大致正确（有 company 或 vpn 键）
+        guard let data = text.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw AppFailure(message: "JSON 格式错误，请检查是否完整复制")
+        }
+        // 写入
+        let dir = configDir()
+        let pretty = try JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])
+        try pretty.write(to: dir.appendingPathComponent("config.json"), options: .atomic)
+        return ["message": "✓ 配置已导入，重新打开 app 生效"]
+    }
+
+    /// 配置目录（统一入口）
+    private func configDir() -> URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("local.zeen.nettools", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
     }
 
     /// 给 helper 调用构造配置参数（vpn-coexist 等 action 用）

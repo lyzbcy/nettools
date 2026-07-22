@@ -421,24 +421,51 @@ footer a{ color:var(--forest); font-weight:600; text-decoration:underline; }
       </div>
     </div>
 
-    <!-- 未配置时的引导区块 -->
-    <div class="card" id="vpn-setup-hint" style="border-color:var(--marker); display:none;">
-      <div class="card-head"><span class="ico">⚙️</span><h3>VPN 功能未配置</h3></div>
-      <p>要使用 VPN 共存功能，需要先填写你公司的内网信息。请编辑配置文件：</p>
-      <pre style="background:#fff; padding:.8rem; border-radius:8px; font-size:.78rem; overflow-x:auto; margin:.5rem 0;">~/Library/Application Support/local.zeen.nettools/config.json</pre>
-      <p style="font-size:.85rem;">填入以下字段后重新打开 app：</p>
-      <pre style="background:#fff; padding:.8rem; border-radius:8px; font-size:.75rem; overflow-x:auto;">{
-  "company": {
-    "name": "你的公司名",
-    "intranetCIDR": "如 10.0.0.0/8",
-    "intranetDNS": ["内网DNS1", "内网DNS2"],
-    "resolverDomain": "如 corp.example.com",
-    "internalHost": "如 gitlab.corp.example.com",
-    "internalProbeIP": "如 10.0.0.5"
-  },
-  "vpn": { "enabled": true, "configName": "Tunnelblick配置名" }
-}</pre>
-      <p style="font-size:.8rem; color:#888; margin-top:.5rem;">不知道这些值？问你的网络管理员，或用 <code>dig</code> / <code>ifconfig</code> 自查。</p>
+    <!-- 配置管理卡片（表单编辑 / 导入 / 导出 三标签）-->
+    <div class="card" id="vpn-setup-hint" style="border-color:var(--marker);">
+      <div class="card-head"><span class="ico">⚙️</span><h3>VPN 配置</h3></div>
+      <p style="font-size:.85rem;">VPN 共存需要你公司的内网信息。<strong>第一个配置的人</strong>用表单填写；<strong>已有配置的同学</strong>让他导出 JSON 发你，你用「导入」粘贴。</p>
+
+      <!-- 标签切换 -->
+      <div style="display:flex; gap:.3rem; margin:.8rem 0; border-bottom:1.5px solid var(--paper);">
+        <button class="btn btn-sm" id="tab-form" onclick="switchConfigTab('form')" style="background:var(--forest); color:var(--cream); border:none;">✏️ 表单填写</button>
+        <button class="btn btn-ghost btn-sm" id="tab-import" onclick="switchConfigTab('import')">📥 导入</button>
+        <button class="btn btn-ghost btn-sm" id="tab-export" onclick="switchConfigTab('export')">📋 导出</button>
+      </div>
+
+      <!-- 表单编辑（默认显示）-->
+      <div id="config-form-box">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.6rem .8rem;">
+          <label style="font-size:.8rem;">公司显示名<input id="f-name" type="text" placeholder="如 微盛" style="width:100%; padding:.4rem; margin-top:.2rem; border-radius:6px; border:1.5px solid var(--paper);"></label>
+          <label style="font-size:.8rem;">VPN 配置名（Tunnelblick）<input id="f-configName" type="text" placeholder="如 ss-wshoto-vpn" style="width:100%; padding:.4rem; margin-top:.2rem; border-radius:6px; border:1.5px solid var(--paper);"></label>
+          <label style="font-size:.8rem;">内网网段 CIDR<input id="f-cidr" type="text" placeholder="如 172.17.0.0/16" style="width:100%; padding:.4rem; margin-top:.2rem; border-radius:6px; border:1.5px solid var(--paper);"></label>
+          <label style="font-size:.8rem;">内网 DNS（逗号分隔）<input id="f-dns" type="text" placeholder="如 183.60.83.19, 183.60.82.98" style="width:100%; padding:.4rem; margin-top:.2rem; border-radius:6px; border:1.5px solid var(--paper);"></label>
+          <label style="font-size:.8rem;">分域 DNS 后缀<input id="f-resolver" type="text" placeholder="如 oa.com" style="width:100%; padding:.4rem; margin-top:.2rem; border-radius:6px; border:1.5px solid var(--paper);"></label>
+          <label style="font-size:.8rem;">内网探针域名<input id="f-host" type="text" placeholder="如 gitlab.oa.com" style="width:100%; padding:.4rem; margin-top:.2rem; border-radius:6px; border:1.5px solid var(--paper);"></label>
+          <label style="font-size:.8rem;">内网探针 IP<input id="f-probeIP" type="text" placeholder="如 172.17.1.150" style="width:100%; padding:.4rem; margin-top:.2rem; border-radius:6px; border:1.5px solid var(--paper);"></label>
+          <label style="font-size:.8rem; display:flex; align-items:center; gap:.4rem; padding-top:1.4rem;"><input id="f-enabled" type="checkbox" style="width:18px; height:18px;"> 启用 VPN 功能</label>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveFormConfig()" style="margin-top:.8rem;">💾 保存配置</button>
+        <p style="font-size:.72rem; color:#888; margin-top:.4rem;">保存后需重新打开 app 生效。各字段含义见 README「配置公司 VPN」。</p>
+      </div>
+
+      <!-- 导入区（默认隐藏）-->
+      <div id="config-import-box" style="display:none;">
+        <p style="font-size:.82rem; margin-bottom:.4rem;">粘贴同事发你的配置 JSON：</p>
+        <textarea id="import-textarea" rows="8" placeholder='粘贴 JSON，例如：&#10;{&#10;  "company": { ... },&#10;  "vpn": { "enabled": true, ... }&#10;}' style="width:100%; font-family:var(--font-mono); font-size:.78rem; padding:.6rem; border-radius:8px; border:1.5px solid var(--paper); resize:vertical;"></textarea>
+        <div style="display:flex; gap:.5rem; margin-top:.4rem;">
+          <button class="btn btn-primary btn-sm" onclick="doImportConfig()">✓ 导入并覆盖</button>
+        </div>
+        <p style="font-size:.75rem; color:#888; margin-top:.3rem;">⚠️ 会覆盖你当前的配置。</p>
+      </div>
+
+      <!-- 导出区（默认隐藏）-->
+      <div id="config-export-box" style="display:none;">
+        <p style="font-size:.82rem; margin-bottom:.4rem;">点下面的按钮，把当前配置复制到剪贴板，发给同事：</p>
+        <button class="btn btn-primary btn-sm" onclick="exportConfig()">📋 复制配置 JSON 到剪贴板</button>
+      </div>
+
+      <div id="config-result" style="margin-top:.6rem;"></div>
     </div>
 
     <!-- VPN 状态面板 -->
@@ -1396,20 +1423,113 @@ async function uninstallHelper(){
   }
 }
 
-// 根据配置动态填充 VPN 页文案 + 控制引导区块
+// 配置标签页切换
+function switchConfigTab(tab){
+  ['form','import','export'].forEach(t => {
+    document.getElementById('config-' + t + '-box').style.display = (t === tab) ? 'block' : 'none';
+    const btn = document.getElementById('tab-' + t);
+    btn.className = 'btn btn-sm ' + (t === tab ? '' : 'btn-ghost');
+    if(t === tab){ btn.style.background = 'var(--forest)'; btn.style.color = 'var(--cream)'; btn.style.border='none'; }
+    else { btn.style.background = ''; btn.style.color = ''; btn.style.border=''; }
+  });
+}
+
+// 回填表单（从 get-config 读当前值）
+async function loadFormConfig(){
+  try{
+    const d = await callSwift('get-config');
+    const set = (id, v) => { const el = document.getElementById(id); if(el) el.value = v || ''; };
+    set('f-name', d.companyName === '公司' ? '' : d.companyName);  // 默认值「公司」不回填
+    set('f-configName', d.configName);
+    set('f-cidr', d.intranetCIDR);
+    set('f-dns', d.intranetDNS);
+    set('f-resolver', d.resolverDomain);
+    set('f-host', d.internalHost);
+    set('f-probeIP', d.internalProbeIP);
+    document.getElementById('f-enabled').checked = d.vpnEnabled;
+  }catch(e){}
+}
+
+// 表单保存
+async function saveFormConfig(){
+  const get = id => (document.getElementById(id).value || '').trim();
+  const dns = get('f-dns').split(',').map(s => s.trim()).filter(s => s);
+  const cfg = {
+    company: {
+      name: get('f-name'),
+      intranetCIDR: get('f-cidr'),
+      intranetDNS: dns,
+      resolverDomain: get('f-resolver'),
+      internalHost: get('f-host'),
+      internalProbeIP: get('f-probeIP')
+    },
+    vpn: {
+      enabled: document.getElementById('f-enabled').checked,
+      configName: get('f-configName'),
+      clientAppPath: '/Applications/Tunnelblick.app'
+    }
+  };
+  const div = document.getElementById('config-result');
+  div.innerHTML = '<span class="spinner"></span> 保存中…';
+  try{
+    const d = await callSwift('save-config', { config: cfg });
+    div.innerHTML = '<div class="diag-item ok">' + diagIcon('ok') + '<div class="diag-body"><div class="diag-name">' + escapeHtml(d.message) + '</div></div></div>';
+    toast('✓ 配置已保存，请重新打开 app', 3500, 'ok.png');
+  }catch(e){
+    div.innerHTML = '<div class="diag-item err">' + diagIcon('err') + '<div class="diag-body">保存失败：' + escapeHtml(e.message) + '</div></div>';
+  }
+}
+
+// 根据配置动态填充 VPN 页文案
 async function applyVpnConfig(){
   try{
     const d = await callSwift('get-config');
     const name = d.companyName || '公司';
-    // 填充各处公司名
     const set = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
     set('vpn-nav-label', name + ' VPN');
     set('vpn-page-title', name + ' VPN');
     set('vpn-config-name', d.vpnConfigured ? (d.configName || '（已配置）') : '（未配置）');
-    // 未配置时显示引导区块
-    const hint = document.getElementById('vpn-setup-hint');
-    if(hint) hint.style.display = d.vpnEnabled ? 'none' : 'block';
-  }catch(e){ /* 忽略，用默认文案 */ }
+    await loadFormConfig();  // 回填表单
+  }catch(e){}
+}
+
+// 导出配置：读取当前 config.json，复制到剪贴板
+async function exportConfig(){
+  const div = document.getElementById('config-result');
+  div.innerHTML = '<span class="spinner"></span> 读取配置…';
+  try{
+    const d = await callSwift('export-config');
+    if(!d.json){ div.innerHTML = '<div class="diag-item warn">' + diagIcon('warn') + '<div class="diag-body">还没有配置可导出</div></div>'; return; }
+    // 复制到剪贴板
+    await navigator.clipboard.writeText(d.json);
+    div.innerHTML = '<div class="diag-item ok">' + diagIcon('ok') + '<div class="diag-body"><div class="diag-name">✓ 配置已复制到剪贴板</div><div class="diag-detail">直接粘贴到企微/微信发给同事。同事在 app 里点「导入配置」粘贴即可。</div></div></div>';
+    toast('✓ 配置已复制', 2500, 'ok.png');
+  }catch(e){
+    // clipboard API 可能失败，降级：显示文本让用户手动选
+    try{
+      const d2 = await callSwift('export-config');
+      div.innerHTML = '<div class="diag-item info"><div class="diag-icon">📋</div><div class="diag-body"><div class="diag-name">请手动复制以下文本：</div><textarea onclick="this.select()" style="width:100%;height:120px;margin-top:.4rem;font-size:.72rem;font-family:var(--font-mono);border-radius:6px;">' + escapeHtml(d2.json) + '</textarea></div></div>';
+    }catch(e2){ div.innerHTML = '<div class="diag-item err">' + diagIcon('err') + '<div class="diag-body">导出失败：' + escapeHtml(e2.message) + '</div></div>'; }
+  }
+}
+
+// 显示导入框（已改用 switchConfigTab，保留兼容）
+function showImportBox(){ switchConfigTab('import'); }
+
+// 执行导入
+async function doImportConfig(){
+  const text = document.getElementById('import-textarea').value.trim();
+  const div = document.getElementById('config-result');
+  if(!text){ toast('请先粘贴配置 JSON'); return; }
+  div.innerHTML = '<span class="spinner"></span> 导入中…';
+  try{
+    const d = await callSwift('import-config', { json: text });
+    div.innerHTML = '<div class="diag-item ok">' + diagIcon('ok') + '<div class="diag-body"><div class="diag-name">' + escapeHtml(d.message) + '</div></div></div>';
+    document.getElementById('import-box').style.display = 'none';
+    toast('✓ 配置已导入，请重新打开 app', 3500, 'ok.png');
+  }catch(e){
+    div.innerHTML = '<div class="diag-item err">' + diagIcon('err') + '<div class="diag-body">导入失败：' + escapeHtml(e.message) + '</div></div>';
+  }
 }
 
 // 启动
