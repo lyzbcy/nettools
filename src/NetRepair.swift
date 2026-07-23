@@ -181,6 +181,9 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
         case "save-config": return try saveConfig(args)
         case "export-config": return exportConfig()
         case "import-config": return try importConfig(args)
+        case "check-update": return try checkUpdate()
+        case "apply-update": return try applyUpdate()
+        case "quit-and-update": return try quitAndUpdate()
         default: throw AppFailure(message: "不支持的操作：\(action)")
         }
     }
@@ -340,6 +343,165 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
         if !gitlabHost.isEmpty { args += ["--host", gitlabHost] }
         if !gitlabIP.isEmpty { args += ["--probe-ip", gitlabIP] }
         return args
+    }
+
+    // MARK: - 自动更新
+
+    private let updateRepo = "lyzbcy/nettools"
+
+    /// 当前版本号（从 Info.plist 读）
+    private var currentVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+    }
+
+    /// 检查 GitHub 最新 release 版本
+    private func checkUpdate() throws -> [String: Any] {
+        let url = "https://api.github.com/repos/\(updateRepo)/releases/latest"
+        let result = run("/usr/bin/curl", [
+            "-sS", "-L", "--connect-timeout", "8", "--max-time", "15",
+            "-H", "Accept: application/vnd.github+json", url
+        ], timeout: 18)
+        guard result.status == 0,
+              let data = result.output.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return ["hasUpdate": false, "error": "无法获取版本信息"]
+        }
+        let tagName = json["tag_name"] as? String ?? ""           // "v4.3"
+        let remoteVersion = tagName.replacingOccurrences(of: "v", with: "")  // "4.3"
+        let releaseURL = json["html_url"] as? String ?? ""
+        let assets = json["assets"] as? [[String: Any]] ?? []
+        let zipURL = assets.first(where: { ($0["name"] as? String ?? "").hasSuffix(".zip") })?["browser_download_url"] as? String ?? ""
+        let releaseNotes = json["body"] as? String ?? ""
+
+        // 版本比较：把 "4.3.1" 拆成数字比
+        let hasUpdate = compareVersions(remoteVersion, currentVersion) > 0
+
+        return [
+            "hasUpdate": hasUpdate,
+            "currentVersion": currentVersion,
+            "remoteVersion": remoteVersion,
+            "zipURL": zipURL,
+            "releaseURL": releaseURL,
+            "releaseNotes": String(releaseNotes.prefix(200)),
+            "message": hasUpdate ? "发现新版本 \(remoteVersion)" : "已是最新版本 \(currentVersion)"
+        ]
+    }
+
+    /// 版本比较：返回 1 表示 a>b，-1 表示 a<b，0 表示相等
+    private func compareVersions(_ a: String, _ b: String) -> Int {
+        let pa = a.split(separator: ".").compactMap { Int($0) }
+        let pb = b.split(separator: ".").compactMap { Int($0) }
+        let maxLen = max(pa.count, pb.count)
+        for i in 0..<maxLen {
+            let na = i < pa.count ? pa[i] : 0
+            let nb = i < pb.count ? pb[i] : 0
+            if na > nb { return 1 }
+            if na < nb { return -1 }
+        }
+        return 0
+    }
+
+    /// 下载 + 安装更新：
+    /// 1. 下载 zip 到临时目录（带进度回调）
+    /// 2. 写 updater 脚本（解压→替换→去隔离→重签→重启→自删）
+    /// 3. 提示前端"即将重启"
+    /// 4. 前端确认后调 quit-and-update，app 退出，脚本接管
+    private func applyUpdate() throws -> [String: Any] {
+        // 先查最新版本拿 zipURL
+        let info = try checkUpdate()
+        guard info["hasUpdate"] as? Bool == true,
+              let zipURL = info["zipURL"] as? String, !zipURL.isEmpty else {
+            throw AppFailure(message: "没有可用的更新")
+        }
+
+        // 进度回调：通知前端下载进度
+        let tmpZip = NSTemporaryDirectory() + "nettools-update-\(UUID().uuidString).zip"
+        reportProgress(0, "正在下载…")
+
+        // 用 curl 下载（带进度写入临时文件）
+        let dlResult = run("/usr/bin/curl", [
+            "-sS", "-L", "--connect-timeout", "10", "--max-time", "120",
+            "-o", tmpZip, zipURL
+        ], timeout: 130)
+
+        guard dlResult.status == 0 else {
+            reportProgress(-1, "下载失败")
+            throw AppFailure(message: "下载失败：" + dlResult.output)
+        }
+        reportProgress(50, "下载完成，正在准备安装…")
+
+        // 当前 app 路径
+        let appPath = Bundle.main.bundlePath
+        let appDir = (appPath as NSString).deletingLastPathComponent
+        let appName = (appPath as NSString).lastPathComponent
+
+        // 写 updater 脚本（用数组拼接避免 Swift 字符串插值与 shell 冲突）
+        let updaterPath = appDir + "/.nettools-updater.sh"
+        let lines = [
+            "#!/bin/bash",
+            "# 捞鱼的网络工具自动更新脚本（由 app 生成，运行后自删）",
+            "cd '" + appDir + "'",
+            "echo '[updater] 等待旧进程退出…'",
+            "sleep 2",
+            "echo '[updater] 解压更新包…'",
+            "rm -rf /tmp/nettools-update-extract",
+            "ditto -x -k --sequesterRsrc '" + tmpZip + "' /tmp/nettools-update-extract 2>/dev/null || true",
+            "NEW_APP=$(find /tmp/nettools-update-extract -name '*.app' -maxdepth 2 -type d | head -1)",
+            "if [ -z \"$NEW_APP\" ]; then NEW_APP='/tmp/nettools-update-extract/" + appName + "'; fi",
+            "if [ ! -d \"$NEW_APP\" ]; then",
+            "  osascript -e 'display notification \"更新解压失败，请手动下载\" with title \"捞鱼的网络工具\"'",
+            "  rm -rf /tmp/nettools-update-extract '" + tmpZip + "'",
+            "  rm -f '" + updaterPath + "'",
+            "  exit 1",
+            "fi",
+            "echo '[updater] 替换旧版本…'",
+            "rm -rf '" + appPath + "'",
+            "cp -R \"$NEW_APP\" '" + appPath + "'",
+            "echo '[updater] 去隔离 + 重签…'",
+            "xattr -cr '" + appPath + "'",
+            "codesign --force --deep --sign - '" + appPath + "' 2>/dev/null",
+            "echo '[updater] 启动新版本…'",
+            "open '" + appPath + "'",
+            "echo '[updater] 清理…'",
+            "rm -rf /tmp/nettools-update-extract '" + tmpZip + "'",
+            "rm -f '" + updaterPath + "'",
+            "echo '[updater] 完成'"
+        ]
+        let script = lines.joined(separator: "\n")
+        try script.write(toFile: updaterPath, atomically: true, encoding: .utf8)
+        run("/bin/chmod", ["+x", updaterPath], timeout: 3)
+
+        reportProgress(90, "准备就绪，即将重启…")
+        return [
+            "ready": true,
+            "message": "更新已就绪，点击「立即重启更新」将关闭 app 并自动完成安装",
+            "updaterPath": updaterPath
+        ]
+    }
+
+    /// 进度回调（通过 evaluateJavaScript 通知前端）
+    private func reportProgress(_ percent: Int, _ message: String) {
+        let js = "window.__updateProgress && window.__updateProgress(\(percent), '\(message.replacingOccurrences(of: "'", with: "\\'"))')"
+        DispatchQueue.main.async { [weak self] in
+            self?.webView.evaluateJavaScript(js)
+        }
+    }
+
+    /// 退出 app 并启动 updater 脚本
+    private func quitAndUpdate() throws -> [String: Any] {
+        let appPath = Bundle.main.bundlePath
+        let appDir = (appPath as NSString).deletingLastPathComponent
+        let updaterPath = appDir + "/.nettools-updater.sh"
+        guard FileManager.default.isExecutableFile(atPath: updaterPath) else {
+            throw AppFailure(message: "找不到更新脚本，请重新检测更新")
+        }
+        // 后台启动 updater（nohup 确保脱离 app 进程存活）
+        run("/usr/bin/nohup", [updaterPath], timeout: 2)
+        // 延迟 0.5s 退出，让 updater 启动
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            NSApp.terminate(nil)
+        }
+        return ["message": "正在退出并安装更新…"]
     }
 
     // MARK: - Process helpers

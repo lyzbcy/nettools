@@ -266,6 +266,26 @@ footer a{ color:var(--forest); font-weight:600; text-decoration:underline; }
 .dot-guard-off{ background:#bbb; }
 .dot-guard-fix{ background:#e0b020; }
 
+/* ===== 更新提示条 ===== */
+.update-banner{
+  position:fixed; top:.8rem; left:50%; transform:translateX(-50%) translateY(-80px);
+  background:var(--forest); color:var(--cream); padding:.6rem 1.2rem; border-radius:var(--radius-pill);
+  font-size:.85rem; box-shadow:0 4px 16px rgba(0,0,0,.2); z-index:997;
+  display:flex; align-items:center; gap:.6rem; transition:transform .3s;
+  border:1.5px solid var(--marker); cursor:pointer;
+}
+.update-banner.show{ transform:translateX(-50%) translateY(0); }
+.update-banner:hover{ background:#2a4d33; }
+.update-banner .close-x{ opacity:.5; font-size:1.1rem; padding-left:.4rem; border-left:1px solid rgba(250,246,235,.2); margin-left:.3rem; }
+.update-banner .close-x:hover{ opacity:1; }
+
+/* ===== 更新进度模态框 ===== */
+.update-progress-box{ padding:1.5rem; text-align:center; }
+.update-progress-box h3{ color:var(--forest); margin-bottom:.6rem; }
+.progress-track{ width:100%; height:10px; background:var(--paper); border-radius:5px; overflow:hidden; margin:1rem 0; }
+.progress-fill{ height:100%; background:var(--forest); border-radius:5px; transition:width .3s; }
+.update-progress-box .status-text{ font-size:.82rem; color:#666; }
+
 /* toast 提示 */
 .toast{
   position:fixed; bottom:2rem; left:50%; transform:translateX(-50%) translateY(100px);
@@ -334,13 +354,29 @@ footer a{ color:var(--forest); font-weight:600; text-decoration:underline; }
 .modal-qr .qc p{ font-size:.66rem; color:#888; line-height:1.3; margin-top:.15rem; }
 .modal-foot{ text-align:center; padding:.6rem; font-size:.72rem; color:#999; border-top:1px solid var(--paper); }
 .modal-foot a{ color:var(--forest); font-weight:600; text-decoration:underline; }
+
+/* ===== 操作日志 ===== */
+.log-btn-sidebar{
+  margin-top:.6rem; padding:.45rem .7rem; border-radius:8px; cursor:pointer;
+  font-size:.78rem; color:rgba(250,246,235,.6); display:flex; align-items:center; gap:.4rem;
+  transition:background .15s,color .15s;
+}
+.log-btn-sidebar:hover{ background:rgba(250,246,235,.1); color:var(--cream); }
+/* log 条目颜色 */
+.log-entry{ padding:.1rem 0; display:flex; gap:.5rem; }
+.log-ts{ color:#aaa; flex-shrink:0; }
+.log-msg-l.req{ color:#555; }
+.log-msg-l.ok{ color:var(--correct); }
+.log-msg-l.err{ color:var(--wrong); }
+.log-msg-l.warn{ color:#a07d10; }
+.log-msg-l.info{ color:#555; }
 </style>
 </head>
 <body>
 
 <!-- ===== 左侧边栏 ===== -->
 <aside class="sidebar">
-  <div class="brand">🌐 捞鱼的网络工具<small>v4.2 · macOS</small></div>
+  <div class="brand">🌐 捞鱼的网络工具<small>v4.4 · macOS</small></div>
 
   <div class="nav-section">
     <div class="nav-title">功能</div>
@@ -362,6 +398,10 @@ footer a{ color:var(--forest); font-weight:600; text-decoration:underline; }
       <div class="name">捞鱼工作室</div>
       <div class="sig">一个弱小但有梦想的开发者</div>
     </div>
+  </div>
+
+  <div class="log-btn-sidebar" onclick="showLog()" title="查看操作日志">
+    <span>📋</span><span>操作日志</span>
   </div>
 </aside>
 
@@ -647,7 +687,7 @@ footer a{ color:var(--forest); font-weight:600; text-decoration:underline; }
   <section class="page" id="page-about">
     <div class="about-hero">
       <img class="big-avatar" src="img/avatar.png" alt="捞鱼">
-      <h2>捞鱼的网络工具 v4.2</h2>
+      <h2>捞鱼的网络工具 v4.4</h2>
       <div class="studio-tag">捞鱼工作室出品</div>
       <p class="sig">「一个弱小但有梦想的开发者」</p>
       <img class="hero-mascot" src="img/sticker/mascot.png" alt="星星布丁·飞天">
@@ -683,11 +723,30 @@ footer a{ color:var(--forest); font-weight:600; text-decoration:underline; }
     </div>
 
     <footer>
-      由 <a href="https://lyzbcy.github.io/" target="_blank" rel="noopener">捞鱼</a> 制作 · 捞鱼的网络工具 v4.2 · 2026
+      由 <a href="https://lyzbcy.github.io/" target="_blank" rel="noopener">捞鱼</a> 制作 · 捞鱼的网络工具 v4.4 · 2026
     </footer>
   </section>
 
 </main>
+
+<!-- ===== 操作日志模态框 ===== -->
+<div class="modal-mask" id="log-modal" onclick="if(event.target===this)closeLog()">
+  <div class="modal" style="width:560px;max-width:92vw;">
+    <button class="modal-close" onclick="closeLog()" aria-label="关闭">×</button>
+    <div style="padding:1.2rem 1.5rem 1rem;background:var(--paper);border-radius:16px 16px 0 0;position:relative;">
+      <h3 style="font-family:var(--font-head);color:var(--forest);display:flex;align-items:center;gap:.5rem;">
+        📋 操作日志
+        <span style="font-size:.72rem;font-weight:400;color:#888;margin-left:auto;">最近 50 条 · 仅内存（重启清空）</span>
+      </h3>
+    </div>
+    <div id="log-list" style="padding:.8rem 1.2rem 1.4rem;max-height:60vh;overflow-y:auto;font-family:var(--font-mono);font-size:.76rem;line-height:1.7;">
+    </div>
+    <div style="padding:.6rem 1.5rem;border-top:1px solid var(--paper);display:flex;gap:.6rem;">
+      <button class="btn btn-ghost btn-sm" onclick="copyLog()">📋 复制全部</button>
+      <button class="btn btn-ghost btn-sm" onclick="clearLog()">🗑 清空</button>
+    </div>
+  </div>
+</div>
 
 <!-- ===== lyzbcy 自推广：右下浮条 ===== -->
 <div class="float-btn" id="about-fab" onclick="openAboutModal()" title="关于捞鱼">
@@ -735,6 +794,28 @@ footer a{ color:var(--forest); font-weight:600; text-decoration:underline; }
 
 <div class="toast" id="toast"></div>
 
+<!-- ===== 更新提示条 ===== -->
+<div class="update-banner" id="update-banner" onclick="startUpdate()" style="display:none;">
+  <span>🔄</span>
+  <span id="update-banner-text">发现新版本</span>
+  <span class="close-x" onclick="event.stopPropagation(); dismissUpdate();">×</span>
+</div>
+
+<!-- ===== 更新进度模态框 ===== -->
+<div class="modal-mask" id="update-modal" onclick="if(event.target===this && false)closeUpdateModal()">
+  <div class="modal" style="width:420px;max-width:92vw;">
+    <div class="update-progress-box">
+      <h3 id="update-modal-title">🔄 正在更新</h3>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%;"></div></div>
+      <div class="status-text" id="update-status">准备中…</div>
+      <div id="update-confirm-btns" style="display:none;margin-top:1rem;">
+        <button class="btn btn-primary" onclick="confirmQuitAndUpdate()">✓ 立即重启更新</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeUpdateModal()">稍后</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ===== 页面切换 =====
 function switchPage(name){
@@ -749,7 +830,16 @@ document.querySelectorAll('.nav-item').forEach(n => {
 
 // ===== Swift 通信层 =====
 let reqSeq = 1;
-const pending = {};   // reqId -> {resolve, reject}
+const pending = {};   // reqId -> {resolve, reject, timer, _action, _ts}
+
+// ===== 内存日志（ring buffer，默认 50 条，不写盘）=====
+const LOG_MAX = 50;
+const APP_LOG = [];   // {ts, level, msg}
+function pushLog(level, msg){
+  APP_LOG.push({ ts: new Date(), level: level, msg: msg });
+  while(APP_LOG.length > LOG_MAX) APP_LOG.shift();
+}
+pushLog('info', 'app 启动');
 
 function callSwift(action, args){
   const reqId = reqSeq++;
@@ -758,14 +848,21 @@ function callSwift(action, args){
     const timer = setTimeout(() => {
       if(!pending[reqId]) return;
       delete pending[reqId];
+      pushLog('err', action + ' 超时');
       reject(new Error('操作等待超时，请确认系统授权窗口是否被遮挡'));
     }, privileged ? 150000 : 35000);
-    pending[reqId] = { resolve, reject, timer };
+    pending[reqId] = {
+      resolve, reject, timer,
+      _action: action,
+      _ts: Date.now()
+    };
+    pushLog('req', action);
     try {
       window.webkit.messageHandlers.netrepair.postMessage({ action: action, args: args || {}, reqId: reqId });
     } catch(e){
       clearTimeout(timer);
       delete pending[reqId];
+      pushLog('err', action + ' 发送失败: ' + e.message);
       reject(e);
     }
   });
@@ -778,8 +875,14 @@ window.__handleResult = function(payload){
   if(!slot) return;
   clearTimeout(slot.timer);
   delete pending[p.reqId];
-  if(p.ok) slot.resolve(p.data);
-  else slot.reject(new Error(p.error || '操作失败'));
+  const duration = slot._ts ? (Date.now() - slot._ts) + 'ms' : '';
+  if(p.ok){
+    pushLog('ok', slot._action + ' ✓ ' + duration);
+    slot.resolve(p.data);
+  } else {
+    pushLog('err', slot._action + ' ✗ ' + (p.error || '失败') + ' ' + duration);
+    slot.reject(new Error(p.error || '操作失败'));
+  }
 };
 
 // ===== Toast（成功时附星星布丁贴图）=====
@@ -1013,8 +1116,9 @@ const GUARDIAN = {
   countdownTimer: null,
 };
 
-// 写守护日志
+// 写守护日志（同时进全局 APP_LOG）
 function glog(msg, type){
+  pushLog(type || 'info', '[守护] ' + msg);
   const box = document.getElementById('guardian-log');
   const line = document.createElement('div');
   line.className = 'log-line log-' + (type||'info');
@@ -1347,9 +1451,44 @@ function openAboutModal(){
 function closeAboutModal(){
   document.getElementById('about-modal').classList.remove('show');
 }
+
+// ===== 操作日志 =====
+function showLog(){
+  const box = document.getElementById('log-list');
+  if(APP_LOG.length === 0){
+    box.innerHTML = '<div style="text-align:center;color:#888;padding:2rem;">暂无日志</div>';
+  } else {
+    box.innerHTML = APP_LOG.map(function(e){
+      const ts = e.ts.toLocaleTimeString('zh-CN', {hour12:false}) + '.' + String(e.ts.getMilliseconds()).padStart(3,'0');
+      const icon = e.level==='ok'?'✓':(e.level==='err'?'✗':(e.level==='warn'?'⚠':(e.level==='req'?'→':'•')));
+      return '<div class="log-entry"><span class="log-ts">' + ts + '</span>' +
+             '<span class="log-msg-l ' + e.level + '">' + icon + ' ' + escapeHtml(e.msg) + '</span></div>';
+    }).join('');
+  }
+  box.scrollTop = box.scrollHeight;
+  document.getElementById('log-modal').classList.add('show');
+}
+function closeLog(){
+  document.getElementById('log-modal').classList.remove('show');
+}
+function copyLog(){
+  const text = APP_LOG.map(function(e){
+    return e.ts.toLocaleTimeString('zh-CN',{hour12:false}) + ' [' + e.level + '] ' + e.msg;
+  }).join('\n');
+  navigator.clipboard.writeText(text).then(function(){
+    toast('✓ 日志已复制', 2000);
+  }).catch(function(){
+    toast('复制失败，请手动选择', 2000);
+  });
+}
+function clearLog(){
+  APP_LOG.length = 0;
+  pushLog('info', '日志已手动清空');
+  showLog();
+}
 // ESC 关闭
 document.addEventListener('keydown', e => {
-  if(e.key === 'Escape') closeAboutModal();
+  if(e.key === 'Escape'){ closeAboutModal(); closeLog(); }
 });
 
 // ====================================================================
@@ -1532,10 +1671,83 @@ async function doImportConfig(){
   }
 }
 
+// ====================================================================
+// ===== 自动更新（启动时检测 + 进度条 + 全自动安装重启）=====
+// ====================================================================
+let updateInfo = null;  // 缓存 check-update 结果
+
+// 进度回调（Swift 通过 evaluateJavaScript 调用）
+window.__updateProgress = function(percent, msg){
+  const fill = document.getElementById('progress-fill');
+  const status = document.getElementById('update-status');
+  if(fill) fill.style.width = Math.max(0, percent) + '%';
+  if(status && msg) status.textContent = msg;
+};
+
+// 启动时检测更新
+async function checkForUpdate(){
+  try{
+    const d = await callSwift('check-update');
+    if(d.hasUpdate){
+      updateInfo = d;
+      document.getElementById('update-banner-text').textContent = '发现新版本 ' + d.remoteVersion + ' · 点击更新';
+      document.getElementById('update-banner').style.display = 'flex';
+      setTimeout(() => document.getElementById('update-banner').classList.add('show'), 100);
+      pushLog('info', '[更新] 发现新版本 ' + d.remoteVersion + '（当前 ' + d.currentVersion + '）');
+    }else{
+      pushLog('info', '[更新] 已是最新版本 ' + d.currentVersion);
+    }
+  }catch(e){
+    pushLog('warn', '[更新] 检测失败: ' + e.message);
+  }
+}
+
+// 关闭提示条
+function dismissUpdate(){
+  document.getElementById('update-banner').classList.remove('show');
+  setTimeout(() => document.getElementById('update-banner').style.display = 'none', 300);
+}
+
+// 开始更新（显示进度框 + 下载）
+async function startUpdate(){
+  document.getElementById('update-banner').style.display = 'none';
+  document.getElementById('update-modal').classList.add('show');
+  document.getElementById('update-confirm-btns').style.display = 'none';
+  document.getElementById('progress-fill').style.width = '0%';
+  document.getElementById('update-status').textContent = '正在下载…';
+  try{
+    const d = await callSwift('apply-update');
+    if(d.ready){
+      document.getElementById('progress-fill').style.width = '100%';
+      document.getElementById('update-status').innerHTML = '✅ ' + escapeHtml(d.message);
+      document.getElementById('update-confirm-btns').style.display = 'block';
+    }
+  }catch(e){
+    document.getElementById('update-status').innerHTML = '❌ ' + escapeHtml(e.message);
+    document.getElementById('update-status').style.color = 'var(--wrong)';
+  }
+}
+
+// 确认退出并安装
+async function confirmQuitAndUpdate(){
+  document.getElementById('update-confirm-btns').style.display = 'none';
+  document.getElementById('update-status').textContent = '正在退出并安装…';
+  try{
+    await callSwift('quit-and-update');
+  }catch(e){
+    // app 即将退出，这里可能不会执行
+  }
+}
+
+function closeUpdateModal(){
+  document.getElementById('update-modal').classList.remove('show');
+}
+
 // 启动
 loadStatus();
 checkHelperStatus();
 applyVpnConfig();
+checkForUpdate();
 </script>
 </body>
 </html>

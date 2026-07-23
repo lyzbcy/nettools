@@ -5,8 +5,8 @@
     <key>CFBundleName</key><string>捞鱼的网络工具</string>
     <key>CFBundleDisplayName</key><string>捞鱼的网络工具</string>
     <key>CFBundleIdentifier</key><string>local.zeen.nettools</string>
-    <key>CFBundleVersion</key><string>4.2</string>
-    <key>CFBundleShortVersionString</key><string>4.2</string>
+    <key>CFBundleVersion</key><string>4.4</string>
+    <key>CFBundleShortVersionString</key><string>4.4</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleExecutable</key><string>NetRepair</string>
     <key>CFBundleIconFile</key><string>icon</string>
