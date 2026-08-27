@@ -651,6 +651,23 @@ footer a{ color:var(--forest); font-weight:600; text-decoration:underline; }
       </div>
     </div>
 
+    <!-- 超级守护（开机自启 + 连续失败重启）-->
+    <div class="card guardian-card" id="super-guard-card" style="border-color:var(--brick);">
+      <div class="guardian-head">
+        <div class="card-head"><span class="ico">🔥</span><h3>超级守护</h3></div>
+        <label class="switch">
+          <input type="checkbox" id="super-guard-toggle" onchange="toggleSuperGuard(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <p><strong>开机自启 + 公网守护 + 连续失败自动重启。</strong>开启后：① 电脑开机自动启动 app 并打开公网守护；② 连续 3 次自动修复失败后，电脑弹窗提示将在 <strong>3 分钟后自动重启</strong>（可取消）；③ 重启后再次自动进入守护。适合远程连接保活、无人值守场景。</p>
+      <p style="font-size:.78rem;color:var(--brick);margin-top:.4rem;">⚠️ 需要「免密授权」已安装。超级守护的自动重启会关闭所有应用，请确保重要工作已保存。</p>
+      <div class="guardian-meta">
+        <span class="status-pill"><span class="status-dot" id="sg-autostart-dot"></span><span id="sg-autostart-state">开机自启：检测中</span></span>
+        <span id="sg-guard-state">守护：未启动</span>
+      </div>
+    </div>
+
     <div class="grid">
       <div class="card">
         <div class="card-head"><span class="ico">🧹</span><h3>清空 DNS 缓存</h3></div>
@@ -799,6 +816,23 @@ footer a{ color:var(--forest); font-weight:600; text-decoration:underline; }
   <span>🔄</span>
   <span id="update-banner-text">发现新版本</span>
   <span class="close-x" onclick="event.stopPropagation(); dismissUpdate();">×</span>
+</div>
+
+<!-- ===== 超级守护重启倒计时弹窗（全屏遮罩）===== -->
+<div class="modal-mask" id="restart-modal" style="background:rgba(181,72,42,.6);">
+  <div class="modal" style="width:480px;max-width:92vw;border-color:var(--brick);">
+    <div style="padding:2rem;text-align:center;">
+      <div style="font-size:3rem;margin-bottom:.5rem;">⚠️</div>
+      <h2 style="color:var(--brick);font-family:var(--font-head);margin-bottom:.5rem;">网络持续异常</h2>
+      <p style="color:#555;font-size:.9rem;margin-bottom:1rem;">公网守护已连续 3 次自动修复失败。为恢复网络，电脑将在以下时间后<strong>自动重启</strong>：</p>
+      <div id="restart-countdown" style="font-size:3rem;font-weight:700;color:var(--brick);font-family:var(--font-mono);margin:1rem 0;">3:00</div>
+      <p style="font-size:.8rem;color:#888;margin-bottom:1.5rem;">请保存你的工作。重启后 app 会自动打开并继续守护。</p>
+      <div style="display:flex;gap:.6rem;justify-content:center;">
+        <button class="btn btn-primary" onclick="cancelRestart()" style="background:var(--brick);">✕ 取消重启</button>
+        <button class="btn btn-ghost" onclick="restartNow()">🔄 立即重启</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ===== 更新进度模态框 ===== -->
@@ -1256,11 +1290,18 @@ async function guardianLoop(){
           setGauge('gauge-fix', 'err', '失败 ' + GUARDIAN.failCount + '/' + GUARDIAN.maxFail);
           updateFailcnt();
           if(GUARDIAN.failCount >= GUARDIAN.maxFail){
-            glog('🛑 连续修复失败 ' + GUARDIAN.maxFail + ' 次，停止守护。请手动排查：重启路由器 / 检查网线 / 联系运营商', 'err');
-            stopGuardian();
-            const toggle = document.getElementById('guardian-toggle');
-            if(toggle) toggle.checked = false;
-            return;
+            if(SUPER_GUARD.active){
+              // 超级守护开着 → 触发重启倒计时
+              glog('🚨🚨🚨 连续修复失败 ' + GUARDIAN.maxFail + ' 次，超级守护触发自动重启倒计时！', 'err');
+              triggerRestartCountdown();
+              return;
+            }else{
+              glog('🛑 连续修复失败 ' + GUARDIAN.maxFail + ' 次，停止守护。请手动排查：重启路由器 / 检查网线 / 联系运营商', 'err');
+              stopGuardian();
+              const toggle = document.getElementById('guardian-toggle');
+              if(toggle) toggle.checked = false;
+              return;
+            }
           }
         }
       }
@@ -1319,6 +1360,134 @@ async function toggleGuardian(on){
     stopGuardian();
   }
 }
+// ====================================================================
+// ===== 超级守护（开机自启 + 连续失败自动重启）=====
+// ====================================================================
+const SUPER_GUARD = {
+  active: false,       // 超级守护是否激活
+  countdownTimer: null, // 重启倒计时定时器
+  restartTimer: null,   // 实际重启的延时
+};
+
+// 超级守护开/关
+async function toggleSuperGuard(on){
+  if(on){
+    // 检查免密授权
+    const helperOn = await checkHelperStatus();
+    if(!helperOn){
+      toast('⚠️ 超级守护需要先安装免密授权');
+      document.getElementById('super-guard-toggle').checked = false;
+      return;
+    }
+    // 启用开机自启
+    try{ await callSwift('enable-autostart'); }catch(e){}
+    // 开启公网守护
+    GUARDIAN.maxFail = 3;  // 3 次失败触发重启
+    SUPER_GUARD.active = true;
+    document.getElementById('sg-autostart-state').textContent = '开机自启：✓ 已启用';
+    document.getElementById('sg-autostart-dot').className = 'status-dot dot-guard-on';
+    document.getElementById('sg-guard-state').textContent = '守护：超级模式';
+    // 联动打开公网守护开关
+    const gToggle = document.getElementById('guardian-toggle');
+    if(gToggle && !gToggle.checked){ gToggle.checked = true; await toggleGuardian(true); }
+    pushLog('info', '[超级守护] 已启用：开机自启 + 连续3次失败自动重启');
+    glog('🔥 超级守护已启用（开机自启 + 自动重启）', 'ok');
+  }else{
+    SUPER_GUARD.active = false;
+    try{ await callSwift('disable-autostart'); }catch(e){}
+    document.getElementById('sg-autostart-state').textContent = '开机自启：已关闭';
+    document.getElementById('sg-autostart-dot').className = 'status-dot dot-guard-off';
+    document.getElementById('sg-guard-state').textContent = '守护：未启动';
+    pushLog('info', '[超级守护] 已关闭');
+  }
+}
+
+// 查自启状态（启动时调）
+async function checkSuperGuardStatus(){
+  try{
+    const d = await callSwift('autostart-status');
+    const dot = document.getElementById('sg-autostart-dot');
+    const lbl = document.getElementById('sg-autostart-state');
+    if(d.enabled){
+      dot.className = 'status-dot dot-guard-on';
+      lbl.textContent = '开机自启：✓ 已启用';
+      // 自启开着说明之前开了超级守护，恢复 active 状态
+      SUPER_GUARD.active = true;
+      document.getElementById('sg-guard-state').textContent = '守护：超级模式';
+      // 同步开关
+      const sg = document.getElementById('super-guard-toggle');
+      if(sg) sg.checked = true;
+    }else{
+      dot.className = 'status-dot dot-guard-off';
+      lbl.textContent = '开机自启：未启用';
+    }
+  }catch(e){}
+}
+
+// 触发重启倒计时（连续3次失败后调）
+function triggerRestartCountdown(){
+  const modal = document.getElementById('restart-modal');
+  const display = document.getElementById('restart-countdown');
+  modal.classList.add('show');
+  let seconds = 180; // 3分钟
+
+  // 发系统通知
+  try{
+    callSwift('send-notification', {
+      title: '捞鱼的网络工具 · 超级守护',
+      message: '网络连续3次修复失败，电脑将在3分钟后自动重启。点击 app 取消。'
+    });
+  }catch(e){}
+
+  // 倒计时
+  function tick(){
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    display.textContent = m + ':' + String(s).padStart(2, '0');
+    // 每 60 秒发一次通知
+    if(seconds === 120 || seconds === 60){
+      try{
+        callSwift('send-notification', {
+          title: '捞鱼的网络工具 · 重启倒计时',
+          message: seconds + ' 秒后自动重启，请保存工作。'
+        });
+      }catch(e){}
+    }
+    if(seconds <= 0){
+      clearInterval(SUPER_GUARD.countdownTimer);
+      display.textContent = '正在重启…';
+      // 执行重启
+      try{ callSwift('restart-system'); }catch(e){}
+      return;
+    }
+    seconds--;
+  }
+  tick();
+  SUPER_GUARD.countdownTimer = setInterval(tick, 1000);
+}
+
+// 取消重启
+function cancelRestart(){
+  clearInterval(SUPER_GUARD.countdownTimer);
+  document.getElementById('restart-modal').classList.remove('show');
+  pushLog('warn', '[超级守护] 用户取消了自动重启');
+  glog('🛑 用户取消了自动重启。守护已停止，请手动排查网络', 'warn');
+  stopGuardian();
+  const gToggle = document.getElementById('guardian-toggle');
+  if(gToggle) gToggle.checked = false;
+  // 取消后超级守护也停（避免马上又触发）
+  SUPER_GUARD.active = false;
+  const sg = document.getElementById('super-guard-toggle');
+  if(sg) sg.checked = false;
+}
+
+// 立即重启
+function restartNow(){
+  clearInterval(SUPER_GUARD.countdownTimer);
+  document.getElementById('restart-countdown').textContent = '正在重启…';
+  try{ callSwift('restart-system'); }catch(e){}
+}
+
 function stopGuardian(){
   GUARDIAN.running = false;
   clearTimeout(GUARDIAN.timer);
@@ -1748,6 +1917,7 @@ loadStatus();
 checkHelperStatus();
 applyVpnConfig();
 checkForUpdate();
+checkSuperGuardStatus();
 </script>
 </body>
 </html>

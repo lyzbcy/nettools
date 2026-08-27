@@ -74,6 +74,23 @@ private func validIface(_ s: String) -> Bool {
     s.range(of: ifacePattern, options: .regularExpression) != nil
 }
 
+/// 合法主机名/域名（含通配符前缀 *.）
+private func validDomain(_ s: String) -> Bool {
+    s.range(of: #"^(\*\.)?[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$"#, options: .regularExpression) != nil
+}
+
+/// 合法 bypass 条目：域名（可带 *.）或 IP（可带 /CIDR 或 :port），或 localhost 等保留字
+/// 用于过滤误混入的命令输出垃圾（如 "cp: ... Permission denied"）
+private func validBypassDomain(_ s: String) -> Bool {
+    let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !t.isEmpty, t.count < 100, !t.contains(" ") else { return false }
+    if t == "localhost" || t == "*.local" || t == "127.0.0.1" || t == "<local>" { return true }
+    if validDomain(t) { return true }
+    // IP 或 IP/CIDR 或 IP:port
+    if t.range(of: #"^\d{1,3}(\.\d{1,3}){3}(/\d{1,2})?(:\d{1,5})?$"#, options: .regularExpression) != nil { return true }
+    return false
+}
+
 /// 网卡名转网络服务名（Wi-Fi / 以太网 等）
 private func serviceForDevice(_ device: String) -> String {
     let out = shell("/usr/sbin/networksetup -listnetworkserviceorder 2>/dev/null").output
@@ -143,13 +160,11 @@ private func doSetDNS(_ args: [String: String]) {
     let service = args["service"].flatMap { $0.isEmpty ? nil : $0 } ?? activeService()
     let secondary = args["secondary"] ?? ""
 
-    var cmd = "/usr/sbin/networksetup -setdnsservers '\(service)' "
+    var cmd: String
     if primary == "empty" {
-        cmd += "empty"
+        cmd = "/usr/sbin/networksetup -setdnsservers " + quote(service) + " empty"
     } else {
         guard validIP(primary) else { output(false, "primary IP 格式错误", action: "set-dns") }
-        cmd += "'\(primary)'"
-        // service 名里可能带引号，转义
         cmd = "/usr/sbin/networksetup -setdnsservers " + quote(service) + " " + quote(primary)
         if !secondary.isEmpty {
             guard validIP(secondary) else { output(false, "secondary IP 格式错误", action: "set-dns") }
@@ -162,16 +177,9 @@ private func doSetDNS(_ args: [String: String]) {
 }
 
 /// action: clear-proxy --service X
+/// 注：代理备份由主程序在调用前写入（结构化 JSON），helper 不再覆盖它
 private func doClearProxy(_ args: [String: String]) {
     let service = args["service"].flatMap { $0.isEmpty ? nil : $0 } ?? activeService()
-    // 先备份（写到 app support 目录，用调用者用户家目录）
-    let home = NSHomeDirectory()
-    let backupDir = home + "/Library/Application Support/local.zeen.nettools"
-    shell("/bin/mkdir -p '\(backupDir)'")
-    let snapshot = shell("/usr/sbin/networksetup -getwebproxy \(quote(service)); /usr/sbin/networksetup -getsecurewebproxy \(quote(service)); /usr/sbin/networksetup -getsocksfirewallproxy \(quote(service)); /usr/sbin/networksetup -getautoproxyurl \(quote(service)); /usr/sbin/networksetup -getproxybypassdomains \(quote(service))").output
-    let backup = "{ \"service\": \"\(service)\", \"snapshot\": \"\(snapshot.replacingOccurrences(of: "\"", with: "\\\""))\", \"ts\": \(Int(Date().timeIntervalSince1970)) }"
-    try? backup.write(toFile: backupDir + "/proxy-backup.json", atomically: true, encoding: .utf8)
-
     let cmd = [
         "/usr/sbin/networksetup -setwebproxystate \(quote(service)) off",
         "/usr/sbin/networksetup -setsecurewebproxystate \(quote(service)) off",
@@ -182,19 +190,59 @@ private func doClearProxy(_ args: [String: String]) {
     output(r.status == 0, "已临时关闭 \(service) 的系统代理", r.output, action: "clear-proxy")
 }
 
-/// action: restore-proxy
-private func doRestoreProxy() {
-    let home = NSHomeDirectory()
-    let path = home + "/Library/Application Support/local.zeen.nettools/proxy-backup.json"
-    guard let data = try? String(contentsOfFile: path) else {
-        output(false, "没有可恢复的代理备份", action: "restore-proxy")
+/// action: restore-proxy — 完整恢复代理（主程序解析备份后传结构化参数）
+/// 参数：--service X
+///   --web/--secure/--socks "server:port:on|off"（空串跳过）
+///   --auto "url:on|off"（空串跳过）
+///   --bypass "domain1,domain2,..."（空串跳过）
+private func doRestoreProxy(_ args: [String: String]) {
+    guard let service = args["service"], !service.isEmpty else {
+        output(false, "缺少 service 参数", action: "restore-proxy")
     }
-    // 备份格式简单，只记录了 service 和原始 snapshot 文本
-    // 恢复时只能恢复"代理关闭前的开启状态"——但由于 snapshot 是文本，这里简化为重新解析
-    // 实际上 clear-proxy 备份了原始配置，但完整恢复需要解析每个字段
-    // 简化实现：读取 service，把代理状态恢复为 on（如果备份里有 Server/Port）
-    // 注：主程序的 restoreProxy 逻辑更完整，这里作为 helper 简化版
-    output(true, "代理备份已读取，请用主程序完整恢复", action: "restore-proxy")
+    var commands: [String] = []
+    func restoreProxyItem(_ spec: String, setFlag: String, stateFlag: String) -> Bool {
+        // spec: "server:port:on|off"
+        guard !spec.isEmpty else { return true }
+        let parts = spec.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 3, validIP(parts[0]) || validDomain(parts[0]),
+              let port = Int(parts[1]), port > 0 && port < 65536,
+              parts[2] == "on" || parts[2] == "off" else { return false }
+        if parts[2] == "on" {
+            commands.append("/usr/sbin/networksetup \(setFlag) \(quote(service)) \(quote(parts[0])) \(quote(String(port)))")
+        }
+        commands.append("/usr/sbin/networksetup \(stateFlag) \(quote(service)) \(parts[2])")
+        return true
+    }
+    guard restoreProxyItem(args["web"] ?? "", setFlag: "-setwebproxy", stateFlag: "-setwebproxystate"),
+          restoreProxyItem(args["secure"] ?? "", setFlag: "-setsecurewebproxy", stateFlag: "-setsecurewebproxystate"),
+          restoreProxyItem(args["socks"] ?? "", setFlag: "-setsocksfirewallproxy", stateFlag: "-setsocksfirewallproxystate") else {
+        output(false, "代理参数格式错误", action: "restore-proxy")
+    }
+    // auto proxy: "url:on|off"
+    if let auto = args["auto"], !auto.isEmpty {
+        let parts = auto.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+        // url 里可能带冒号（http://），只按最后一段拆 state
+        if let last = parts.last, last == "on" || last == "off", parts.count >= 2 {
+            let url = parts.dropLast().joined(separator: ":")
+            if last == "on", !url.isEmpty {
+                commands.append("/usr/sbin/networksetup -setautoproxyurl \(quote(service)) \(quote(url))")
+            }
+            commands.append("/usr/sbin/networksetup -setautoproxystate \(quote(service)) \(last)")
+        }
+    }
+    // bypass 域名列表（仅接受合法域名，过滤垃圾）
+    if let bypass = args["bypass"], !bypass.isEmpty {
+        let domains = bypass.split(separator: ",").map(String.init).filter(validBypassDomain)
+        if !domains.isEmpty {
+            commands.append("/usr/sbin/networksetup -setproxybypassdomains \(quote(service)) " + domains.map(quote).joined(separator: " "))
+        }
+    }
+    guard !commands.isEmpty else {
+        output(false, "没有可恢复的代理配置", action: "restore-proxy")
+    }
+    commands.append("/usr/bin/dscacheutil -flushcache")
+    let r = shell(commands.joined(separator: "; "))
+    output(r.status == 0, "已恢复 \(service) 的代理配置", r.output, action: "restore-proxy")
 }
 
 /// action: renew-dhcp --iface X
@@ -253,7 +301,7 @@ private func doVpnCoexist(_ args: [String: String]) {
     }
     // ④ 代理直连名单加 *.<resolver> 和 host（梯子不抢内网流量）
     let bypassRaw = shell("/usr/sbin/networksetup -getproxybypassdomains \(quote(service))").output
-    var bypass = bypassRaw.split(whereSeparator: { $0 == "," || $0 == "\n" }).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty && !$0.hasPrefix("There aren't") }
+    var bypass = bypassRaw.split(whereSeparator: { $0 == "," || $0 == "\n" }).map { $0.trimmingCharacters(in: .whitespaces) }.filter { validBypassDomain($0) }
     var domainsToAdd: [String] = []
     if !resolver.isEmpty { domainsToAdd.append("*.\(resolver)") }
     if !host.isEmpty { domainsToAdd.append(host) }
@@ -277,20 +325,34 @@ private func doVpnCoexist(_ args: [String: String]) {
     let resolverOK = resolver.isEmpty || FileManager.default.fileExists(atPath: "/etc/resolver/\(resolver)")
 
     let allOK = routeOK && !hijacked && resolverOK
-    let msg = allOK ? "VPN 与梯子共存已生效（分域 DNS + 删劫持路由 + 代理直连）" : "共存配置已应用，建议复查"
-    output(true, msg, "routeOK=\(routeOK) hijacked=\(hijacked) resolver=\(resolverOK) | " + r.output, action: "vpn-coexist")
+    let msg = allOK ? "VPN 与梯子共存已生效（分域 DNS + 删劫持路由 + 代理直连）"
+                    : "共存配置已应用，但部分未生效，建议复查或重试"
+    output(allOK, msg, "routeOK=\(routeOK) hijacked=\(hijacked) resolver=\(resolverOK) | " + r.output, action: "vpn-coexist")
 }
 
-/// action: vpn-coexist-reset --resolver Y
+/// action: vpn-coexist-reset --resolver Y [--dns "a,b"] [--bypass "d1,d2"]
+/// dns/bypass 由主程序从 coexist-backup.json 解析后传入：有备份按备份恢复，无备份才回落 empty
 private func doVpnCoexistReset(_ args: [String: String]) {
     let resolver = args["resolver"] ?? ""
     let service = activeService()
     var commands: [String] = []
     if !resolver.isEmpty { commands.append("/bin/rm -f /etc/resolver/\(resolver)") }
-    commands.append("/usr/sbin/networksetup -setdnsservers \(quote(service)) empty")
+
+    // 恢复备份的 DNS：--dns 传的是备份值（空串 = 原本就是自动，恢复 empty）
+    let dnsBackup = (args["dns"] ?? "").split(separator: ",").map(String.init).filter { validIP($0) }
+    if !dnsBackup.isEmpty {
+        commands.append("/usr/sbin/networksetup -setdnsservers \(quote(service)) " + dnsBackup.map(quote).joined(separator: " "))
+    } else {
+        commands.append("/usr/sbin/networksetup -setdnsservers \(quote(service)) empty")
+    }
+    // 恢复备份的 bypass 列表（过滤垃圾）
+    let bypassBackup = (args["bypass"] ?? "").split(separator: ",").map(String.init).filter { validBypassDomain($0) }
+    if !bypassBackup.isEmpty {
+        commands.append("/usr/sbin/networksetup -setproxybypassdomains \(quote(service)) " + bypassBackup.map(quote).joined(separator: " "))
+    }
     commands.append("/usr/bin/dscacheutil -flushcache; /usr/bin/killall -HUP mDNSResponder 2>/dev/null || true")
     let r = shell(commands.joined(separator: "; "))
-    output(r.status == 0, "已撤销分域 DNS 和 DNS 设置；重连 VPN 可恢复原始 VPN 路由", r.output, action: "vpn-coexist-reset")
+    output(r.status == 0, "已撤销分域 DNS，并按备份恢复 DNS 与代理直连名单；重连 VPN 可恢复原始 VPN 路由", r.output, action: "vpn-coexist-reset")
 }
 
 /// action: install-helper（自举：把自己设为 setuid root）
@@ -299,6 +361,14 @@ private func doVpnCoexistReset(_ args: [String: String]) {
 private func doSelfTest() {
     let uid = getuid(), euid = geteuid()
     output(true, "self-test ok", "uid=\(uid) euid=\(euid) \(euid == 0 ? "(running as root ✓)" : "(NOT root)")", action: "self-test")
+}
+
+/// action: restart — 重启电脑（超级守护连续修复失败时用）
+/// 走 /sbin/shutdown -r now，helper 是 root 免密执行
+private func doRestart() {
+    let r = shell("/sbin/shutdown -r now", timeout: 10)
+    // shutdown 成功不会返回（系统重启了），到这里说明失败
+    output(false, "重启失败：" + r.output, action: "restart")
 }
 
 // MARK: - shell 引用
@@ -348,7 +418,7 @@ case "set-dns":
 case "clear-proxy":
     doClearProxy(actionArgs)
 case "restore-proxy":
-    doRestoreProxy()
+    doRestoreProxy(actionArgs)
 case "renew-dhcp":
     doRenewDHCP(actionArgs)
 case "vpn-coexist":
@@ -357,6 +427,8 @@ case "vpn-coexist-reset":
     doVpnCoexistReset(actionArgs)
 case "self-test":
     doSelfTest()
+case "restart":
+    doRestart()
 default:
     output(false, "未知 action：\(action)。白名单：flush-dns, set-dns, clear-proxy, restore-proxy, renew-dhcp, vpn-coexist, vpn-coexist-reset, self-test", action: action)
 }

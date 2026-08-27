@@ -1,6 +1,29 @@
 # CHANGELOG · 版本历史
 
-> **TL;DR** — v3 = 基础工具 → v4.0/v4.1 = 增加 VPN 与使命展示 → v4.2 = 恢复 Swift 源码，对症修复 + 分域 DNS → v4.3 = 免密授权（setuid helper），守护可无人值守。
+> **TL;DR** — v3 = 基础工具 → v4.0/v4.1 = 增加 VPN 与使命展示 → v4.2 = 恢复 Swift 源码，对症修复 + 分域 DNS → v4.3 = 免密授权（setuid helper），守护可无人值守 → v4.4.1 = 修复"连 VPN 后公网断，需反复按修复按钮"。
+
+---
+
+## v4.4.1 — 2026-08-27（VPN 共存可靠性修复）
+
+**主题：修复"连公司 VPN 后公网断网，要把修复按钮按两遍 + 开关 VPN 共存才恢复"**
+
+### 根因
+- VPN 服务器推送 `redirect-gateway def1` + `dhcp-option DNS`，全流量被劫持进公司出口、全局 DNS 被换成公司 DNS → 公网断
+- Tunnelblick 的 `process-network-changes` 会在任何网络变化后**重推**劫持路由和 DNS，修复操作被反复冲掉，用户只能碰时序
+- vpn-coexist 用 `networksetup -getdnsservers` 检测全局 DNS，但 Tunnelblick 的 DNS 写在 scutil 动态层，检测不到 → 永远清不掉
+
+### 修复
+- **set-dns 加快照→验证→失败回滚**：新 DNS 解析不了公网域名时自动回滚到改前状态，不再把用户网络搞坏
+- **helper restore-proxy 完整恢复**：之前装了免密助手后"恢复代理"是空操作；现按备份完整恢复 web/secure/socks/auto/bypass
+- **helper vpn-coexist-reset 按备份恢复**：之前无条件把 DNS 抹成"自动"，用户手动设置的 DNS 会被静默清掉
+- **bypass 垃圾过滤（主程序 + helper 双端）**：命令错误文本（如 `cp: ... Permission denied`）不再混入备份和系统代理直连名单
+- **vpn-coexist 如实报告结果 + 等网络稳定再验证**：躲开 Tunnelblick 网络变化重推，不再假报成功
+- clear-proxy 不再覆盖主程序写入的结构化备份；清理 doSetDNS 死代码
+
+### 配套（非代码）
+- `ss-wshoto-vpn` 配置注入 `pull-filter ignore "redirect-gateway"` / `"dhcp-option DNS"` + 公司 DNS 的 /32 路由：连上 VPN 内网通、公网不掉（原配置备份为 `config.ovpn.bak-20260827`）
+- 清理了系统 bypass 与 `coexist-backup.json` 中的垃圾条目
 
 ---
 

@@ -184,6 +184,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
         case "check-update": return try checkUpdate()
         case "apply-update": return try applyUpdate()
         case "quit-and-update": return try quitAndUpdate()
+        case "enable-autostart": return try enableAutostart()
+        case "disable-autostart": return try disableAutostart()
+        case "autostart-status": return autostartStatus()
+        case "send-notification": return try sendNotification(args)
+        case "restart-system": return try restartSystem()
         default: throw AppFailure(message: "不支持的操作：\(action)")
         }
     }
@@ -504,7 +509,77 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
         return ["message": "正在退出并安装更新…"]
     }
 
-    // MARK: - Process helpers
+    // MARK: - 超级守护（开机自启 + 连续失败重启）
+
+    private let launchAgentLabel = "local.zeen.nettools.autostart"
+
+    /// 开机自启 plist 路径
+    private var launchAgentPath: String {
+        let home = NSHomeDirectory()
+        return home + "/Library/LaunchAgents/" + launchAgentLabel + ".plist"
+    }
+
+    /// 启用开机自启（写 LaunchAgent plist）
+    private func enableAutostart() throws -> [String: Any] {
+        let appPath = Bundle.main.bundlePath
+        let dir = (launchAgentPath as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+
+        // LaunchAgent plist：登录时打开 app
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key><string>\(launchAgentLabel)</string>
+            <key>ProgramArguments</key>
+            <array>
+                <string>/usr/bin/open</string>
+                <string>\(appPath)</string>
+            </array>
+            <key>RunAtLoad</key><true/>
+            <key>LaunchOnlyOnce</key><true/>
+        </dict>
+        </plist>
+        """
+        try plist.write(toFile: launchAgentPath, atomically: true, encoding: .utf8)
+        return ["message": "✓ 已设置开机自启动（登录后自动打开 app）", "enabled": true]
+    }
+
+    /// 禁用开机自启
+    private func disableAutostart() throws -> [String: Any] {
+        if FileManager.default.fileExists(atPath: launchAgentPath) {
+            try? FileManager.default.removeItem(atPath: launchAgentPath)
+        }
+        return ["message": "已取消开机自启动", "enabled": false]
+    }
+
+    /// 查自启状态
+    private func autostartStatus() -> [String: Any] {
+        let enabled = FileManager.default.fileExists(atPath: launchAgentPath)
+        return ["enabled": enabled, "message": enabled ? "开机自启已启用" : "开机自启未启用"]
+    }
+
+    /// 发系统通知（用于超级守护重启倒计时提醒）
+    private func sendNotification(_ args: [String: Any]) throws -> [String: Any] {
+        let title = args["title"] as? String ?? "捞鱼的网络工具"
+        let message = args["message"] as? String ?? ""
+        let script = "display notification \(appleScriptQuote(message)) with title \(appleScriptQuote(title)) sound name \"warning\""
+        run("/usr/bin/osascript", ["-e", script], timeout: 5)
+        return ["sent": true]
+    }
+
+    /// 重启系统（调 helper 的 restart action，免密）
+    /// 注意：这个方法只在超级守护连续 3 次修复失败后才应被调用
+    private func restartSystem() throws -> [String: Any] {
+        guard helperInstalled() else {
+            throw AppFailure(message: "需要先安装免密授权才能自动重启")
+        }
+        // 调 helper restart（setuid root，免密）
+        let result = run(helperPath, ["restart"], timeout: 10)
+        // 正常情况下 shutdown 不会返回（系统重启了）
+        throw AppFailure(message: "重启失败：" + result.output)
+    }
 
     private func run(_ executable: String, _ arguments: [String] = [], timeout: TimeInterval = 15) -> CommandResult {
         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -790,6 +865,14 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
         guard !id.service.isEmpty else { throw AppFailure(message: "找不到当前网络服务") }
         let primary = args["primary"] as? String ?? "empty"
         let secondary = args["secondary"] as? String ?? ""
+        if primary != "empty" {
+            guard primary.range(of: #"^\d{1,3}(\.\d{1,3}){3}$"#, options: .regularExpression) != nil,
+                  primary.split(separator: ".").allSatisfy({ (Int($0) ?? 256) <= 255 }) else {
+                throw AppFailure(message: "DNS 地址格式不正确")
+            }
+        }
+        // 改前快照（用于失败回滚）
+        let previousDNS = currentDNS(service: id.service)
         let result = try runPrivileged(
             helperAction: "set-dns",
             helperArgs: ["--service", id.service, "--primary", primary, "--secondary", secondary],
@@ -798,9 +881,6 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
                 if primary == "empty" {
                     command += "empty"
                 } else {
-                    guard primary.range(of: #"^\d{1,3}(\.\d{1,3}){3}$"#, options: .regularExpression) != nil else {
-                        return ""  // 格式校验已在下面 throw
-                    }
                     command += shellQuote(primary)
                     if !secondary.isEmpty { command += " \(shellQuote(secondary))" }
                 }
@@ -808,13 +888,21 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
                 return command
             }
         )
-        // 格式校验（commandBuilder 里无法 throw）
+        // 改后验证：新 DNS 必须真的能解析公网域名，失败自动回滚到快照
         if primary != "empty" {
-            guard primary.range(of: #"^\d{1,3}(\.\d{1,3}){3}$"#, options: .regularExpression) != nil else {
-                throw AppFailure(message: "DNS 地址格式不正确")
+            Thread.sleep(forTimeInterval: 1.0)
+            var resolved = resolveDirect("www.baidu.com", server: primary)
+            if resolved.isEmpty && !secondary.isEmpty { resolved = resolveDirect("www.baidu.com", server: secondary) }
+            if resolved.isEmpty {
+                // 回滚
+                let rollbackArgs = ["--service", id.service, "--primary", previousDNS.isEmpty ? "empty" : previousDNS[0],
+                                    "--secondary", previousDNS.count > 1 ? previousDNS[1] : ""]
+                _ = try? runHelper("set-dns", rollbackArgs)
+                throw AppFailure(message: "新 DNS \(primary) 无法解析公网域名，已自动回滚到 \(previousDNS.isEmpty ? "自动获取" : previousDNS.joined(separator: ", "))")
             }
+            return ["message": "\(id.service) DNS 已更新为 \(primary)\(secondary.isEmpty ? "" : ", \(secondary)")，验证通过"]
         }
-        return ["message": result.helper ? result.message : (primary == "empty" ? "\(id.service) 已恢复自动 DNS" : "\(id.service) DNS 已更新")]
+        return ["message": result.helper ? result.message : "\(id.service) 已恢复自动 DNS"]
     }
 
     private func appSupportURL(_ name: String) -> URL {
@@ -876,7 +964,8 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
             throw AppFailure(message: "没有可恢复的代理备份")
         }
         var commands: [String] = []
-        func restore(_ key: String, setFlag: String, stateFlag: String) {
+        var helperArgs: [String] = ["--service", service]
+        func restore(_ key: String, setFlag: String, stateFlag: String, helperFlag: String) {
             guard let data = snap[key] as? [String: Any] else { return }
             let enabled = (data["Enabled"] as? String ?? "No").lowercased().hasPrefix("y")
             let server = data["Server"] as? String ?? ""
@@ -885,17 +974,30 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
                 commands.append("/usr/sbin/networksetup \(setFlag) \(shellQuote(service)) \(shellQuote(server)) \(shellQuote(port))")
             }
             commands.append("/usr/sbin/networksetup \(stateFlag) \(shellQuote(service)) \(enabled ? "on" : "off")")
+            helperArgs += [helperFlag, "\(server):\(port):\(enabled ? "on" : "off")"]
         }
-        restore("web", setFlag: "-setwebproxy", stateFlag: "-setwebproxystate")
-        restore("secure", setFlag: "-setsecurewebproxy", stateFlag: "-setsecurewebproxystate")
-        restore("socks", setFlag: "-setsocksfirewallproxy", stateFlag: "-setsocksfirewallproxystate")
+        restore("web", setFlag: "-setwebproxy", stateFlag: "-setwebproxystate", helperFlag: "--web")
+        restore("secure", setFlag: "-setsecurewebproxy", stateFlag: "-setsecurewebproxystate", helperFlag: "--secure")
+        restore("socks", setFlag: "-setsocksfirewallproxy", stateFlag: "-setsocksfirewallproxystate", helperFlag: "--socks")
+        if let auto = snap["auto"] as? [String: Any] {
+            let enabled = (auto["Enabled"] as? String ?? "No").lowercased().hasPrefix("y")
+            let url = auto["URL"] as? String ?? ""
+            if enabled, !url.isEmpty {
+                commands.append("/usr/sbin/networksetup -setautoproxyurl \(shellQuote(service)) \(shellQuote(url))")
+            }
+            commands.append("/usr/sbin/networksetup -setautoproxystate \(shellQuote(service)) \(enabled ? "on" : "off")")
+            helperArgs += ["--auto", "\(url):\(enabled ? "on" : "off")"]
+        }
         if let bypass = snap["bypass"] as? [String] {
-            commands.append("/usr/sbin/networksetup -setproxybypassdomains \(shellQuote(service)) " + bypass.map(shellQuote).joined(separator: " "))
+            let clean = bypass.filter(validBypassEntry)
+            if !clean.isEmpty {
+                commands.append("/usr/sbin/networksetup -setproxybypassdomains \(shellQuote(service)) " + clean.map(shellQuote).joined(separator: " "))
+                helperArgs += ["--bypass", clean.joined(separator: ",")]
+            }
         }
-        // restore-proxy 逻辑复杂（需解析 JSON），helper 简化版不够完整，这里保持走 osascript
-        // 但如果 helper 已装，helper 也支持基本的 restore-proxy（读同一个备份文件）
         let result = try runPrivileged(
             helperAction: "restore-proxy",
+            helperArgs: helperArgs,
             commandBuilder: { commands.joined(separator: "; ") }
         )
         return ["message": result.helper ? result.message : "已恢复 \(service) 的上一次代理配置"]
@@ -1063,7 +1165,17 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
         raw.replacingOccurrences(of: "There aren't any bypass domains set on", with: "")
             .split(whereSeparator: { $0 == "," || $0 == "\n" })
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty && !$0.hasPrefix("Wi-Fi") }
+            .filter { validBypassEntry($0) }
+    }
+
+    /// 合法 bypass 条目：域名（可带 *.）或 IP（可带 /CIDR 或 :port）或保留字。
+    /// 过滤误混入 networksetup 输出的命令错误文本（如 "cp: ... Permission denied"）
+    private func validBypassEntry(_ s: String) -> Bool {
+        guard !s.isEmpty, s.count < 100, !s.contains(" ") else { return false }
+        if ["localhost", "*.local", "127.0.0.1", "<local>"].contains(s) { return true }
+        if s.range(of: #"^(\*\.)?[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$"#, options: .regularExpression) != nil { return true }
+        if s.range(of: #"^\d{1,3}(\.\d{1,3}){3}(/\d{1,2})?(:\d{1,5})?$"#, options: .regularExpression) != nil { return true }
+        return false
     }
 
     private func currentDNS(service: String) -> [String] {
@@ -1137,8 +1249,16 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
             commandBuilder: { commands.joined(separator: "; ") }
         )
 
-        Thread.sleep(forTimeInterval: 1.5)
-        let after = vpnStatus()
+        // 等网络稳定再验证：Tunnelblick 会在网络变化后重推路由/DNS，
+        // 立即验证会得到假结果。等路由表连续 2 秒无半世界路由且 VPN 路由仍在，最长等 8 秒。
+        var after = vpnStatus()
+        for _ in 0..<8 {
+            let hijacked = !halfRoutes().isEmpty
+            let vpnUp = after["vpnConnected"] as? Bool == true
+            if vpnUp && !hijacked { break }
+            Thread.sleep(forTimeInterval: 1.0)
+            after = vpnStatus()
+        }
         let routeOK = after["vpnConnected"] as? Bool == true
         let dnsOK = after["systemDnsOk"] as? Bool == true
         let bypassOK = after["proxyBypassOk"] as? Bool == true
@@ -1168,9 +1288,17 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessag
             commands.append("/usr/sbin/networksetup -setdnsservers \(shellQuote(service)) empty")
         }
         commands.append("/usr/bin/dscacheutil -flushcache; /usr/bin/killall -HUP mDNSResponder 2>/dev/null || true")
+        // 把备份的 dns/bypass 传给 helper 完整恢复（helper 拿不到用户主目录，必须由主程序传参）
+        var helperArgs: [String] = []
+        if !resolverDomain.isEmpty { helperArgs += ["--resolver", resolverDomain] }
+        if let dns = snap["dns"] as? [String], !dns.isEmpty { helperArgs += ["--dns", dns.joined(separator: ",")] }
+        if let bypass = snap["bypass"] as? [String] {
+            let clean = bypass.filter(validBypassEntry)
+            if !clean.isEmpty { helperArgs += ["--bypass", clean.joined(separator: ",")] }
+        }
         let result = try runPrivileged(
             helperAction: "vpn-coexist-reset",
-            helperArgs: resolverDomain.isEmpty ? [] : ["--resolver", resolverDomain],
+            helperArgs: helperArgs,
             commandBuilder: { commands.joined(separator: "; ") }
         )
         return ["message": result.helper ? result.message : "分域 DNS、代理直连名单和 DNS 设置已恢复；重连 VPN 可恢复原始 VPN 路由"]
