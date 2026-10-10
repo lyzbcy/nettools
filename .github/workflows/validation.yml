@@ -9,6 +9,56 @@ concurrency:
   group: nettools-validation-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify native runner CPU
+        run: node -e "if(process.arch!=='${{ matrix.arch }}')process.exit(1)"
+      - name: Core and isolated native security regressions
+        run: node --test test/*.test.cjs
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.16.1'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fixed packaging dependencies
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          python -m pip install Pillow==11.3.0
+      - name: Build complete Mac ZIP and DMG
+        env:
+          NETTOOLS_PYTHON: python
+          NETTOOLS_FEEDBACK_WEBHOOK: ${{ secrets.NETTOOLS_FEEDBACK_WEBHOOK }}
+        run: node scripts/package.cjs darwin ${{ matrix.arch }}
+      - name: Actual packaged native helper and cleanup
+        run: node scripts/ci-macos-native.cjs
+      - name: Actual installed desktop and persisted preferences
+        run: node scripts/ci-macos-desktop.cjs
+      - name: Preserve Mac evidence and candidate packages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nettools-mac-${{ matrix.arch }}-candidate
+          path: |
+            release/*.zip
+            release/*.dmg
+            verification/macos-${{ matrix.arch }}/
+            verification/packages/
+          if-no-files-found: warn
   windows:
     runs-on: windows-latest
     timeout-minutes: 35

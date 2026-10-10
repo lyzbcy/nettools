@@ -40,7 +40,7 @@ function Populate-Folders{
 }
 function Load-Folders{try{$folder=[IO.Path]::GetFullPath($ui.FolderPath.Text);if(![IO.Directory]::Exists($folder)){throw '目录不存在'};$ui.FolderPath.Text=$folder;$script:folders=@([IO.Directory]::EnumerateDirectories($folder)|Select-Object -First 200);$script:folderOffset=0;Populate-Folders}catch{$ui.ErrorText.Text='无法读取这个目录，请输入可访问的文件夹。'}}
 foreach($drive in $drives){$b=New-Object Windows.Controls.Button;$b.Content=$drive.Name.TrimEnd('\');$b.Tag=$drive.Name;$b.Add_Click({$ui.InstallPath.Text=Join-Path ([string]$this.Tag) 'LaoyuApps\LaoyuNetTools'});$null=$ui.Drives.Children.Add($b)}
-$ui.Header.Add_MouseLeftButtonDown({if($args[1].OriginalSource -isnot [Windows.Controls.Button]){$window.DragMove()}})
+$ui.Header.Add_MouseLeftButtonDown({$source=$args[1].OriginalSource;while($source -and $source -ne $ui.Header){if($source -is [Windows.Controls.Button]){return};$source=[Windows.Media.VisualTreeHelper]::GetParent($source)};$window.DragMove()})
 $ui.Minimize.Add_Click({$window.WindowState='Minimized'});$ui.Close.Add_Click({if(!$script:installing){$window.Close()}})
 $window.Add_Closing({if($script:installing){$args[1].Cancel=$true}})
 $ui.Browse.Add_Click({$ui.FolderPath.Text=[IO.Path]::GetPathRoot($ui.InstallPath.Text);Set-Page 'Folders';Load-Folders})
@@ -69,9 +69,10 @@ $ui.Next.Add_Click({
   $value=$ui.InstallPath.Text.Trim();if($value -notmatch '^[A-Za-z]:\\' -or $value -match '[<>"|?*]' -or $value.Contains('/') -or $value.Length -gt 220){throw '请输入盘符开头的本地完整路径。'}
   $script:root=[IO.Path]::GetFullPath($value).TrimEnd('\');if([IO.Path]::GetFileName($script:root) -ne 'LaoyuNetTools'){$script:root=Join-Path $script:root 'LaoyuNetTools';$ui.InstallPath.Text=$script:root}
   $drive=New-Object IO.DriveInfo([IO.Path]::GetPathRoot($script:root));if($drive.DriveType -ne [IO.DriveType]::Fixed -or $drive.AvailableFreeSpace -lt 700MB){throw '请选择至少有 700 MB 空闲空间的本地磁盘。'}
-  if([IO.Directory]::Exists($script:root)){$info=New-Object IO.DirectoryInfo($script:root);if(($info.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){throw '安装目录不能是符号链接或目录联接。'};if([IO.Directory]::EnumerateFileSystemEntries($script:root).GetEnumerator().MoveNext() -and ![IO.File]::Exists((Join-Path $script:root 'resources\app\package.json'))){throw '这个目录已有其他文件，请选择专用空目录。'}}
+  $cursor=$script:root;while($cursor){if([IO.Directory]::Exists($cursor)){$info=New-Object IO.DirectoryInfo($cursor);if(($info.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){throw '安装目录或父目录不能是符号链接或目录联接。'}};$parent=[IO.Directory]::GetParent($cursor);$cursor=if($parent){$parent.FullName}else{''}}
+  if([IO.Directory]::Exists($script:root) -and [IO.Directory]::EnumerateFileSystemEntries($script:root).GetEnumerator().MoveNext()){$metadata=Join-Path $script:root 'resources\app\package.json';if(![IO.File]::Exists($metadata) -or (([IO.File]::ReadAllText($metadata,[Text.Encoding]::UTF8)|ConvertFrom-Json).name -ne 'laoyu-nettools')){throw '这个目录已有其他文件，请选择专用空目录。'}}
   $null=[IO.Directory]::CreateDirectory($script:root);$probe=Join-Path $script:root ('.nettools-write-'+[guid]::NewGuid().ToString()+'.tmp');$stream=[IO.File]::Open($probe,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);$stream.Dispose();[IO.File]::Delete($probe)
-  $options='/S';if(!$ui.Desktop.IsChecked){$options+=' /NoDesktopShortcut'};$options+=' /D='+$script:root
+  $options='/S';if(!$ui.Desktop.IsChecked){$options+=' --no-desktop-shortcut'};$options+=' /D='+$script:root
   if(![IO.File]::Exists($Installer)){throw '安装包已移动，请重新打开完整安装包。'}
   $script:installing=$true;$ui.Close.IsEnabled=$false;$ui.Next.IsEnabled=$false;Set-Page 'Progress';$script:installerProcess=Start-Process -FilePath $Installer -ArgumentList $options -PassThru -WindowStyle Hidden;$timer.Start()
  }catch{$script:installing=$false;$ui.Close.IsEnabled=$true;$ui.Next.IsEnabled=$true;$ui.ErrorText.Text=$_.Exception.Message}
