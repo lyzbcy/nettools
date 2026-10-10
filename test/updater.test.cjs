@@ -31,6 +31,9 @@ test('verified package alone reaches prepare and returns readiness without claim
  let prepared=0;const u=context(t,{prepare:async(record)=>{prepared++;assert.equal(record.sha256,digest);assert.equal(fs.readFileSync(record.file,'utf8'),'valid package');return {ready:true};}});
  const result=await u.stage();assert.equal(prepared,1);assert.equal(result.ready,true);assert.equal(u.snapshot().state,'ready');assert.ok(!u.snapshot().installed);
 });
+test('cancelled readiness cannot install, duplicate handoff is refused, and handoff failures can be retried',async t=>{
+ const u=context(t);assert.throws(()=>u.beginInstall());await u.stage();u.cancel();assert.equal(u.snapshot().state,'available');assert.throws(()=>u.beginInstall());await u.stage();u.beginInstall();assert.equal(u.snapshot().state,'installing');assert.throws(()=>u.beginInstall());u.failInstall(Error('helper readiness failed'));assert.equal(u.snapshot().state,'error');assert.equal(u.snapshot().error,'helper readiness failed');await u.stage();assert.equal(u.snapshot().state,'ready');
+});
 test('wrong hash deletes partial package and never prepares',async t=>{
  let prepared=0;const u=context(t,{download:async(r,file)=>fs.writeFileSync(file,'tampered'),prepare:async()=>{prepared++;}});
  await assert.rejects(u.stage(),/校验/);assert.equal(prepared,0);assert.equal(u.snapshot().state,'error');assert.ok(!fs.readdirSync(u.downloadDir).some(n=>n.endsWith('.part')));

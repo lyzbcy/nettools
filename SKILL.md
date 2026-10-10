@@ -1,5 +1,6 @@
 ---
 name: laoyu-nettools-dev
+version: 5.0.0
 description: Use when developing, repairing, packaging or releasing the 捞鱼的网络工具 macOS and Windows desktop application.
 ---
 

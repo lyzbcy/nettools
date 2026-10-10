@@ -11,6 +11,7 @@
 - `updater.md`：每日检查、下载校验、升级交接和恢复。
 - `feedback.md`：日志脱敏、问题反馈与用户自主提交。
 - `release.md`：平台包、签名边界、软件中心接入及公开发行顺序。
+- `delivery.md`：共享规范逐项实现状态、证据类型与正式交付门槛。
 - `superpowers/specs/2026-10-10-cross-platform-delivery-design.md`：用户目标与方案。
 - `superpowers/plans/2026-10-10-cross-platform-delivery.md`：实现任务清单。
 
