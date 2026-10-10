@@ -46,3 +46,14 @@ test('feedback cannot be redirected to an arbitrary endpoint or report server re
  await assert.rejects(feedback.sendFeedback(p,c,{endpoint:'http://example.com',post:async()=>({errcode:0})}));
  await assert.rejects(feedback.sendFeedback(p,c,{endpoint:'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test',post:async()=>({errcode:40058,errmsg:'invalid'})}),/40058/);
 });
+test('redacting and feedback re-redacting preserve ISO timestamps and ordinary time values',()=>{
+ const text='2026-10-10T18:37:11.220Z 2026-10-11T02:37:11.220+08:00 time=18:37:11 retry=00:00:01';assert.equal(log.redact(text),text);assert.equal(log.redact(log.redact(text)),text);
+ const included=feedback.previewFeedback({category:'问题反馈',message:'诊断记录',includeLogs:true},{name:'捞鱼的网络工具',version:'5.0.0',logs:log.redact('2026-10-10T18:37:11.220Z DNS fe80::1%en0 192.168.1.1')});assert.ok(included.includes('2026-10-10T18:37:11.220Z'));assert.ok(!included.includes('fe80::1%en0'));assert.ok(!included.includes('192.168.1.1'));
+});
+test('all genuine complete IPv6 forms redact once, including loopback, scoped and IPv4-mapped addresses',()=>{
+ for(const address of ['::','::1','2001:db8::1','2001:db8:0:1:2:3:4:5','fe80::1%en0','fe80::1%12','fe80::1%zone-name','::ffff:192.0.2.128','0:0:0:0:0:ffff:192.0.2.128']){const redacted=log.redact(address);assert.equal(redacted,'[IP已隐藏]',address);assert.equal(log.redact(redacted),redacted,address);}
+ assert.equal(log.redact('addr=[fe80::1%en0]:443'),'addr=[[IP已隐藏]]:443');assert.equal(log.redact('IPv6=2001:db8::1.'),'IPv6=[IP已隐藏].');
+});
+test('malformed or word-attached IPv6 candidates remain whole rather than redacting a valid substring',()=>{
+ for(const text of ['2001:db8:::1','2001:db8::gggg','cafe::12345','prefix2001:db8::1suffix'])assert.equal(log.redact(text),text);
+});
