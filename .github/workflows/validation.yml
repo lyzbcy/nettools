@@ -39,6 +39,8 @@ jobs:
         run: |
           pnpm install --frozen-lockfile --ignore-scripts
           python -m pip install Pillow==11.3.0
+      - name: Actual fixed builder configuration regression
+        run: node --test test/package.test.cjs
       - name: Build complete Mac ZIP and DMG
         env:
           NETTOOLS_PYTHON: python
@@ -84,6 +86,9 @@ jobs:
         run: |
           pnpm install --frozen-lockfile --ignore-scripts
           python -m pip install Pillow==11.3.0
+      - name: Actual fixed builder configuration regression
+        shell: pwsh
+        run: node --test test/package.test.cjs
       - name: Build complete Windows ZIP and themed installer
         shell: pwsh
         env:
