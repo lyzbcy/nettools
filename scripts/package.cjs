@@ -52,7 +52,7 @@ async function pack(platform=process.platform,arch=process.arch){
  }
  const verified=await verifyDirectory(unpacked,platform,arch),archive=path.join(root,'release',t.name+'.zip');await fs.rm(archive,{force:true});
  if(platform==='darwin')await execute('/usr/bin/ditto',['-c','-k','--sequesterRsrc','--keepParent',verified.app,archive]);
- else{const builderDir=path.dirname(require.resolve('electron-builder')),utilDir=path.dirname(require.resolve('builder-util',{paths:[builderDir]})),seven=require(require.resolve('7zip-bin',{paths:[utilDir]}));await execute(seven.path7za,['a','-tzip',archive,'.'],{cwd:unpacked,maxBuffer:5*1024*1024});}
+ else{const builderDir=path.dirname(require.resolve('electron-builder')),archiveAPI=require(require.resolve('app-builder-lib/out/targets/archive',{paths:[builderDir]}));await archiveAPI.archive('zip',archive,unpacked,{withoutDir:true,compression:'normal'});}
  let installer;
  if(platform==='win32'){
   let payloadBytes=0;async function total(dir){for(const item of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,item.name);if(item.isDirectory())await total(file);else if(item.isFile())payloadBytes+=(await fs.stat(file)).size;}}await total(unpacked);
