@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$PayloadFile)
+﻿param([Parameter(Mandatory=$true)][string]$PayloadFile)
 $ErrorActionPreference='Stop'
 $env:PSModulePath=(Join-Path $PSHOME 'Modules')+';'+[Environment]::GetEnvironmentVariable('PSModulePath','Machine')
 $p=$null; $moved=$false; $installed=$false; $newProcess=$null; $transactionConfirmed=$false
@@ -11,8 +11,8 @@ function Is-Aborted { if (!(Test-Path -LiteralPath $p.abortFile)) {return $false
 function Check-Identity([string]$root,[string]$version) { $null=No-Reparse $root;$pkg=Read-Json (Join-Path $root 'resources\app\package.json');if($pkg.name -ne 'laoyu-nettools' -or $pkg.main -ne 'src/main.cjs' -or $pkg.version -ne $version){throw '软件身份或版本不匹配'};$exe=Join-Path $root 'LaoyuNetTools.exe';$null=No-Reparse $exe;$s=[IO.File]::OpenRead($exe);$r=New-Object IO.BinaryReader $s;try{if($r.ReadUInt16() -ne 0x5a4d){throw 'Windows 主程序不是 PE'};$s.Position=60;$offset=$r.ReadUInt32();if($offset -gt $s.Length-24){throw 'PE 头无效'};$s.Position=$offset;if($r.ReadUInt32() -ne 0x4550 -or $r.ReadUInt16() -ne 0x8664){throw 'Windows 架构不匹配'}}finally{$r.Dispose();$s.Dispose()} }
 function Check-Tree([string]$root) { $items=@(Get-ChildItem -LiteralPath $root -Recurse -Force);if($items.Count -ne $p.manifest.Count){throw '暂存应用数量改变'};foreach($e in $p.manifest){if(Is-Aborted){throw '更新已取消'};$file=Join-Path $root $e.path;$item=No-Reparse $file;if($e.kind -eq 'link'){throw 'Windows 更新不接受链接'};if($e.kind -eq 'dir'){if(!$item.PSIsContainer){throw '目录类型改变'}}elseif($item.PSIsContainer -or $item.Length -ne $e.size -or (Sha $file) -ne $e.sha256){throw '暂存应用大小或 SHA-256 改变'}} }
 function Wait-Old { $old=Get-Process -Id $p.oldPid -ErrorAction SilentlyContinue;if($old -and !$old.WaitForExit([int]$p.oldExitTimeoutMs)){throw '旧版未退出，未替换应用'};if(Is-Aborted){throw '更新已取消'} }
-function Launch-App([bool]$confirm) { $exe=Join-Path $p.target 'LaoyuNetTools.exe';$flag=if($confirm){'--nettools-update-confirm='+$p.confirmRequestFile}else{'--nettools-update-result='+$p.resultFile};# Quotes are Windows argv quoting, not executable shell text.
- $quoted='"'+$flag.Replace('"','\"')+'" "--nettools-data='+$p.dataDir.Replace('"','\"')+'"';return Start-Process -FilePath $exe -ArgumentList $quoted -WindowStyle Normal -PassThru }
+function Launch-App([bool]$confirm,[bool]$report=$false) { $exe=Join-Path $p.target 'LaoyuNetTools.exe';$flags=@('--nettools-data='+$p.dataDir);if($confirm){$flags+=('--nettools-update-confirm='+$p.confirmRequestFile)}elseif($report){$flags+=('--nettools-update-result='+$p.resultFile)};# Quotes are Windows argv quoting, not executable shell text.
+ $quoted=($flags|ForEach-Object {'"'+$_.Replace('"','\"')+'"'}) -join ' ';return Start-Process -FilePath $exe -ArgumentList $quoted -WindowStyle Normal -PassThru }
 try {
  $p=Read-Json $PayloadFile
  if($p.protocol -ne 1 -or $p.platform -ne 'win32' -or $p.token -notmatch '^[a-f0-9]{64}$' -or $p.oldPid -lt 1){throw '更新交接参数无效'}
@@ -56,9 +56,12 @@ try {
  if($transactionConfirmed){try{Write-State $p.resultFile @{status='confirmed';token=$p.token;version=$p.version;newPid=$newProcess.Id;backupRetained=(Test-Path -LiteralPath $p.backup);backup=$p.backup;cleanupError=$_.Exception.Message}}catch{};exit 0}
  $message=$_.Exception.Message;$rollbackError=$null
  if($p){try{if($newProcess -and !$newProcess.HasExited){& (Join-Path $env:SystemRoot 'System32\taskkill.exe') /PID $newProcess.Id /T /F | Out-Null;if(!$newProcess.WaitForExit(5000)){throw '新版进程仍未退出，未删除任何应用'}};if($moved){if($installed -and (Test-Path -LiteralPath $p.target)){Remove-Item -LiteralPath $p.target -Recurse -Force};if(Test-Path -LiteralPath $p.backup){Move-Item -LiteralPath $p.backup -Destination $p.target}};if(Test-Path -LiteralPath $p.incoming){Remove-Item -LiteralPath $p.incoming -Recurse -Force}}catch{$rollbackError=$_.Exception.Message}
-  if($moved -and !$rollbackError){foreach($registration in $registrations){try{Set-ItemProperty -LiteralPath $registration.key -Name DisplayVersion -Value $registration.version}catch{$rollbackError=$_.Exception.Message}}}
-  Write-State $p.resultFile @{status='failed';token=$p.token;version=$p.version;message=$message;rolledBack=($moved -and !$rollbackError);rollbackError=$rollbackError;backup=$p.backup}
-  if($moved -and !$rollbackError){try{$reopened=Launch-App $false;Write-State $p.resultFile @{status='failed';token=$p.token;version=$p.version;message=$message;rolledBack=$true;reopened=$true;reopenPid=$reopened.Id;backup=$p.backup}}catch{Write-State $p.resultFile @{status='failed';token=$p.token;version=$p.version;message=$message;rolledBack=$true;reopenError=$_.Exception.Message;backup=$p.backup}}}
+  # DisplayVersion changes only after the confirmed latch, which never rolls
+  # back. Before that point the registration already contains its old values.
+  # Logging is best-effort after rollback; it must never skip reopening the
+  # restored app or pass a missing/stale report into its startup validation.
+  $reportWritten=$false;try{Write-State $p.resultFile @{status='failed';token=$p.token;version=$p.version;message=$message;rolledBack=($moved -and !$rollbackError);rollbackError=$rollbackError;backup=$p.backup};$reportWritten=$true}catch{}
+  if($moved -and !$rollbackError){$reopened=$null;$reopenError=$null;try{$reopened=Launch-App $false $reportWritten}catch{$reopenError=$_.Exception.Message};try{Write-State $p.resultFile @{status='failed';token=$p.token;version=$p.version;message=$message;rolledBack=$true;reopened=($null -ne $reopened);reopenPid=$(if($reopened){$reopened.Id}else{$null});reopenError=$reopenError;backup=$p.backup}}catch{}}
  }
  exit 1
 }
