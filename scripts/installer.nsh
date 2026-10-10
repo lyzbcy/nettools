@@ -24,6 +24,11 @@
     ${EndIf}
   ${EndIf}
 !macroend
+!macro customInstall
+  ; Builder records this under its install key, but Windows inventory and the
+  ; verified updater require the exact path under the uninstall registration.
+  WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" "InstallLocation" "$INSTDIR"
+!macroend
 !macro customWelcomePage
   !define MUI_WELCOMEPAGE_TITLE "欢迎使用捞鱼的网络工具"
   !define MUI_WELCOMEPAGE_TEXT "检查网络、按故障修复，并可选择定时保活。$\r$\n$\r$\n建议将软件安装到 D 盘或其他数据盘，给系统盘留下空间。下一步可以选择安装位置。$\r$\n$\r$\n保活与自动重启默认关闭，安装后由你自行开启。"
