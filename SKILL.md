@@ -40,4 +40,4 @@ description: Use when developing, repairing, packaging or releasing the 捞鱼�
 
 ## 状态与验收
 
-当前正在实现双平台 5.0.0，完成范围与证据统一见 `docs/roadmap.md`。核心测试入口 `node --test test/*.test.cjs`；最终包、主窗口、原生修复和完整升级分别验收。Windows 真机验收尚需确认环境；不把 Mac 上构建 Windows 包或模拟结果写作正式交付。
+当前正在验收双平台 5.0.0 候选，完成范围与证据统一见 `docs/roadmap.md`。核心测试入口 `node --test test/*.test.cjs`；安装打包依赖后再运行 `node --test test/package.test.cjs`，涵盖固定构建器的实际配置归一化。Mac 双芯片和 Windows 均使用真实系统 CI；最终包、主窗口、原生修复、完整升级和软件中心客户端发行分别验收。不把源码推送、隔离夹具或未发布候选写作正式交付。
