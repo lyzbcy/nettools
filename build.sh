@@ -1,36 +1,20 @@
 #!/bin/zsh
 set -euo pipefail
-
 ROOT_DIR="${0:A:h}"
-APP_DIR="$ROOT_DIR/捞鱼的网络工具.app"
-SOURCE_FILE="$ROOT_DIR/src/NetRepair.swift"
-HELPER_SOURCE="$ROOT_DIR/src/NetRepairHelper.swift"
-BIN_FILE="$APP_DIR/Contents/MacOS/NetRepair"
-HELPER_FILE="$APP_DIR/Contents/Resources/netrepair-helper"
-
-echo "==> 编译免密助手 netrepair-helper"
-/usr/bin/xcrun swiftc \
-  -O \
-  -target arm64-apple-macos11 \
-  "$HELPER_SOURCE" \
-  -o "$HELPER_FILE"
-
-echo "==> 编译主程序 NetRepair"
-/usr/bin/xcrun swiftc \
-  -O \
-  -target arm64-apple-macos11 \
-  -framework Cocoa \
-  -framework WebKit \
-  "$SOURCE_FILE" \
-  -o "$BIN_FILE"
-
-echo "==> 签名"
-/usr/bin/xattr -cr "$APP_DIR"
-/usr/bin/codesign --force --deep --sign - "$APP_DIR"
-/usr/bin/codesign --verify --deep --strict "$APP_DIR"
-
-echo "构建完成：$APP_DIR"
-echo "  主程序：$BIN_FILE"
-echo "  免密助手（打包在 Resources）：$HELPER_FILE"
-echo ""
-echo "用户首次使用需在 app 内点「安装授权」把 netrepair-helper 装到 /usr/local/bin 并设 setuid"
+ARCH="${1:-arm64}"
+if [[ "$ARCH" != arm64 && "$ARCH" != x86_64 ]]; then
+  print -u2 '架构只接受 arm64 或 x86_64'
+  exit 1
+fi
+OUT="$ROOT_DIR/build/native"
+/bin/mkdir -p "$OUT"
+/usr/bin/xcrun swiftc -parse-as-library -O -D HELPER -target "$ARCH-apple-macos11" "$ROOT_DIR/src/NetRepairHelper.swift" -o "$OUT/netrepair-helper"
+/usr/bin/xcrun swiftc -parse-as-library -O -target "$ARCH-apple-macos11" "$ROOT_DIR/src/NetRepairHelper.swift" "$ROOT_DIR/src/NetRepair.swift" -o "$OUT/NetRepair"
+/usr/bin/codesign --force --sign - "$OUT/netrepair-helper"
+/usr/bin/codesign --force --sign - "$OUT/NetRepair"
+/usr/bin/codesign --verify --strict "$OUT/netrepair-helper"
+/usr/bin/codesign --verify --strict "$OUT/NetRepair"
+HELPER_HASH=$(/usr/bin/shasum -a 256 "$OUT/netrepair-helper" | /usr/bin/cut -d ' ' -f 1)
+ENGINE_HASH=$(/usr/bin/shasum -a 256 "$OUT/NetRepair" | /usr/bin/cut -d ' ' -f 1)
+/usr/bin/printf '{"version":"5.0.0","helperHash":"%s","engineHash":"%s"}\n' "$HELPER_HASH" "$ENGINE_HASH" > "$OUT/native-manifest.json"
+print "原生执行层构建完成：$OUT ($ARCH)"

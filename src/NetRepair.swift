@@ -1,1358 +1,172 @@
-import Cocoa
 import Foundation
-import WebKit
+import CoreFoundation
+import Darwin
 
-private struct CommandResult {
-    let output: String
-    let status: Int32
-    let timedOut: Bool
+func shellQuote(_ text: String) -> String { "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+func appleQuote(_ text: String) -> String { "\"" + text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\"" }
+let legacyHelper = "/usr/local/bin/netrepair-helper"
+let legacyHelperHash = "9466607886a478331cd53669c799e7e02975840acedcc388c8657e5dd84df7a1"
+func legacyRetirement() throws -> String {
+    var st = stat()
+    guard lstat(legacyHelper, &st) == 0 else { guard errno == ENOENT else { throw fail("LEGACY_HELPER_UNVERIFIED", "无法检查旧版授权助手") }; return "" }
+    guard st.st_uid == 0, st.st_mode & S_IFMT == S_IFREG, st.st_mode & 0o7777 == 0o4755,
+          try sha256(legacyHelper) == legacyHelperHash else { throw fail("LEGACY_HELPER_UNVERIFIED", "旧授权文件不是已验证的原版助手；未修改它，请先通过旧版撤销授权") }
+    return "test ! -L " + shellQuote(legacyHelper) + "\ntest \"$(/usr/bin/stat -f '%u:%Lp' " + shellQuote(legacyHelper) + ")\" = '0:4755'\ntest \"$(/usr/bin/shasum -a 256 " + shellQuote(legacyHelper) + " | /usr/bin/cut -d ' ' -f 1)\" = " + shellQuote(legacyHelperHash) + "\n/bin/rm -f " + shellQuote(legacyHelper)
 }
-
-private struct AppFailure: Error, LocalizedError {
-    let message: String
-    var errorDescription: String? { message }
-}
-
-// MARK: - 配置（开源版默认空，用户填 ~/Library/Application Support/local.zeen.nettools/config.json）
-
-private struct AppConfig: Codable {
-    struct Company: Codable {
-        var name: String = ""
-        var intranetCIDR: String = ""
-        var intranetDNS: [String] = []
-        var resolverDomain: String = ""
-        var internalHost: String = ""
-        var internalProbeIP: String = ""
+final class Engine {
+    let configDir: String; let resourcesDir: String; let network = Network()
+    init(configDir: String, resourcesDir: String) { self.configDir = configDir; self.resourcesDir = resourcesDir }
+    func userDirectory() throws {
+        guard configDir.hasPrefix("/"), !configDir.contains("\0") else { throw fail("INVALID_REQUEST", "配置路径无效") }
+        if !fm.fileExists(atPath: configDir) { try fm.createDirectory(atPath: configDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]) }
+        try securePath(configDir, uid: getuid(), directory: true)
     }
-    struct VPN: Codable {
-        var enabled: Bool = false
-        var configName: String = ""
-        var clientAppPath: String = "/Applications/Tunnelblick.app"
-    }
-    var company: Company = Company()
-    var vpn: VPN = VPN()
-
-    /// 显示名，空时回退「公司」
-    var displayName: String { company.name.isEmpty ? "公司" : company.name }
-
-    /// VPN 功能是否可用（总开关开 + 探针 IP 已填）
-    var vpnEnabled: Bool { vpn.enabled && !company.internalProbeIP.isEmpty }
-
-    /// 内网网段的纯数字前缀（如 "10.0."），用于 IP 前缀判断的兼容
-    var intranetPrefix: String {
-        // 从 CIDR 如 "10.0.0.0/8" 提取前两段 "10.0."
-        let parts = company.intranetCIDR.split(separator: "/").first.map(String.init) ?? ""
-        let segs = parts.split(separator: ".").map(String.init)
-        if segs.count >= 2 { return segs[0] + "." + segs[1] + "." }
-        return ""
-    }
-
-    static let empty = AppConfig()
-}
-
-private func loadConfig() -> AppConfig {
-    let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("local.zeen.nettools", isDirectory: true)
-    let url = dir.appendingPathComponent("config.json")
-    // 首次启动：目录/文件不存在则创建空配置
-    if !FileManager.default.fileExists(atPath: url.path) {
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let empty = AppConfig()
-        if let data = try? JSONEncoder().encode(empty) {
-            try? data.write(to: url, options: [.atomic])
+    func configuration() throws -> [String: Any] {
+        let current = configDir + "/config.json"
+        if fm.fileExists(atPath: current) { try securePath(current, uid: getuid(), directory: false); return try configValue(decodeObject(Data(contentsOf: URL(fileURLWithPath: current)))) }
+        let old = fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/local.zeen.nettools/config.json").path
+        if fm.fileExists(atPath: old) {
+            try securePath(old, uid: getuid(), directory: false)
+            let legacy = try decodeObject(Data(contentsOf: URL(fileURLWithPath: old)))
+            let config = try configValue(["company": legacy["company"] as? [String: Any] ?? [:], "vpn": legacy["vpn"] as? [String: Any] ?? [:]])
+            try userDirectory(); try atomicJSON(config, path: current, uid: getuid()); return config
         }
-        return empty
+        return try configValue([:])
     }
-    guard let data = try? Data(contentsOf: url),
-          let cfg = try? JSONDecoder().decode(AppConfig.self, from: data) else {
-        return AppConfig.empty
-    }
-    return cfg
-}
-
-private final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate {
-    private var window: NSWindow!
-    private var webView: WKWebView!
-
-    private let config = loadConfig()
-
-    // 从配置读取（取代旧的硬编码公司常量）
-    private var companyDNS: [String] { config.company.intranetDNS }
-    private var gitlabHost: String { config.company.internalHost }
-    private var gitlabIP: String { config.company.internalProbeIP }
-    private var vpnName: String { config.vpn.configName }
-    private var companyName: String { config.displayName }
-    private var resolverDomain: String { config.company.resolverDomain }
-    private var intranetCIDR: String { config.company.intranetCIDR }
-    private var intranetPrefix: String { config.intranetPrefix }
-    private var vpnClientAppPath: String { config.vpn.clientAppPath }
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        let config = WKWebViewConfiguration()
-        config.userContentController.add(self, name: "netrepair")
-        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
-
-        webView = WKWebView(frame: .zero, configuration: config)
-        webView.navigationDelegate = self
-
-        window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1080, height: 720),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "捞鱼的网络工具"
-        window.minSize = NSSize(width: 900, height: 620)
-        window.center()
-        window.contentView = webView
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-
-        if let url = Bundle.main.url(forResource: "index", withExtension: "html") {
-            webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
-        } else {
-            webView.loadHTMLString("<h1 style='font-family:sans-serif'>找不到 index.html</h1>", baseURL: nil)
-        }
-    }
-
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
-
-    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
-                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        if navigationAction.navigationType == .linkActivated,
-           let url = navigationAction.request.url,
-           url.scheme == "http" || url.scheme == "https" {
-            NSWorkspace.shared.open(url)
-            decisionHandler(.cancel)
-            return
-        }
-        decisionHandler(.allow)
-    }
-
-    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: Any],
-              let action = body["action"] as? String else { return }
-        let reqId = body["reqId"] as? Int ?? 0
-        let args = body["args"] as? [String: Any] ?? [:]
-
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
-            do {
-                let data = try self.handle(action: action, args: args)
-                self.reply(reqId: reqId, data: data)
-            } catch {
-                self.reply(reqId: reqId, error: error.localizedDescription)
-            }
-        }
-    }
-
-    private func reply(reqId: Int, data: [String: Any]? = nil, error: String? = nil) {
-        var payload: [String: Any] = ["reqId": reqId, "ok": error == nil]
-        if let data { payload["data"] = data }
-        if let error { payload["error"] = error }
-        guard let raw = try? JSONSerialization.data(withJSONObject: payload),
-              let json = String(data: raw, encoding: .utf8) else { return }
-        DispatchQueue.main.async { [weak self] in
-            self?.webView.evaluateJavaScript("window.__handleResult(\(json))")
-        }
-    }
-
-    fileprivate func handle(action: String, args: [String: Any]) throws -> [String: Any] {
-        switch action {
-        case "get-status": return getStatus()
-        case "network-check": return networkCheck()
-        case "diagnose": return diagnose()
-        case "flush-dns": return try flushDNS()
-        case "set-dns": return try setDNS(args)
-        case "clear-proxy": return try clearProxy()
-        case "restore-proxy": return try restoreProxy()
-        case "renew-dhcp": return try renewDHCP()
-        case "wifi-info": return wifiInfo()
-        case "ping-test": return pingTest()
-        case "speedtest": return speedTest()
-        case "vpn-status": return vpnStatus()
-        case "vpn-connect": return try vpnConnect()
-        case "vpn-coexist": return try vpnCoexist()
-        case "vpn-coexist-reset": return try vpnCoexistReset()
-        case "helper-status": return helperStatus()
-        case "install-helper": return try installHelper()
-        case "uninstall-helper": return try uninstallHelper()
-        case "get-config": return getConfig()
-        case "save-config": return try saveConfig(args)
-        case "export-config": return exportConfig()
-        case "import-config": return try importConfig(args)
-        case "check-update": return try checkUpdate()
-        case "apply-update": return try applyUpdate()
-        case "quit-and-update": return try quitAndUpdate()
-        case "enable-autostart": return try enableAutostart()
-        case "disable-autostart": return try disableAutostart()
-        case "autostart-status": return autostartStatus()
-        case "send-notification": return try sendNotification(args)
-        case "restart-system": return try restartSystem()
-        default: throw AppFailure(message: "不支持的操作：\(action)")
-        }
-    }
-
-    // MARK: - Privileged helper（setuid root，免密执行特权操作）
-
-    private let helperPath = "/usr/local/bin/netrepair-helper"
-
-    private func helperInstalled() -> Bool {
-        FileManager.default.isExecutableFile(atPath: helperPath)
-    }
-
-    private func helperStatus() -> [String: Any] {
-        var installed = helperInstalled()
-        var euidIsRoot = false
-        if installed {
-            // 调 self-test 确认它确实是 root
-            let r = run(helperPath, ["self-test"], timeout: 5)
-            if let data = r.output.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                euidIsRoot = (json["ok"] as? Bool == true) && (json["output"] as? String ?? "").contains("running as root")
-            }
-            // 校验 setuid 位
-            if let attrs = try? FileManager.default.attributesOfItem(atPath: helperPath),
-               let posix = attrs[.posixPermissions] as? NSNumber {
-                let mode = posix.int16Value
-                installed = (mode & 0o4000) != 0  // setuid 位
-            }
-        }
-        return [
-            "installed": installed && euidIsRoot,
-            "path": helperPath,
-            "privileged": installed && euidIsRoot,
-            "message": (installed && euidIsRoot)
-                ? "✓ 已安装免密授权，所有特权操作无需密码（含守护无人值守）"
-                : "✗ 未安装免密授权，特权操作会弹系统密码框"
-        ]
-    }
-
-    /// 调 helper 执行特权 action，返回 (ok, message)
-    private func runHelper(_ action: String, _ helperArgs: [String] = []) throws -> (ok: Bool, message: String) {
-        guard helperInstalled() else {
-            throw AppFailure(message: "免密助手未安装，请先在「修复工具」页点「安装授权」")
-        }
-        let allArgs = [action] + helperArgs
-        let result = run(helperPath, allArgs, timeout: 30)
-        if let data = result.output.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            let ok = json["ok"] as? Bool ?? false
-            let msg = json["message"] as? String ?? (ok ? "成功" : "失败")
-            return (ok, msg)
-        }
-        throw AppFailure(message: result.output.isEmpty ? "助手执行失败" : result.output)
-    }
-
-    /// 安装免密助手：把 bundled helper 复制到 /usr/local/bin 并 setuid root（最后一次密码）
-    private func installHelper() throws -> [String: Any] {
-        guard let bundled = Bundle.main.url(forResource: "netrepair-helper", withExtension: nil) else {
-            throw AppFailure(message: "找不到内置的 netrepair-helper 二进制")
-        }
-        // 先复制到临时位置（避免直接写 /usr/local/bin 的权限问题）
-        let tmp = NSTemporaryDirectory() + "netrepair-helper-\(UUID().uuidString)"
-        try? FileManager.default.removeItem(atPath: tmp)
-        try? FileManager.default.copyItem(atPath: bundled.path, toPath: tmp)
-        // 一次 osascript：复制 + chown root + chmod 4755（setuid）
-        let cmd = "/bin/cp \(shellQuote(tmp)) \(shellQuote(helperPath)) && /usr/sbin/chown root:wheel \(shellQuote(helperPath)) && /bin/chmod 4755 \(shellQuote(helperPath)) && echo OK"
-        _ = try runAsAdminOSA(cmd)
-        // 验证
-        Thread.sleep(forTimeInterval: 0.5)
-        let st = helperStatus()
-        if st["installed"] as? Bool == true {
-            return ["message": "✓ 免密授权已安装，所有特权操作和守护都不再需要密码", "installed": true]
-        }
-        throw AppFailure(message: "安装似乎完成，但验证未通过，请检查 /usr/local/bin/netrepair-helper 权限")
-    }
-
-    /// 卸载免密助手
-    private func uninstallHelper() throws -> [String: Any] {
-        _ = try runAsAdminOSA("/bin/rm -f \(shellQuote(helperPath)) && echo OK")
-        return ["message": "免密授权已卸载，特权操作将恢复弹密码框", "installed": false]
-    }
-
-    // MARK: - 配置管理
-
-    /// 把配置回传给前端（返回完整字段值，供表单回填）
-    private func getConfig() -> [String: Any] {
-        return [
-            "companyName": companyName,
-            "vpnEnabled": config.vpnEnabled,
-            "vpnConfigured": !vpnName.isEmpty,
-            "configName": vpnName,                    // 回传真实配置名供表单回填
-            "resolverDomain": resolverDomain,
-            "internalHost": gitlabHost,
-            "internalProbeIP": gitlabIP,
-            "intranetCIDR": intranetCIDR,
-            "intranetDNS": companyDNS.joined(separator: ", "),  // 数组转逗号分隔供表单
-            "vpnClientAppPath": vpnClientAppPath,
-            "vpnClientExists": FileManager.default.fileExists(atPath: vpnClientAppPath),
-            "message": config.vpnEnabled
-                ? "\(companyName) VPN 功能已启用"
-                : "VPN 功能未配置，请填写下方表单或导入配置"
-        ]
-    }
-
-    /// 保存配置（前端传完整 config 对象）
-    private func saveConfig(_ args: [String: Any]) throws -> [String: Any] {
-        let dir = configDir()
-        guard let cfg = args["config"] as? [String: Any] else {
-            throw AppFailure(message: "缺少 config 参数")
-        }
-        let data = try JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys])
-        try data.write(to: dir.appendingPathComponent("config.json"), options: .atomic)
-        return ["message": "配置已保存，重新打开 app 生效"]
-    }
-
-    /// 导出配置：返回 config.json 的完整文本（含真实值），供用户复制分享给同事
-    private func exportConfig() -> [String: Any] {
-        let path = configDir().appendingPathComponent("config.json")
-        if let data = try? Data(contentsOf: path),
-           let text = String(data: data, encoding: .utf8) {
-            return ["json": text, "message": "已读取当前配置，点「复制」发给同事"]
-        }
-        return ["json": "", "message": "还没有配置文件"]
-    }
-
-    /// 导入配置：接收一段 JSON 文本，校验后覆盖写入 config.json
-    private func importConfig(_ args: [String: Any]) throws -> [String: Any] {
-        guard let text = args["json"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw AppFailure(message: "请粘贴配置 JSON 文本")
-        }
-        // 校验是合法 JSON，且结构大致正确（有 company 或 vpn 键）
-        guard let data = text.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw AppFailure(message: "JSON 格式错误，请检查是否完整复制")
-        }
-        // 写入
-        let dir = configDir()
-        let pretty = try JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])
-        try pretty.write(to: dir.appendingPathComponent("config.json"), options: .atomic)
-        return ["message": "✓ 配置已导入，重新打开 app 生效"]
-    }
-
-    /// 配置目录（统一入口）
-    private func configDir() -> URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("local.zeen.nettools", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }
-
-    /// 给 helper 调用构造配置参数（vpn-coexist 等 action 用）
-    private func helperConfigArgs() -> [String] {
-        var args: [String] = []
-        if !intranetCIDR.isEmpty { args += ["--cidr", intranetCIDR] }
-        if !companyDNS.isEmpty { args += ["--dns", companyDNS.joined(separator: ",")] }
-        if !resolverDomain.isEmpty { args += ["--resolver", resolverDomain] }
-        if !gitlabHost.isEmpty { args += ["--host", gitlabHost] }
-        if !gitlabIP.isEmpty { args += ["--probe-ip", gitlabIP] }
-        return args
-    }
-
-    // MARK: - 自动更新
-
-    private let updateRepo = "lyzbcy/nettools"
-
-    /// 当前版本号（从 Info.plist 读）
-    private var currentVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
-    }
-
-    /// 检查 GitHub 最新 release 版本
-    private func checkUpdate() throws -> [String: Any] {
-        let url = "https://api.github.com/repos/\(updateRepo)/releases/latest"
-        let result = run("/usr/bin/curl", [
-            "-sS", "-L", "--connect-timeout", "8", "--max-time", "15",
-            "-H", "Accept: application/vnd.github+json", url
-        ], timeout: 18)
-        guard result.status == 0,
-              let data = result.output.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return ["hasUpdate": false, "error": "无法获取版本信息"]
-        }
-        let tagName = json["tag_name"] as? String ?? ""           // "v4.3"
-        let remoteVersion = tagName.replacingOccurrences(of: "v", with: "")  // "4.3"
-        let releaseURL = json["html_url"] as? String ?? ""
-        let assets = json["assets"] as? [[String: Any]] ?? []
-        let zipURL = assets.first(where: { ($0["name"] as? String ?? "").hasSuffix(".zip") })?["browser_download_url"] as? String ?? ""
-        let releaseNotes = json["body"] as? String ?? ""
-
-        // 版本比较：把 "4.3.1" 拆成数字比
-        let hasUpdate = compareVersions(remoteVersion, currentVersion) > 0
-
-        return [
-            "hasUpdate": hasUpdate,
-            "currentVersion": currentVersion,
-            "remoteVersion": remoteVersion,
-            "zipURL": zipURL,
-            "releaseURL": releaseURL,
-            "releaseNotes": String(releaseNotes.prefix(200)),
-            "message": hasUpdate ? "发现新版本 \(remoteVersion)" : "已是最新版本 \(currentVersion)"
-        ]
-    }
-
-    /// 版本比较：返回 1 表示 a>b，-1 表示 a<b，0 表示相等
-    private func compareVersions(_ a: String, _ b: String) -> Int {
-        let pa = a.split(separator: ".").compactMap { Int($0) }
-        let pb = b.split(separator: ".").compactMap { Int($0) }
-        let maxLen = max(pa.count, pb.count)
-        for i in 0..<maxLen {
-            let na = i < pa.count ? pa[i] : 0
-            let nb = i < pb.count ? pb[i] : 0
-            if na > nb { return 1 }
-            if na < nb { return -1 }
-        }
-        return 0
-    }
-
-    /// 下载 + 安装更新：
-    /// 1. 下载 zip 到临时目录（带进度回调）
-    /// 2. 写 updater 脚本（解压→替换→去隔离→重签→重启→自删）
-    /// 3. 提示前端"即将重启"
-    /// 4. 前端确认后调 quit-and-update，app 退出，脚本接管
-    private func applyUpdate() throws -> [String: Any] {
-        // 先查最新版本拿 zipURL
-        let info = try checkUpdate()
-        guard info["hasUpdate"] as? Bool == true,
-              let zipURL = info["zipURL"] as? String, !zipURL.isEmpty else {
-            throw AppFailure(message: "没有可用的更新")
-        }
-
-        // 进度回调：通知前端下载进度
-        let tmpZip = NSTemporaryDirectory() + "nettools-update-\(UUID().uuidString).zip"
-        reportProgress(0, "正在下载…")
-
-        // 用 curl 下载（带进度写入临时文件）
-        let dlResult = run("/usr/bin/curl", [
-            "-sS", "-L", "--connect-timeout", "10", "--max-time", "120",
-            "-o", tmpZip, zipURL
-        ], timeout: 130)
-
-        guard dlResult.status == 0 else {
-            reportProgress(-1, "下载失败")
-            throw AppFailure(message: "下载失败：" + dlResult.output)
-        }
-        reportProgress(50, "下载完成，正在准备安装…")
-
-        // 当前 app 路径
-        let appPath = Bundle.main.bundlePath
-        let appDir = (appPath as NSString).deletingLastPathComponent
-        let appName = (appPath as NSString).lastPathComponent
-
-        // 写 updater 脚本（用数组拼接避免 Swift 字符串插值与 shell 冲突）
-        let updaterPath = appDir + "/.nettools-updater.sh"
-        let lines = [
-            "#!/bin/bash",
-            "# 捞鱼的网络工具自动更新脚本（由 app 生成，运行后自删）",
-            "cd '" + appDir + "'",
-            "echo '[updater] 等待旧进程退出…'",
-            "sleep 2",
-            "echo '[updater] 解压更新包…'",
-            "rm -rf /tmp/nettools-update-extract",
-            "ditto -x -k --sequesterRsrc '" + tmpZip + "' /tmp/nettools-update-extract 2>/dev/null || true",
-            "NEW_APP=$(find /tmp/nettools-update-extract -name '*.app' -maxdepth 2 -type d | head -1)",
-            "if [ -z \"$NEW_APP\" ]; then NEW_APP='/tmp/nettools-update-extract/" + appName + "'; fi",
-            "if [ ! -d \"$NEW_APP\" ]; then",
-            "  osascript -e 'display notification \"更新解压失败，请手动下载\" with title \"捞鱼的网络工具\"'",
-            "  rm -rf /tmp/nettools-update-extract '" + tmpZip + "'",
-            "  rm -f '" + updaterPath + "'",
-            "  exit 1",
-            "fi",
-            "echo '[updater] 替换旧版本…'",
-            "rm -rf '" + appPath + "'",
-            "cp -R \"$NEW_APP\" '" + appPath + "'",
-            "echo '[updater] 去隔离 + 重签…'",
-            "xattr -cr '" + appPath + "'",
-            "codesign --force --deep --sign - '" + appPath + "' 2>/dev/null",
-            "echo '[updater] 启动新版本…'",
-            "open '" + appPath + "'",
-            "echo '[updater] 清理…'",
-            "rm -rf /tmp/nettools-update-extract '" + tmpZip + "'",
-            "rm -f '" + updaterPath + "'",
-            "echo '[updater] 完成'"
-        ]
-        let script = lines.joined(separator: "\n")
-        try script.write(toFile: updaterPath, atomically: true, encoding: .utf8)
-        run("/bin/chmod", ["+x", updaterPath], timeout: 3)
-
-        reportProgress(90, "准备就绪，即将重启…")
-        return [
-            "ready": true,
-            "message": "更新已就绪，点击「立即重启更新」将关闭 app 并自动完成安装",
-            "updaterPath": updaterPath
-        ]
-    }
-
-    /// 进度回调（通过 evaluateJavaScript 通知前端）
-    private func reportProgress(_ percent: Int, _ message: String) {
-        let js = "window.__updateProgress && window.__updateProgress(\(percent), '\(message.replacingOccurrences(of: "'", with: "\\'"))')"
-        DispatchQueue.main.async { [weak self] in
-            self?.webView.evaluateJavaScript(js)
-        }
-    }
-
-    /// 退出 app 并启动 updater 脚本
-    private func quitAndUpdate() throws -> [String: Any] {
-        let appPath = Bundle.main.bundlePath
-        let appDir = (appPath as NSString).deletingLastPathComponent
-        let updaterPath = appDir + "/.nettools-updater.sh"
-        guard FileManager.default.isExecutableFile(atPath: updaterPath) else {
-            throw AppFailure(message: "找不到更新脚本，请重新检测更新")
-        }
-        // 后台启动 updater（nohup 确保脱离 app 进程存活）
-        run("/usr/bin/nohup", [updaterPath], timeout: 2)
-        // 延迟 0.5s 退出，让 updater 启动
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            NSApp.terminate(nil)
-        }
-        return ["message": "正在退出并安装更新…"]
-    }
-
-    // MARK: - 超级守护（开机自启 + 连续失败重启）
-
-    private let launchAgentLabel = "local.zeen.nettools.autostart"
-
-    /// 开机自启 plist 路径
-    private var launchAgentPath: String {
-        let home = NSHomeDirectory()
-        return home + "/Library/LaunchAgents/" + launchAgentLabel + ".plist"
-    }
-
-    /// 启用开机自启（写 LaunchAgent plist）
-    private func enableAutostart() throws -> [String: Any] {
-        let appPath = Bundle.main.bundlePath
-        let dir = (launchAgentPath as NSString).deletingLastPathComponent
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-
-        // LaunchAgent plist：登录时打开 app
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>Label</key><string>\(launchAgentLabel)</string>
-            <key>ProgramArguments</key>
-            <array>
-                <string>/usr/bin/open</string>
-                <string>\(appPath)</string>
-            </array>
-            <key>RunAtLoad</key><true/>
-            <key>LaunchOnlyOnce</key><true/>
-        </dict>
-        </plist>
-        """
-        try plist.write(toFile: launchAgentPath, atomically: true, encoding: .utf8)
-        return ["message": "✓ 已设置开机自启动（登录后自动打开 app）", "enabled": true]
-    }
-
-    /// 禁用开机自启
-    private func disableAutostart() throws -> [String: Any] {
-        if FileManager.default.fileExists(atPath: launchAgentPath) {
-            try? FileManager.default.removeItem(atPath: launchAgentPath)
-        }
-        return ["message": "已取消开机自启动", "enabled": false]
-    }
-
-    /// 查自启状态
-    private func autostartStatus() -> [String: Any] {
-        let enabled = FileManager.default.fileExists(atPath: launchAgentPath)
-        return ["enabled": enabled, "message": enabled ? "开机自启已启用" : "开机自启未启用"]
-    }
-
-    /// 发系统通知（用于超级守护重启倒计时提醒）
-    private func sendNotification(_ args: [String: Any]) throws -> [String: Any] {
-        let title = args["title"] as? String ?? "捞鱼的网络工具"
-        let message = args["message"] as? String ?? ""
-        let script = "display notification \(appleScriptQuote(message)) with title \(appleScriptQuote(title)) sound name \"warning\""
-        run("/usr/bin/osascript", ["-e", script], timeout: 5)
-        return ["sent": true]
-    }
-
-    /// 重启系统（调 helper 的 restart action，免密）
-    /// 注意：这个方法只在超级守护连续 3 次修复失败后才应被调用
-    private func restartSystem() throws -> [String: Any] {
-        guard helperInstalled() else {
-            throw AppFailure(message: "需要先安装免密授权才能自动重启")
-        }
-        // 调 helper restart（setuid root，免密）
-        let result = run(helperPath, ["restart"], timeout: 10)
-        // 正常情况下 shutdown 不会返回（系统重启了）
-        throw AppFailure(message: "重启失败：" + result.output)
-    }
-
-    private func run(_ executable: String, _ arguments: [String] = [], timeout: TimeInterval = 15) -> CommandResult {
-        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("netrepair-\(UUID().uuidString).log")
-        FileManager.default.createFile(atPath: tempURL.path, contents: nil)
-        guard let file = try? FileHandle(forWritingTo: tempURL) else {
-            return CommandResult(output: "无法创建临时文件", status: -1, timedOut: false)
-        }
-        defer {
-            try? file.close()
-            try? FileManager.default.removeItem(at: tempURL)
-        }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        process.standardOutput = file
-        process.standardError = file
-        let semaphore = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in semaphore.signal() }
-
+    func helperStatus() -> [String: Any] {
         do {
-            try process.run()
-        } catch {
-            return CommandResult(output: error.localizedDescription, status: -1, timedOut: false)
+            try securePath(installedHelper, uid: 0, directory: false, mode: 0o4755)
+            for parent in ["/Library", "/Library/PrivilegedHelperTools", "/Library/Application Support", privilegedState] { try securePath(parent, uid: 0, directory: true) }
+            let r = try callHelper(Request(action: "helper-status", args: [:], background: true))
+            return r
+        } catch { return ["installed": false, "privileged": false, "version": nativeVersion, "message": "网络授权未安装或身份/版本不匹配", "errorCode": (error as? Failure)?.code ?? "PERMISSION_REQUIRED"] }
+    }
+    func callHelper(_ request: Request, config: [String: Any]? = nil) throws -> [String: Any] {
+        try securePath(installedHelper, uid: 0, directory: false, mode: 0o4755)
+        for parent in ["/Library", "/Library/PrivilegedHelperTools", "/Library/Application Support", privilegedState] { try securePath(parent, uid: 0, directory: true) }
+        var args = request.args; if let config { args = ["config": config] }
+        // The trusted helper forwards TERM to its own isolated groups. Never
+        // kill that coordinator while it is still confirming descendant cleanup.
+        let result = try nativeProcess(installedHelper, ["--rpc"], input: jsonData(["action": request.action, "args": args, "background": request.background]), timeout: 40, grace: .infinity)
+        let data = Data(result.output.utf8)
+        let object = try decodeObject(data)
+        guard result.status == 0, object["ok"] as? Bool == true, let payload = object["data"] as? [String: Any] else {
+            let e = object["error"] as? [String: String] ?? [:]; throw fail(e["code"] ?? "HELPER_FAILED", e["message"] ?? "授权助手未完成操作")
         }
-
-        let timedOut = semaphore.wait(timeout: .now() + timeout) == .timedOut
-        if timedOut {
-            process.terminate()
-            _ = semaphore.wait(timeout: .now() + 2)
-        }
-        try? file.synchronize()
-        let output = (try? String(contentsOf: tempURL, encoding: .utf8)) ?? ""
-        return CommandResult(output: output.trimmingCharacters(in: .whitespacesAndNewlines),
-                             status: timedOut ? -9 : process.terminationStatus,
-                             timedOut: timedOut)
+        return payload
     }
-
-    private func shell(_ command: String, timeout: TimeInterval = 15) -> CommandResult {
-        run("/bin/zsh", ["-lc", command], timeout: timeout)
+    func admin(_ command: String) throws {
+        let result = try network.command("/usr/bin/osascript", ["-e", "do shell script " + appleQuote(command) + " with administrator privileges"], timeout: 120, allowFailure: true)
+        guard result.status == 0 else { throw fail(result.output.contains("(-128)") ? "AUTH_CANCELLED" : "AUTHORIZATION_FAILED", "系统授权未完成；授权状态未验证") }
     }
-
-    private func shellQuote(_ value: String) -> String {
-        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    func install() throws -> [String: Any] {
+        let bundled = resourcesDir + "/netrepair-helper", manifestPath = resourcesDir + "/native-manifest.json"
+        let manifest = try decodeObject(Data(contentsOf: URL(fileURLWithPath: manifestPath)))
+        let engine = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.resolvingSymlinksInPath().path
+        let helperHash = try sha256(bundled), engineHash = try sha256(engine)
+        guard manifest["version"] as? String == nativeVersion, manifest["helperHash"] as? String == helperHash, manifest["engineHash"] as? String == engineHash else { throw fail("HASH_MISMATCH", "原生授权包哈希或版本不匹配") }
+        for parent in ["/Library", "/Library/Application Support"] { try securePath(parent, uid: 0, directory: true) }
+        for parent in ["/Library/PrivilegedHelperTools", privilegedState] where fm.fileExists(atPath: parent) { try securePath(parent, uid: 0, directory: true) }
+        for path in [installedHelper, grantFile] where fm.fileExists(atPath: path) { try securePath(path, uid: 0, directory: false) }
+        let grant = try jsonData(["version": nativeVersion, "installerUID": Int(getuid()), "engineHash": engineHash, "helperHash": helperHash]).base64EncodedString()
+        // Only explicit install invokes this fixed script. All variable paths are
+        // shell-quoted, and the root copy is checked again before atomic rename.
+        let retirement = try legacyRetirement()
+        let script = [
+            "set -eu", "umask 077",
+            "test ! -L /Library/PrivilegedHelperTools", "test ! -L " + shellQuote(privilegedState),
+            "/bin/mkdir -p /Library/PrivilegedHelperTools " + shellQuote(privilegedState),
+            "test \"$(/usr/bin/stat -f '%u' /Library/PrivilegedHelperTools)\" = 0", "test \"$(/usr/bin/stat -f '%u' " + shellQuote(privilegedState) + ")\" = 0",
+            "test ! -L " + shellQuote(installedHelper), "test ! -L " + shellQuote(grantFile),
+            "/bin/chmod 755 /Library/PrivilegedHelperTools", "/bin/chmod 700 " + shellQuote(privilegedState),
+            "stage=$(/usr/bin/mktemp -d /Library/PrivilegedHelperTools/.nettools-install.XXXXXX)", "trap '/bin/rm -rf \"$stage\"' EXIT",
+            "/bin/cp " + shellQuote(bundled) + " \"$stage/helper\"",
+            "test \"$(/usr/bin/shasum -a 256 \"$stage/helper\" | /usr/bin/cut -d ' ' -f 1)\" = " + shellQuote(helperHash),
+            "test \"$(/usr/bin/shasum -a 256 " + shellQuote(engine) + " | /usr/bin/cut -d ' ' -f 1)\" = " + shellQuote(engineHash),
+            "/usr/bin/printf %s " + shellQuote(grant) + " | /usr/bin/base64 -D > \"$stage/grant\"",
+            "/usr/sbin/chown root:wheel \"$stage/helper\" \"$stage/grant\"", "/bin/chmod 4755 \"$stage/helper\"", "/bin/chmod 600 \"$stage/grant\"",
+            "/bin/mv -f \"$stage/grant\" " + shellQuote(grantFile), "/bin/mv -f \"$stage/helper\" " + shellQuote(installedHelper), retirement
+        ].joined(separator: "\n")
+        try admin(script)
+        let status = helperStatus(); guard status["installed"] as? Bool == true else { throw fail("VERIFY_FAILED", "授权安装后身份校验失败") }
+        return ["installed": true, "message": "已为当前用户授权固定网络动作；可随时撤销"]
     }
-
-    private func appleScriptQuote(_ value: String) -> String {
-        "\"" + value.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"") + "\""
+    func uninstall() throws -> [String: Any] {
+        for parent in ["/Library", "/Library/PrivilegedHelperTools", "/Library/Application Support"] where fm.fileExists(atPath: parent) { try securePath(parent, uid: 0, directory: true) }
+        for path in [installedHelper, grantFile] where fm.fileExists(atPath: path) { try securePath(path, uid: 0, directory: false) }
+        // Snapshot state is intentionally retained for a later authorized restore.
+        let retirement = try legacyRetirement()
+        try admin("set -eu\ntest ! -L " + shellQuote(installedHelper) + "\ntest ! -L " + shellQuote(grantFile) + "\n/bin/rm -f " + shellQuote(installedHelper) + " " + shellQuote(grantFile) + "\n" + retirement)
+        guard !fm.fileExists(atPath: installedHelper), !fm.fileExists(atPath: grantFile) else { throw fail("VERIFY_FAILED", "授权撤销未完成") }
+        return ["installed": false, "message": "网络授权已撤销；原始恢复快照保留"]
     }
-
-    /// 原始 osascript 提权方式（仅用于安装/卸载 helper，每次弹密码框）
-    private func runAsAdminOSA(_ command: String, timeout: TimeInterval = 120) throws -> String {
-        let script = "do shell script \(appleScriptQuote(command)) with administrator privileges"
-        let result = run("/usr/bin/osascript", ["-e", script], timeout: timeout)
-        if result.status != 0 {
-            if result.output.localizedCaseInsensitiveContains("User canceled") ||
-                result.output.contains("(-128)") {
-                throw AppFailure(message: "你取消了系统授权，未改动网络配置")
+    func invoke(_ request: Request) throws -> [String: Any] {
+        if privilegedActions.contains(request.action) { return try callHelper(request, config: request.action == "vpn-coexist" ? configuration() : nil) }
+        switch request.action {
+        case "get-config": return ["config": try configuration(), "version": nativeVersion]
+        case "export-config": return ["json": String(data: try jsonData(configuration()), encoding: .utf8)!]
+        case "save-config", "import-config":
+            let raw = request.action == "save-config" ? request.args["config"] as! [String: Any] : try decodeObject(Data((request.args["json"] as! String).utf8)), config = try configValue(raw)
+            try userDirectory(); try atomicJSON(config, path: configDir + "/config.json", uid: getuid()); return ["message": "配置已保存", "config": config]
+        case "helper-status": return helperStatus()
+        case "install-helper": guard !request.background else { throw fail("PERMISSION_REQUIRED", "后台不得请求安装授权") }; return try install()
+        case "uninstall-helper": guard !request.background else { throw fail("PERMISSION_REQUIRED", "后台不得请求撤销授权") }; return try uninstall()
+        case "get-status": return try network.status()
+        case "network-check": return try network.check()
+        case "diagnose":
+            let check = try network.check()
+            let proxies = check["proxies"] as? [String: Any] ?? [:]
+            let enabled = ["web", "secure", "socks"].compactMap { key -> String? in
+                guard let p = proxies[key] as? [String: Any], p["enabled"] as? Bool == true else { return nil }
+                return "\(key): \(p["host"] ?? ""):\(p["port"] ?? 0) · \(p["reachable"] as? Bool == true ? "可达" : "不可达")"
             }
-            throw AppFailure(message: result.output.isEmpty ? "系统操作失败" : result.output)
-        }
-        return result.output
-    }
-
-    /// 特权执行：优先用 helper 免密，未安装则 fallback 到 osascript（弹密码框）
-    /// - Parameter commandBuilder: 返回要执行的命令字符串（闭包，避免无用计算）
-    /// - Parameter helperAction: 对应的 helper action 名 + 参数
-    private func runPrivileged(helperAction: String, helperArgs: [String] = [],
-                               commandBuilder: () -> String) throws -> (helper: Bool, message: String) {
-        // 优先走 helper（免密）
-        if helperInstalled() {
-            do {
-                return try (true, runHelper(helperAction, helperArgs).message)
-            } catch {
-                // helper 失败了，不 fallback（避免重复执行），直接报错
-                throw error
+            let pac = (proxies["auto"] as? [String: Any])?["enabled"] as? Bool == true
+            let proxyDetail = (enabled + (pac ? ["PAC 自动代理已启用"] : [])).joined(separator: "；")
+            let firewall = try? network.command("/usr/libexec/ApplicationFirewall/socketfilterfw", ["--getglobalstate"], timeout: 3, allowFailure: true)
+            var hostCount: Int?
+            if let raw = try? Data(contentsOf: URL(fileURLWithPath: "/etc/hosts")), raw.count <= 262144, let text = String(data: raw, encoding: .utf8) {
+                hostCount = text.split(separator: "\n").filter { line in let line = line.trimmingCharacters(in: .whitespaces); return !line.isEmpty && !line.hasPrefix("#") && !line.contains("localhost") && !line.contains("broadcasthost") }.count
             }
+            let items: [[String: Any]] = [
+                ["name": "本机网络", "detail": "\(check["service"] ?? "") · \(check["ip"] ?? "")", "status": (check["ip"] as? String ?? "").isEmpty ? "err" : "ok"],
+                ["name": "默认路由", "detail": check["gateway"] ?? "", "status": (check["gateway"] as? String ?? "").isEmpty ? "err" : "ok"],
+                ["name": "公网 IP 连通", "detail": check["rawOk"] as? Bool == true ? "IP 直连探测成功" : "探测未成功，结合 HTTPS 判断；单一探测不决定断网", "status": check["rawOk"] as? Bool == true ? "ok" : "warn"],
+                ["name": "DNS 解析", "detail": check["dnsIp"] ?? "", "status": check["dnsOk"] as? Bool == true ? "ok" : "warn"],
+                ["name": "HTTPS", "detail": "HTTP \(check["httpCode"] ?? 0)", "status": check["httpOk"] as? Bool == true ? "ok" : "err"],
+                ["name": "系统代理", "detail": proxyDetail.isEmpty ? "未开启代理" : proxyDetail, "status": check["issue"] as? String == "stale-proxy" ? "err" : proxyDetail.isEmpty ? "info" : "ok"],
+                ["name": "hosts 文件", "detail": hostCount.map { "自定义映射：\($0) 条" } ?? "无法读取", "status": hostCount == nil ? "info" : hostCount == 0 ? "ok" : "warn"],
+                ["name": "防火墙", "detail": firewall?.status == 0 ? firewall!.output : "无法读取状态", "status": "info"]
+            ]
+            return ["items": items, "issue": check["issue"] ?? "unknown", "check": check]
+        case "wifi-info":
+            let id = try network.identity(), current = try network.command("/usr/sbin/networksetup", ["-getairportnetwork", id.interface], allowFailure: true)
+            let details = try network.command("/usr/sbin/system_profiler", ["SPAirPortDataType", "-json", "-detailLevel", "mini"], timeout: 12, allowFailure: true)
+            return ["interface": id.interface, "service": id.service, "ip": id.ip, "network": current.status == 0 ? current.output : "无法读取 SSID；可能需要定位权限", "details": details.status == 0 ? details.output : "", "ok": current.status == 0]
+        case "ping-test":
+            var items: [[String: Any]] = []
+            for ip in ["223.5.5.5", "1.1.1.1", "8.8.8.8"] { let r = try network.command("/sbin/ping", ["-c", "2", "-W", "1000", ip], timeout: 4, allowFailure: true); items.append(["ip": ip, "name": ip, "ok": r.status == 0, "detail": r.output]) }; return ["items": items]
+        case "speedtest":
+            let result = try network.web.fetch(URL(string: "https://speed.cloudflare.com/__down?bytes=25000000")!, direct: false, timeout: 20, download: true)
+            guard result["ok"] as? Bool == true, let bytes = result["bytes"] as? Int, let duration = result["duration"] as? Double, bytes > 0, duration > 0 else { return ["ok": false, "mbps": 0, "message": "测速源或实际系统代理路径不可达"] }
+            return ["ok": true, "mbps": Double(bytes) * 8 / duration / 1000000, "source": "Cloudflare 25MB", "proxyPath": "system"]
+        case "vpn-status": return try network.vpnStatus(configuration())
+        case "vpn-connect":
+            let config = try configuration(), vpn = config["vpn"] as! [String: Any], name = vpn["configName"] as! String
+            guard vpn["enabled"] as? Bool == true, !name.isEmpty, fm.fileExists(atPath: "/Applications/Tunnelblick.app") else { throw fail("VPN_NOT_CONFIGURED", "请配置 VPN 并安装 Tunnelblick") }
+            try network.command("/usr/bin/osascript", ["-e", "tell application \"Tunnelblick\" to connect " + appleQuote(name)], timeout: 15); return ["message": "已请求 Tunnelblick 连接，隧道仍需建立"]
+        default: throw fail("INVALID_REQUEST", "不支持的操作")
         }
-        // fallback：osascript 弹密码框
-        let cmd = commandBuilder()
-        _ = try runAsAdminOSA(cmd)
-        return (false, "")
-    }
-
-    // MARK: - Network identity
-
-    private func routeInfo(_ destination: String = "default") -> [String: String] {
-        let result = run("/sbin/route", ["-n", "get", destination], timeout: 4)
-        var data: [String: String] = [:]
-        for line in result.output.split(separator: "\n") {
-            let parts = line.split(separator: ":", maxSplits: 1).map(String.init)
-            if parts.count == 2 {
-                data[parts[0].trimmingCharacters(in: .whitespaces)] =
-                    parts[1].trimmingCharacters(in: .whitespaces)
-            }
-        }
-        return data
-    }
-
-    private func activeInterface() -> String {
-        routeInfo()["interface"] ?? ""
-    }
-
-    private func ipv4(_ interface: String) -> String {
-        guard !interface.isEmpty else { return "" }
-        return run("/usr/sbin/ipconfig", ["getifaddr", interface], timeout: 3).output
-    }
-
-    private func serviceForDevice(_ device: String) -> String {
-        let output = run("/usr/sbin/networksetup", ["-listnetworkserviceorder"], timeout: 5).output
-        var pendingService = ""
-        for raw in output.split(separator: "\n") {
-            let line = String(raw)
-            if let range = line.range(of: #"^\(\d+\)\s+"#, options: .regularExpression) {
-                pendingService = String(line[range.upperBound...]).trimmingCharacters(in: .whitespaces)
-            } else if line.contains("Device: \(device)") && !pendingService.isEmpty {
-                return pendingService
-            }
-        }
-        if device == "en0" { return "Wi-Fi" }
-        return device
-    }
-
-    private func activeIdentity() -> (interface: String, service: String, ip: String, gateway: String) {
-        let route = routeInfo()
-        let interface = route["interface"] ?? ""
-        return (interface, serviceForDevice(interface), ipv4(interface), route["gateway"] ?? "")
-    }
-
-    // MARK: - Read-only checks
-
-    private func proxyState() -> [String: Any] {
-        let output = run("/usr/sbin/scutil", ["--proxy"], timeout: 4).output
-        func value(_ key: String) -> String {
-            guard let match = output.range(of: "(?m)^\\s*\(NSRegularExpression.escapedPattern(for: key))\\s*:\\s*(.+)$", options: .regularExpression) else { return "" }
-            let line = String(output[match])
-            return line.split(separator: ":", maxSplits: 1).last.map(String.init)?.trimmingCharacters(in: .whitespaces) ?? ""
-        }
-        let httpOn = value("HTTPEnable") == "1"
-        let httpsOn = value("HTTPSEnable") == "1"
-        let socksOn = value("SOCKSEnable") == "1"
-        let enabled = httpOn || httpsOn || socksOn
-        let host = !value("HTTPSProxy").isEmpty ? value("HTTPSProxy") : (!value("HTTPProxy").isEmpty ? value("HTTPProxy") : value("SOCKSProxy"))
-        let portText = !value("HTTPSPort").isEmpty ? value("HTTPSPort") : (!value("HTTPPort").isEmpty ? value("HTTPPort") : value("SOCKSPort"))
-        let port = Int(portText) ?? 0
-        var reachable = false
-        if enabled && !host.isEmpty && port > 0 {
-            reachable = run("/usr/bin/nc", ["-z", "-G", "1", host, String(port)], timeout: 3).status == 0
-        }
-        return ["enabled": enabled, "host": host, "port": port, "reachable": reachable]
-    }
-
-    private func curlHTTP(_ url: String, proxy: [String: Any]? = nil, timeout: Int = 6) -> (ok: Bool, code: String) {
-        var args = ["-sS", "-L", "-o", "/dev/null", "-w", "%{http_code}", "--connect-timeout", "3", "--max-time", String(timeout)]
-        if let proxy,
-           proxy["enabled"] as? Bool == true,
-           proxy["reachable"] as? Bool == true,
-           let host = proxy["host"] as? String,
-           let port = proxy["port"] as? Int {
-            args += ["-x", "http://\(host):\(port)"]
-        } else {
-            args += ["--noproxy", "*"]
-        }
-        args.append(url)
-        let result = run("/usr/bin/curl", args, timeout: TimeInterval(timeout + 2))
-        let code = result.output.split(separator: "\n").last.map(String.init) ?? "000"
-        return (result.status == 0 && code != "000", code)
-    }
-
-    private func resolveSystem(_ host: String) -> [String] {
-        let out = run("/usr/bin/dscacheutil", ["-q", "host", "-a", "name", host], timeout: 6).output
-        return out.split(separator: "\n").compactMap { raw in
-            let line = String(raw).trimmingCharacters(in: .whitespaces)
-            guard line.hasPrefix("ip_address:") else { return nil }
-            return line.replacingOccurrences(of: "ip_address:", with: "").trimmingCharacters(in: .whitespaces)
-        }
-    }
-
-    private func resolveDirect(_ host: String, server: String) -> String {
-        let result = run("/usr/bin/dig", ["+short", "+time=3", "+tries=1", "@\(server)", host], timeout: 5)
-        return result.output.split(separator: "\n").map(String.init).first { $0.range(of: #"^\d+\.\d+\.\d+\.\d+$"#, options: .regularExpression) != nil } ?? ""
-    }
-
-    private func networkCheck() -> [String: Any] {
-        let id = activeIdentity()
-        let hasLink = !id.interface.isEmpty && !id.ip.isEmpty
-        let ping = run("/sbin/ping", ["-c", "2", "-W", "1500", "223.5.5.5"], timeout: 5)
-        let rawFallback = ping.status == 0 ? (ok: true, code: "204") : curlHTTP("http://110.242.68.66", timeout: 5)
-        let rawOK = ping.status == 0 || rawFallback.ok
-        let dnsIPs = resolveSystem("www.baidu.com")
-        let dnsOK = !dnsIPs.isEmpty
-        let proxy = proxyState()
-        let web = curlHTTP("https://www.baidu.com", proxy: proxy, timeout: 7)
-        let directWeb = web.ok ? (ok: true, code: web.code) : curlHTTP("https://www.baidu.com", timeout: 7)
-        let httpOK = web.ok || directWeb.ok
-
-        let issue: String
-        if !hasLink { issue = "no-link" }
-        else if proxy["enabled"] as? Bool == true && proxy["reachable"] as? Bool == false { issue = "stale-proxy" }
-        // 代理可能在远端代做 DNS。网页真实可用时，不把本机 DNS 失败误判成断网。
-        else if httpOK { issue = "ok" }
-        else if !rawOK { issue = "no-route" }
-        else if !dnsOK { issue = "dns" }
-        else { issue = "http" }
-
-        return [
-            "ok": issue == "ok", "issue": issue,
-            "interface": id.interface, "service": id.service, "ip": id.ip, "gateway": id.gateway,
-            "rawOk": rawOK, "dnsOk": dnsOK, "dnsIp": dnsIPs.first ?? "",
-            "httpOk": httpOK, "httpCode": web.ok ? web.code : directWeb.code,
-            "proxyEnabled": proxy["enabled"] ?? false,
-            "proxyReachable": proxy["reachable"] ?? false,
-            "proxyEndpoint": "\(proxy["host"] ?? ""):\(proxy["port"] ?? 0)"
-        ]
-    }
-
-    private func getStatus() -> [String: Any] {
-        let id = activeIdentity()
-        let version = run("/usr/bin/sw_vers", ["-productVersion"], timeout: 3).output
-        return ["online": !id.ip.isEmpty, "iface": id.interface.isEmpty ? "无" : id.interface,
-                "service": id.service, "ip": id.ip, "gateway": id.gateway, "os": version]
-    }
-
-    private func diagnose() -> [String: Any] {
-        let check = networkCheck()
-        let proxy = proxyState()
-        let hosts = shell("grep -vE '^\\s*#|^\\s*$|localhost|broadcasthost' /etc/hosts 2>/dev/null", timeout: 3).output
-        let firewall = run("/usr/libexec/ApplicationFirewall/socketfilterfw", ["--getglobalstate"], timeout: 3).output
-        let gitlab = vpnStatus()
-
-        var items: [[String: Any]] = []
-        func add(_ name: String, _ detail: String, _ status: String, _ advice: String = "") {
-            var item: [String: Any] = ["name": name, "detail": detail, "status": status]
-            if !advice.isEmpty { item["advice"] = advice }
-            items.append(item)
-        }
-
-        let hasLink = !(check["ip"] as? String ?? "").isEmpty
-        add("本机网络", hasLink ? "\(check["service"] ?? "") · \(check["interface"] ?? "") · \(check["ip"] ?? "")" : "未取得有效 IP", hasLink ? "ok" : "err", "检查网线、Wi‑Fi 或 DHCP")
-        let gateway = check["gateway"] as? String ?? ""
-        add("默认路由", gateway.isEmpty ? "没有默认网关" : "网关 \(gateway)", gateway.isEmpty ? "err" : "ok", "续租 DHCP 或检查路由器")
-        add("公网 IP 连通", check["rawOk"] as? Bool == true ? "IP 直连正常" : "IP 直连失败", check["rawOk"] as? Bool == true ? "ok" : "err", "检查路由、VPN 与物理网络")
-        let dnsOK = check["dnsOk"] as? Bool == true
-        let webOK = check["httpOk"] as? Bool == true
-        add("DNS 解析", dnsOK ? "www.baidu.com → \(check["dnsIp"] ?? "")" : (webOK ? "本机 DNS 失败，但当前代理正在代解析，网页仍可用" : "公共域名无法解析"), dnsOK ? "ok" : (webOK ? "warn" : "err"), dnsOK ? "" : (webOK ? "关闭梯子前，建议把当前网络服务的 DNS 恢复为自动获取" : "清 DNS 缓存；不要盲目覆盖 Tailscale DNS"))
-        add("网页访问", check["httpOk"] as? Bool == true ? "HTTPS 正常（HTTP \(check["httpCode"] ?? "")）" : "HTTPS 访问失败", check["httpOk"] as? Bool == true ? "ok" : "err", "结合代理与 DNS 项判断")
-
-        if proxy["enabled"] as? Bool == true {
-            let reachable = proxy["reachable"] as? Bool == true
-            add("系统代理", "\(proxy["host"] ?? ""):\(proxy["port"] ?? 0) · \(reachable ? "代理进程可达" : "端口无监听")", reachable ? "ok" : "err", reachable ? "代理正在工作，无需清除" : "可用“临时关闭失效代理”修复")
-        } else {
-            add("系统代理", "未启用系统代理", "info")
-        }
-        add("hosts 文件", hosts.isEmpty ? "没有额外映射" : "发现自定义映射：\(hosts.split(separator: "\n").count) 条", hosts.isEmpty ? "ok" : "warn", hosts.isEmpty ? "" : "确认这些映射是否仍然需要")
-        add("防火墙", firewall.isEmpty ? "无法读取状态" : firewall, "info")
-
-        // VPN 诊断项：仅当 VPN 已配置时显示
-        if config.vpnEnabled {
-            if gitlab["vpnConnected"] as? Bool == true {
-                let systemOK = gitlab["systemDnsOk"] as? Bool == true
-                add("\(companyName) 内网", systemOK ? "系统解析正确 → \(gitlab["systemGitlabIp"] ?? "")" : "系统解析异常 → \(gitlab["systemGitlabIp"] ?? "未解析")", systemOK ? "ok" : "err", "使用 VPN 页的「一键启用共存」安装\(resolverDomain.isEmpty ? "分域" : resolverDomain)分域解析")
-            } else {
-                add("\(companyName) VPN", "当前未检测到通往 \(gitlabIP) 的 VPN 路由", "info")
-            }
-        }
-        return ["items": items, "issue": check["issue"] ?? "unknown"]
-    }
-
-    // MARK: - Repairs
-
-    private func flushDNS() throws -> [String: Any] {
-        let result = try runPrivileged(
-            helperAction: "flush-dns",
-            commandBuilder: { "/usr/bin/dscacheutil -flushcache; /usr/bin/killall -HUP mDNSResponder 2>/dev/null || true" }
-        )
-        return ["message": result.helper ? result.message : "DNS 缓存已刷新"]
-    }
-
-    private func setDNS(_ args: [String: Any]) throws -> [String: Any] {
-        let id = activeIdentity()
-        guard !id.service.isEmpty else { throw AppFailure(message: "找不到当前网络服务") }
-        let primary = args["primary"] as? String ?? "empty"
-        let secondary = args["secondary"] as? String ?? ""
-        if primary != "empty" {
-            guard primary.range(of: #"^\d{1,3}(\.\d{1,3}){3}$"#, options: .regularExpression) != nil,
-                  primary.split(separator: ".").allSatisfy({ (Int($0) ?? 256) <= 255 }) else {
-                throw AppFailure(message: "DNS 地址格式不正确")
-            }
-        }
-        // 改前快照（用于失败回滚）
-        let previousDNS = currentDNS(service: id.service)
-        let result = try runPrivileged(
-            helperAction: "set-dns",
-            helperArgs: ["--service", id.service, "--primary", primary, "--secondary", secondary],
-            commandBuilder: {
-                var command = "/usr/sbin/networksetup -setdnsservers \(shellQuote(id.service)) "
-                if primary == "empty" {
-                    command += "empty"
-                } else {
-                    command += shellQuote(primary)
-                    if !secondary.isEmpty { command += " \(shellQuote(secondary))" }
-                }
-                command += "; /usr/bin/dscacheutil -flushcache; /usr/bin/killall -HUP mDNSResponder 2>/dev/null || true"
-                return command
-            }
-        )
-        // 改后验证：新 DNS 必须真的能解析公网域名，失败自动回滚到快照
-        if primary != "empty" {
-            Thread.sleep(forTimeInterval: 1.0)
-            var resolved = resolveDirect("www.baidu.com", server: primary)
-            if resolved.isEmpty && !secondary.isEmpty { resolved = resolveDirect("www.baidu.com", server: secondary) }
-            if resolved.isEmpty {
-                // 回滚
-                let rollbackArgs = ["--service", id.service, "--primary", previousDNS.isEmpty ? "empty" : previousDNS[0],
-                                    "--secondary", previousDNS.count > 1 ? previousDNS[1] : ""]
-                _ = try? runHelper("set-dns", rollbackArgs)
-                throw AppFailure(message: "新 DNS \(primary) 无法解析公网域名，已自动回滚到 \(previousDNS.isEmpty ? "自动获取" : previousDNS.joined(separator: ", "))")
-            }
-            return ["message": "\(id.service) DNS 已更新为 \(primary)\(secondary.isEmpty ? "" : ", \(secondary)")，验证通过"]
-        }
-        return ["message": result.helper ? result.message : "\(id.service) 已恢复自动 DNS"]
-    }
-
-    private func appSupportURL(_ name: String) -> URL {
-        let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("local.zeen.nettools", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root.appendingPathComponent(name)
-    }
-
-    private func proxySnapshot(service: String) -> [String: Any] {
-        func read(_ flag: String) -> [String: Any] {
-            let out = run("/usr/sbin/networksetup", [flag, service], timeout: 4).output
-            var result: [String: Any] = [:]
-            for line in out.split(separator: "\n") {
-                let pair = line.split(separator: ":", maxSplits: 1).map(String.init)
-                if pair.count == 2 { result[pair[0].trimmingCharacters(in: .whitespaces)] = pair[1].trimmingCharacters(in: .whitespaces) }
-            }
-            return result
-        }
-        let bypassRaw = run("/usr/sbin/networksetup", ["-getproxybypassdomains", service], timeout: 4).output
-        return ["service": service, "web": read("-getwebproxy"), "secure": read("-getsecurewebproxy"),
-                "socks": read("-getsocksfirewallproxy"), "auto": read("-getautoproxyurl"),
-                "bypass": splitBypass(bypassRaw)]
-    }
-
-    private func saveJSON(_ value: [String: Any], to url: URL) {
-        if let data = try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]) {
-            try? data.write(to: url, options: .atomic)
-        }
-    }
-
-    private func loadJSON(_ url: URL) -> [String: Any]? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    }
-
-    private func clearProxy() throws -> [String: Any] {
-        let id = activeIdentity()
-        guard !id.service.isEmpty else { throw AppFailure(message: "找不到当前网络服务") }
-        saveJSON(proxySnapshot(service: id.service), to: appSupportURL("proxy-backup.json"))
-        let service = shellQuote(id.service)
-        let result = try runPrivileged(
-            helperAction: "clear-proxy",
-            helperArgs: ["--service", id.service],
-            commandBuilder: {
-                [
-                    "/usr/sbin/networksetup -setwebproxystate \(service) off",
-                    "/usr/sbin/networksetup -setsecurewebproxystate \(service) off",
-                    "/usr/sbin/networksetup -setsocksfirewallproxystate \(service) off",
-                    "/usr/sbin/networksetup -setautoproxystate \(service) off"
-                ].joined(separator: "; ")
-            }
-        )
-        return ["message": result.helper ? result.message : "已临时关闭 \(id.service) 的系统代理；Git/npm 配置未改动，可随时恢复"]
-    }
-
-    private func restoreProxy() throws -> [String: Any] {
-        guard let snap = loadJSON(appSupportURL("proxy-backup.json")), let service = snap["service"] as? String else {
-            throw AppFailure(message: "没有可恢复的代理备份")
-        }
-        var commands: [String] = []
-        var helperArgs: [String] = ["--service", service]
-        func restore(_ key: String, setFlag: String, stateFlag: String, helperFlag: String) {
-            guard let data = snap[key] as? [String: Any] else { return }
-            let enabled = (data["Enabled"] as? String ?? "No").lowercased().hasPrefix("y")
-            let server = data["Server"] as? String ?? ""
-            let port = data["Port"] as? String ?? "0"
-            if !server.isEmpty && port != "0" {
-                commands.append("/usr/sbin/networksetup \(setFlag) \(shellQuote(service)) \(shellQuote(server)) \(shellQuote(port))")
-            }
-            commands.append("/usr/sbin/networksetup \(stateFlag) \(shellQuote(service)) \(enabled ? "on" : "off")")
-            helperArgs += [helperFlag, "\(server):\(port):\(enabled ? "on" : "off")"]
-        }
-        restore("web", setFlag: "-setwebproxy", stateFlag: "-setwebproxystate", helperFlag: "--web")
-        restore("secure", setFlag: "-setsecurewebproxy", stateFlag: "-setsecurewebproxystate", helperFlag: "--secure")
-        restore("socks", setFlag: "-setsocksfirewallproxy", stateFlag: "-setsocksfirewallproxystate", helperFlag: "--socks")
-        if let auto = snap["auto"] as? [String: Any] {
-            let enabled = (auto["Enabled"] as? String ?? "No").lowercased().hasPrefix("y")
-            let url = auto["URL"] as? String ?? ""
-            if enabled, !url.isEmpty {
-                commands.append("/usr/sbin/networksetup -setautoproxyurl \(shellQuote(service)) \(shellQuote(url))")
-            }
-            commands.append("/usr/sbin/networksetup -setautoproxystate \(shellQuote(service)) \(enabled ? "on" : "off")")
-            helperArgs += ["--auto", "\(url):\(enabled ? "on" : "off")"]
-        }
-        if let bypass = snap["bypass"] as? [String] {
-            let clean = bypass.filter(validBypassEntry)
-            if !clean.isEmpty {
-                commands.append("/usr/sbin/networksetup -setproxybypassdomains \(shellQuote(service)) " + clean.map(shellQuote).joined(separator: " "))
-                helperArgs += ["--bypass", clean.joined(separator: ",")]
-            }
-        }
-        let result = try runPrivileged(
-            helperAction: "restore-proxy",
-            helperArgs: helperArgs,
-            commandBuilder: { commands.joined(separator: "; ") }
-        )
-        return ["message": result.helper ? result.message : "已恢复 \(service) 的上一次代理配置"]
-    }
-
-    private func renewDHCP() throws -> [String: Any] {
-        let id = activeIdentity()
-        guard !id.interface.isEmpty, !id.interface.hasPrefix("utun") else {
-            throw AppFailure(message: "找不到可续租的物理网卡")
-        }
-        let result = try runPrivileged(
-            helperAction: "renew-dhcp",
-            helperArgs: ["--iface", id.interface],
-            commandBuilder: { "/usr/sbin/ipconfig set \(shellQuote(id.interface)) DHCP" }
-        )
-        return ["message": result.helper ? result.message : "已为 \(id.service)（\(id.interface)）续租 DHCP；没有关闭 Wi‑Fi"]
-    }
-
-    // MARK: - Wi-Fi, ping and speed
-
-    private func wifiInfo() -> [String: Any] {
-        let result = run("/usr/sbin/system_profiler", ["SPAirPortDataType", "-json"], timeout: 12)
-        guard result.status == 0,
-              let data = result.output.data(using: .utf8),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let groups = root["SPAirPortDataType"] as? [[String: Any]] else {
-            return ["connected": false]
-        }
-        for group in groups {
-            guard let interfaces = group["spairport_airport_interfaces"] as? [[String: Any]] else { continue }
-            for iface in interfaces where (iface["_name"] as? String) == "en0" {
-                guard (iface["spairport_status_information"] as? String) == "spairport_status_connected",
-                      let net = iface["spairport_current_network_information"] as? [String: Any] else {
-                    return ["connected": false]
-                }
-                let signal = net["spairport_signal_noise"] as? String ?? ""
-                let nums = signal.matches(of: #"-?\d+"#).compactMap(Int.init)
-                let rssi = nums.first ?? 0
-                let noise = nums.count > 1 ? nums[1] : 0
-                let snr = rssi - noise
-                let channelText = net["spairport_network_channel"] as? String ?? "—"
-                let channel = Int(channelText.matches(of: #"^\d+"#).first ?? "") ?? 0
-                let band = channelText.contains("6GHz") ? "6GHz" : (channelText.contains("5GHz") ? "5GHz" : "2.4GHz")
-                let rate = net["spairport_network_rate"] as? Int ?? 0
-                let securityRaw = net["spairport_security_mode"] as? String ?? ""
-                let security = securityRaw.replacingOccurrences(of: "spairport_security_mode_", with: "")
-                    .replacingOccurrences(of: "pairport_security_mode_", with: "")
-                    .replacingOccurrences(of: "_", with: " ").uppercased()
-                let signalLevel = rssi >= -55 ? "ok" : (rssi >= -70 ? "warn" : "err")
-                let signalLabel = rssi >= -55 ? "优秀" : (rssi >= -70 ? "可用" : "较弱")
-                let snrLabel = snr >= 40 ? "优秀" : (snr >= 25 ? "可用" : "较差")
-                return ["connected": true, "rssi": rssi, "noise": noise, "snr": snr,
-                        "channel": channel, "band": band, "txrate": rate, "security": security,
-                        "signalLevel": signalLevel, "signalLabel": signalLabel, "snrLabel": snrLabel]
-            }
-        }
-        return ["connected": false]
-    }
-
-    private func pingTest() -> [String: Any] {
-        let nodes = [("223.5.5.5", "阿里 DNS"), ("1.1.1.1", "Cloudflare"), ("114.114.114.114", "114 DNS")]
-        let items: [[String: Any]] = nodes.map { ip, name in
-            let result = run("/sbin/ping", ["-c", "3", "-W", "1500", ip], timeout: 7)
-            let loss = result.output.firstMatch(of: #"([0-9.]+)% packet loss"#, group: 1) ?? "100"
-            let avg = result.output.firstMatch(of: #"= [0-9.]+/([0-9.]+)/"#, group: 1) ?? "—"
-            return ["ip": ip, "name": name, "ok": result.status == 0, "loss": loss + "%", "avg": avg]
-        }
-        return ["items": items]
-    }
-
-    private func speedTest() -> [String: Any] {
-        let url = "https://speed.cloudflare.com/__down?bytes=25000000"
-        let args = ["-sS", "-L", "-o", "/dev/null", "-w", "%{size_download} %{time_total}",
-                    "--connect-timeout", "5", "--max-time", "20", url]
-        let result = run("/usr/bin/curl", args, timeout: 23)
-        let parts = result.output.split(separator: " ").compactMap { Double($0) }
-        guard parts.count >= 2, parts[0] > 0, parts[1] > 0 else {
-            return ["mbps": 0.0, "source": "Cloudflare", "ok": false, "message": "测速源不可达"]
-        }
-        let mbps = parts[0] * 8 / parts[1] / 1_000_000
-        return ["mbps": Double(String(format: "%.1f", mbps)) ?? 0, "source": "Cloudflare 25MB", "ok": true]
-    }
-
-    // MARK: - VPN coexistence
-
-    private func tailscaleDNSOn() -> Bool {
-        let path = ["/usr/local/bin/tailscale", "/opt/homebrew/bin/tailscale"].first { FileManager.default.isExecutableFile(atPath: $0) }
-        guard let path else { return false }
-        return run(path, ["dns", "status"], timeout: 5).output.contains("Tailscale DNS: enabled")
-    }
-
-    private func halfRoutes() -> [(destination: String, gateway: String)] {
-        let out = run("/usr/sbin/netstat", ["-rn", "-f", "inet"], timeout: 4).output
-        return out.split(separator: "\n").compactMap { raw in
-            let fields = raw.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
-            guard fields.count >= 2, fields[0] == "0/1" || fields[0] == "128.0/1" else { return nil }
-            return (fields[0], fields[1])
-        }
-    }
-
-    private func resolverInstalled() -> Bool {
-        // 分域 DNS 文件路径由配置的 resolverDomain 决定（如 /etc/resolver/corp.example.com）
-        resolverDomain.isEmpty ? false : FileManager.default.fileExists(atPath: "/etc/resolver/\(resolverDomain)")
-    }
-
-    private func vpnStatus() -> [String: Any] {
-        // 未配置 VPN 时降级
-        guard config.vpnEnabled else {
-            return ["vpnConnected": false, "processAlive": false, "disabled": true,
-                    "detail": "VPN 功能未配置，请在 config.json 填写公司内网信息"]
-        }
-        let route = routeInfo(gitlabIP)
-        let routeIface = route["interface"] ?? ""
-        let vpnConnected = routeIface.hasPrefix("utun") || routeIface.hasPrefix("tun")
-        let processAlive = vpnName.isEmpty ? false : shell("pgrep -alf 'openvpn.*\(vpnName)|\(vpnName).*openvpn' >/dev/null", timeout: 3).status == 0
-        let directIP = (vpnConnected && !companyDNS.isEmpty) ? resolveDirect(gitlabHost, server: companyDNS[0]) : ""
-        let systemIPs = resolveSystem(gitlabHost)
-        let systemIP = systemIPs.first ?? ""
-        let directOK = !intranetPrefix.isEmpty && directIP.hasPrefix(intranetPrefix)
-        let systemOK = !intranetPrefix.isEmpty && systemIPs.contains { $0.hasPrefix(intranetPrefix) }
-        let routes = halfRoutes()
-        let proxy = proxyState()
-        let id = activeIdentity()
-        let bypass = splitBypass(run("/usr/sbin/networksetup", ["-getproxybypassdomains", id.service], timeout: 4).output)
-        let bypassOK = (!resolverDomain.isEmpty && bypass.contains("*.\(resolverDomain)")) || bypass.contains(gitlabHost)
-
-        var detail: [String] = []
-        detail.append(vpnConnected ? "VPN 路由：\(routeIface)" : "VPN 路由：未连接")
-        detail.append("\(companyName) DNS：" + (directOK ? directIP : "未得到内网地址"))
-        detail.append("系统解析：" + (systemIP.isEmpty ? "失败" : systemIP))
-        let tailscaleOn = tailscaleDNSOn()
-        if tailscaleOn { detail.append("Tailscale DNS：开启") }
-        if proxy["enabled"] as? Bool == true { detail.append("系统代理：已开启") }
-
-        return [
-            "vpnConnected": vpnConnected, "processAlive": processAlive,
-            "routeHijacked": !routes.isEmpty, "companyDnsOk": directOK,
-            "intranetOk": systemOK, "systemDnsOk": systemOK,
-            "intranetIp": directIP, "systemGitlabIp": systemIP,
-            "resolverInstalled": resolverInstalled(), "proxyBypassOk": bypassOK,
-            "tailscaleDnsOn": tailscaleOn, "proxyOn": proxy["enabled"] ?? false,
-            "routeInterface": routeIface, "detail": detail.joined(separator: " · ")
-        ]
-    }
-
-    private func vpnConnect() throws -> [String: Any] {
-        guard config.vpnEnabled else {
-            throw AppFailure(message: "VPN 功能未配置，请在 config.json 填写公司内网信息")
-        }
-        let route = routeInfo(gitlabIP)
-        let iface = route["interface"] ?? ""
-        if iface.hasPrefix("utun") || iface.hasPrefix("tun") {
-            return ["message": "\(companyName) VPN 已连接", "alreadyConnected": true]
-        }
-        guard FileManager.default.fileExists(atPath: vpnClientAppPath) else {
-            throw AppFailure(message: "未找到 Tunnelblick，请先安装并导入 \(vpnName)")
-        }
-        let source = "tell application \"Tunnelblick\" to connect \"\(vpnName)\""
-        let result = run("/usr/bin/osascript", ["-e", source], timeout: 15)
-        if result.status != 0 { throw AppFailure(message: result.output.isEmpty ? "Tunnelblick 连接失败" : result.output) }
-        return ["message": "已让 Tunnelblick 连接 \(vpnName)，请等待隧道建立", "alreadyConnected": false]
-    }
-
-    private func splitBypass(_ raw: String) -> [String] {
-        raw.replacingOccurrences(of: "There aren't any bypass domains set on", with: "")
-            .split(whereSeparator: { $0 == "," || $0 == "\n" })
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { validBypassEntry($0) }
-    }
-
-    /// 合法 bypass 条目：域名（可带 *.）或 IP（可带 /CIDR 或 :port）或保留字。
-    /// 过滤误混入 networksetup 输出的命令错误文本（如 "cp: ... Permission denied"）
-    private func validBypassEntry(_ s: String) -> Bool {
-        guard !s.isEmpty, s.count < 100, !s.contains(" ") else { return false }
-        if ["localhost", "*.local", "127.0.0.1", "<local>"].contains(s) { return true }
-        if s.range(of: #"^(\*\.)?[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$"#, options: .regularExpression) != nil { return true }
-        if s.range(of: #"^\d{1,3}(\.\d{1,3}){3}(/\d{1,2})?(:\d{1,5})?$"#, options: .regularExpression) != nil { return true }
-        return false
-    }
-
-    private func currentDNS(service: String) -> [String] {
-        let out = run("/usr/sbin/networksetup", ["-getdnsservers", service], timeout: 4).output
-        if out.contains("There aren't any DNS Servers") { return [] }
-        return out.split(separator: "\n").map(String.init).filter { $0.range(of: #"^\d{1,3}(\.\d{1,3}){3}$"#, options: .regularExpression) != nil }
-    }
-
-    private func vpnGateway() -> String {
-        if let gateway = halfRoutes().first?.gateway { return gateway }
-        guard let firstDNS = companyDNS.first else { return "" }
-        let route = routeInfo(firstDNS)
-        let iface = route["interface"] ?? ""
-        if iface.hasPrefix("utun") || iface.hasPrefix("tun") { return route["gateway"] ?? "" }
-        return ""
-    }
-
-    private func vpnCoexist() throws -> [String: Any] {
-        guard config.vpnEnabled else {
-            throw AppFailure(message: "VPN 功能未配置，请在 config.json 填写公司内网信息")
-        }
-        let status = vpnStatus()
-        guard status["vpnConnected"] as? Bool == true || !halfRoutes().isEmpty else {
-            throw AppFailure(message: "请先连接\(companyName) VPN；当前没有检测到公司内网隧道")
-        }
-        let id = activeIdentity()
-        let gateway = vpnGateway()
-        guard !gateway.isEmpty else { throw AppFailure(message: "找不到 VPN 网关，未执行任何改动") }
-
-        let originalDNS = currentDNS(service: id.service)
-        let originalBypass = splitBypass(run("/usr/sbin/networksetup", ["-getproxybypassdomains", id.service], timeout: 4).output)
-        let routes = halfRoutes().map { ["destination": $0.destination, "gateway": $0.gateway] }
-        saveJSON(["service": id.service, "dns": originalDNS, "bypass": originalBypass, "routes": routes],
-                 to: appSupportURL("coexist-backup.json"))
-
-        // 构建命令串（给 osascript fallback 用）
-        var commands: [String] = []
-        if !intranetCIDR.isEmpty {
-            commands.append("/sbin/route -n delete -net \(intranetCIDR) 2>/dev/null || true")
-            commands.append("/sbin/route -n add -net \(intranetCIDR) \(shellQuote(gateway))")
-        }
-        for dns in companyDNS {
-            commands.append("/sbin/route -n delete -host \(dns) 2>/dev/null || true")
-            commands.append("/sbin/route -n add -host \(dns) \(shellQuote(gateway))")
-        }
-        for route in halfRoutes() {
-            let target = route.destination == "0/1" ? "0.0.0.0/1" : "128.0.0.0/1"
-            commands.append("/sbin/route -n delete -net \(target) \(shellQuote(route.gateway)) 2>/dev/null || true")
-        }
-        if !resolverDomain.isEmpty {
-            let dnsLines = companyDNS.map { "nameserver \($0)" }.joined(separator: "\\n")
-            commands.append("/bin/mkdir -p /etc/resolver")
-            commands.append("/usr/bin/printf '\(dnsLines)\\ntimeout 3\\n' > /etc/resolver/\(resolverDomain)")
-        }
-        var bypass = originalBypass
-        var domainsToAdd: [String] = []
-        if !resolverDomain.isEmpty { domainsToAdd.append("*.\(resolverDomain)") }
-        if !gitlabHost.isEmpty { domainsToAdd.append(gitlabHost) }
-        for domain in domainsToAdd where !bypass.contains(domain) { bypass.append(domain) }
-        commands.append("/usr/sbin/networksetup -setproxybypassdomains \(shellQuote(id.service)) " + bypass.map(shellQuote).joined(separator: " "))
-        if originalDNS.contains(where: companyDNS.contains) {
-            commands.append("/usr/sbin/networksetup -setdnsservers \(shellQuote(id.service)) empty")
-        }
-        commands.append("/usr/bin/dscacheutil -flushcache")
-        commands.append("/usr/bin/killall -HUP mDNSResponder 2>/dev/null || true")
-
-        // 优先走 helper（免密），否则 osascript
-        _ = try runPrivileged(
-            helperAction: "vpn-coexist",
-            helperArgs: helperConfigArgs(),
-            commandBuilder: { commands.joined(separator: "; ") }
-        )
-
-        // 等网络稳定再验证：Tunnelblick 会在网络变化后重推路由/DNS，
-        // 立即验证会得到假结果。等路由表连续 2 秒无半世界路由且 VPN 路由仍在，最长等 8 秒。
-        var after = vpnStatus()
-        for _ in 0..<8 {
-            let hijacked = !halfRoutes().isEmpty
-            let vpnUp = after["vpnConnected"] as? Bool == true
-            if vpnUp && !hijacked { break }
-            Thread.sleep(forTimeInterval: 1.0)
-            after = vpnStatus()
-        }
-        let routeOK = after["vpnConnected"] as? Bool == true
-        let dnsOK = after["systemDnsOk"] as? Bool == true
-        let bypassOK = after["proxyBypassOk"] as? Bool == true
-        let steps: [[String: Any]] = [
-            ["name": "\(companyName)流量精确路由", "detail": routeOK ? "\(intranetCIDR.isEmpty ? "内网" : intranetCIDR) 仍走 VPN" : "未验证到 VPN 路由", "ok": routeOK],
-            ["name": "移除全网劫持路由", "detail": after["routeHijacked"] as? Bool == true ? "仍检测到半世界路由" : "梯子与公网不再被公司 VPN 抢走", "ok": after["routeHijacked"] as? Bool != true],
-            ["name": "\(resolverDomain.isEmpty ? "分域" : resolverDomain) 分域 DNS", "detail": dnsOK ? "\(gitlabHost) → \(after["systemGitlabIp"] ?? "")" : "\(companyName) DNS 可达，但系统解析尚未命中内网", "ok": dnsOK],
-            ["name": "代理直连名单", "detail": bypassOK ? "\(resolverDomain.isEmpty ? "内网域名" : "*.\(resolverDomain)") 已绕过梯子代理" : "直连名单未生效", "ok": bypassOK]
-        ]
-        let allOK = steps.allSatisfy { $0["ok"] as? Bool == true }
-        return ["message": allOK ? "VPN 与梯子共存已真正生效" : "共存配置已应用，但有项目需要复查",
-                "allOk": allOK, "steps": steps]
-    }
-
-    private func vpnCoexistReset() throws -> [String: Any] {
-        guard let snap = loadJSON(appSupportURL("coexist-backup.json")), let service = snap["service"] as? String else {
-            throw AppFailure(message: "没有找到共存配置备份")
-        }
-        var commands: [String] = []
-        if !resolverDomain.isEmpty { commands.append("/bin/rm -f /etc/resolver/\(resolverDomain)") }
-        if let bypass = snap["bypass"] as? [String] {
-            commands.append("/usr/sbin/networksetup -setproxybypassdomains \(shellQuote(service)) " + bypass.map(shellQuote).joined(separator: " "))
-        }
-        if let dns = snap["dns"] as? [String], !dns.isEmpty {
-            commands.append("/usr/sbin/networksetup -setdnsservers \(shellQuote(service)) " + dns.map(shellQuote).joined(separator: " "))
-        } else {
-            commands.append("/usr/sbin/networksetup -setdnsservers \(shellQuote(service)) empty")
-        }
-        commands.append("/usr/bin/dscacheutil -flushcache; /usr/bin/killall -HUP mDNSResponder 2>/dev/null || true")
-        // 把备份的 dns/bypass 传给 helper 完整恢复（helper 拿不到用户主目录，必须由主程序传参）
-        var helperArgs: [String] = []
-        if !resolverDomain.isEmpty { helperArgs += ["--resolver", resolverDomain] }
-        if let dns = snap["dns"] as? [String], !dns.isEmpty { helperArgs += ["--dns", dns.joined(separator: ",")] }
-        if let bypass = snap["bypass"] as? [String] {
-            let clean = bypass.filter(validBypassEntry)
-            if !clean.isEmpty { helperArgs += ["--bypass", clean.joined(separator: ",")] }
-        }
-        let result = try runPrivileged(
-            helperAction: "vpn-coexist-reset",
-            helperArgs: helperArgs,
-            commandBuilder: { commands.joined(separator: "; ") }
-        )
-        return ["message": result.helper ? result.message : "分域 DNS、代理直连名单和 DNS 设置已恢复；重连 VPN 可恢复原始 VPN 路由"]
     }
 }
-
-private extension String {
-    func matches(of pattern: String) -> [String] {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
-        let ns = self as NSString
-        return regex.matches(in: self, range: NSRange(location: 0, length: ns.length)).compactMap {
-            guard $0.range.location != NSNotFound else { return nil }
-            return ns.substring(with: $0.range)
-        }
-    }
-
-    func firstMatch(of pattern: String, group: Int) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: self, range: NSRange(location: 0, length: (self as NSString).length)),
-              match.numberOfRanges > group,
-              match.range(at: group).location != NSNotFound else { return nil }
-        return (self as NSString).substring(with: match.range(at: group))
+@main struct EngineMain {
+    static func main() {
+        NativeRegistry.shared.installSignals()
+        do {
+            let object = try readInput(), request = try validate(object)
+            if CommandLine.arguments == [CommandLine.arguments[0], "--validate-only"] { reply(["valid": true, "version": nativeVersion]); return }
+            let argv = Array(CommandLine.arguments.dropFirst())
+            guard argv.count == 5, argv[0] == "--rpc", argv[1] == "--config-dir", argv[3] == "--resources-dir", argv[2].hasPrefix("/"), argv[4].hasPrefix("/") else { throw fail("INVALID_REQUEST", "仅接受固定 JSON 接口与明确的应用目录") }
+            reply(try Engine(configDir: argv[2], resourcesDir: argv[4]).invoke(request))
+        } catch { reply(error: error, extra: ["cleanupComplete": NativeRegistry.shared.isEmpty()]) }
     }
 }
-
-private let delegate = AppDelegate()
-if CommandLine.arguments.contains("--self-test") {
-    let actions = ["get-status", "network-check", "diagnose", "wifi-info", "ping-test", "vpn-status"]
-    var report: [String: Any] = [:]
-    for action in actions {
-        do { report[action] = try delegate.handle(action: action, args: [:]) }
-        catch { report[action] = ["error": error.localizedDescription] }
-    }
-    let data = try! JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
-    FileHandle.standardOutput.write(data)
-    FileHandle.standardOutput.write(Data("\n".utf8))
-    exit(0)
-}
-
-if let argument = CommandLine.arguments.first(where: { $0.hasPrefix("--self-test-action=") }) {
-    let action = argument.replacingOccurrences(of: "--self-test-action=", with: "")
-    do {
-        let result = try delegate.handle(action: action, args: [:])
-        let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
-        FileHandle.standardOutput.write(data)
-        FileHandle.standardOutput.write(Data("\n".utf8))
-        exit(0)
-    } catch {
-        FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
-        exit(1)
-    }
-}
-
-let app = NSApplication.shared
-app.delegate = delegate
-app.setActivationPolicy(.regular)
-app.run()
