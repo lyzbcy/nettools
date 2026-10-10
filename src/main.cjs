@@ -6,14 +6,17 @@ const {Updater}=require('./core/updater.cjs'),{jsonRequest,download}=require('./
 const {createDarwinPlatform}=require('./platform/darwin.cjs'),{createWindowsPlatform}=require('./platform/windows.cjs');
 const pkg=require('../package.json');
 const {Engagement}=require('./core/engagement.cjs');
+const ciAcceptance=require('./core/update-desktop-acceptance.cjs');
 let window,tray,controller,logger,updater,engagement,quitting=false,quitAllowed=false,quitPromise=null,readyUpdate=null,installingUpdate=false,initializing=true,lastRestartNotice=null,updateRecovery=null;
 const root=path.resolve(__dirname,'..'),uiFile=path.join(root,'ui/index.html'),uiUrl=pathToFileURL(uiFile).href,smoke=process.argv.includes('--nettools-smoke');
 const privateFeedbackFile=app.isPackaged?path.join(process.resourcesPath,'private/feedback-channel.json'):path.join(root,'.local-tools/feedback-channel.json');
-const dataOverride=process.argv.find(a=>a.startsWith('--nettools-data='));if(dataOverride){const override=path.resolve(dataOverride.slice('--nettools-data='.length));fs.mkdirSync(override,{recursive:true,mode:0o700});app.setPath('userData',override);}
+const dataOverride=process.argv.find(a=>a.startsWith('--nettools-data=')),selectedDataDir=dataOverride?path.resolve(dataOverride.slice('--nettools-data='.length)):app.getPath('userData');
+const ciPlan=ciAcceptance.loadUpdateAcceptancePlan({appPath:process.platform==='darwin'?path.resolve(process.execPath,'../../..'):path.dirname(process.execPath),dataDir:selectedDataDir,version:pkg.version});
+if(dataOverride){fs.mkdirSync(selectedDataDir,{recursive:true,mode:0o700});app.setPath('userData',selectedDataDir);}
 app.setName('捞鱼的网络工具');if(process.platform==='win32')app.setAppUserModelId('com.laoyu.nettools');
 const gotInstanceLock=app.requestSingleInstanceLock();if(!gotInstanceLock){quitAllowed=true;app.quit();}
 app.on('second-instance',()=>{if(window){window.show();window.focus();}});
-function state(){return {...controller?.snapshot(),update:updater?.snapshot(),updateRecovery,engagement:engagement?.snapshot(),initializing,smoke};}
+function state(){return {...controller?.snapshot(),update:updater?.snapshot(),updateRecovery,engagement:engagement?.snapshot(),initializing,smoke,updateFixture:ciPlan?.mode==='update'?{fixture:true,published:false,transport:'fixture.local',label:'CI 本地更新包（fixture.local），不是公网下载或历史公开版本'}:null};}
 function publish(){if(window&&!window.isDestroyed())window.webContents.send('nettools:state',state());const value=controller?.guard?.snapshot();if(value?.state==='countdown'&&value.restartAt!==lastRestartNotice){lastRestartNotice=value.restartAt;window?.show();if(Notification.isSupported())new Notification({title:'网络修复超过 5 分钟',body:'自动重启已进入倒计时。请保存工作；你可以在网络工具中取消。'}).show();}}
 function requestQuit(){
  if(installingUpdate)return Promise.reject(Error('正在交接更新，请等待安装结果后再退出'));
@@ -29,10 +32,11 @@ async function setup(){
  const nativeDir=app.isPackaged?path.join(process.resourcesPath,'native'):path.join(root,'build/native');
  const platform=smoke?fakePlatform():process.platform==='darwin'?createDarwinPlatform({enginePath:path.join(nativeDir,'NetRepair'),resourcesDir:nativeDir,configDir:path.join(dataDir,'netconfig')}):createWindowsPlatform({resourcesDir:path.join(__dirname,'platform'),configDir:path.join(dataDir,'netconfig')});
  controller=new Controller({dataDir,platform,version:pkg.version,log:logger,onState:publish,
-  readLoginStartup:async()=>smoke||!app.isPackaged?false:app.getLoginItemSettings({path:process.execPath}).openAtLogin,
+  readLoginStartup:async()=>{const actual=smoke||!app.isPackaged?false:app.getLoginItemSettings({path:process.execPath}).openAtLogin;if(ciPlan&&actual)throw Error('独立 CI 安装不得已有登录启动登记');return actual;},
   applyLoginStartup:async enabled=>{if(smoke||!app.isPackaged)throw Error('请在正式安装的软件中设置开机运行');const old=app.getLoginItemSettings({path:process.execPath}).openAtLogin;try{app.setLoginItemSettings({openAtLogin:enabled,path:process.execPath});if(app.getLoginItemSettings({path:process.execPath}).openAtLogin!==enabled)throw Error('系统没有确认开机运行设置，请稍后重试');}catch(error){app.setLoginItemSettings({openAtLogin:old,path:process.execPath});throw error;}},
   confirmRestart:async({signal}={})=>{const choice=await dialog.showMessageBox(window,{signal,type:'warning',title:'开启超时自动重启',message:'修复超过 5 分钟仍失败时，允许电脑自动重启？',detail:'重启会关闭所有应用，可能丢失未保存的工作。执行前会复查网络并提供 60 秒取消提醒。',buttons:['取消','开启'],defaultId:0,cancelId:0});return choice.response===1;}});
- updater=new Updater({version:pkg.version,platform:process.platform,arch:process.arch,historyFile:path.join(dataDir,'update-history.json'),downloadDir:path.join(dataDir,'updates'),getRelease:()=>jsonRequest(net.fetch,'https://api.github.com/repos/lyzbcy/nettools/releases/latest'),download:(record,file,options)=>download(net.fetch,record,file,options),prepare:async(record,options)=>{const {prepareUpdate}=require('./core/update-install.cjs');return prepareUpdate(record,{...options,appPath:process.platform==='darwin'?path.resolve(process.execPath,'../../..'):path.dirname(process.execPath),dataDir});},onReadyInvalidated:async ready=>{if(readyUpdate?.token===ready.token)readyUpdate=null;await require('./core/update-install.cjs').abortUpdate(ready);},onProgress:publish});
+ const ciTransport=ciPlan?.mode==='update'?ciAcceptance.fixtureTransport(ciPlan):null;
+ updater=new Updater({version:pkg.version,platform:process.platform,arch:process.arch,historyFile:path.join(dataDir,'update-history.json'),downloadDir:path.join(dataDir,'updates'),getRelease:ciTransport?.getRelease||(()=>jsonRequest(net.fetch,'https://api.github.com/repos/lyzbcy/nettools/releases/latest')),download:ciTransport?.download||((record,file,options)=>download(net.fetch,record,file,options)),prepare:async(record,options)=>{const {prepareUpdate}=require('./core/update-install.cjs');return prepareUpdate(record,{...options,appPath:process.platform==='darwin'?path.resolve(process.execPath,'../../..'):path.dirname(process.execPath),dataDir});},onReadyInvalidated:async ready=>{if(readyUpdate?.token===ready.token)readyUpdate=null;await require('./core/update-install.cjs').abortUpdate(ready);},onProgress:publish});
  handle('nettools:snapshot',()=>state());handle('nettools:call',async(action,args)=>{const result=await controller.invoke(action,args);if(result?.ok!==false&&!smoke)engagement.success(action);publish();return result;});
  handle('nettools:dismiss-engagement',()=>{engagement.dismiss();publish();return state();});
  handle('nettools:settings',async patch=>{await controller.updateSettings(patch);return state();});
@@ -56,6 +60,7 @@ if(gotInstanceLock)app.whenReady().then(async()=>{
  await require('./core/update-install.cjs').confirmUpdateStartup({version:pkg.version,appPath:process.platform==='darwin'?path.resolve(process.execPath,'../../..'):path.dirname(process.execPath),dataDir:app.getPath('userData'),visible:window.isVisible()&&controller.status!==null});
  updateRecovery=await require('./core/update-install.cjs').readUpdateStartupResult({version:pkg.version,appPath:process.platform==='darwin'?path.resolve(process.execPath,'../../..'):path.dirname(process.execPath),dataDir:app.getPath('userData')});
  if(updateRecovery){updater.failInstall(Error(updateRecovery.message));logger.add('warn','update-rollback',{code:'UPDATE_ROLLBACK',message:updateRecovery.message});publish();}
- if(process.env.CI==='true'&&process.env.NETTOOLS_ACCEPTANCE_DIR){try{await require('./core/desktop-acceptance.cjs').desktopAcceptance({app,window,getState:state,reportDir:path.resolve(process.env.NETTOOLS_ACCEPTANCE_DIR)});}finally{await requestQuit();}}
+ if(ciPlan){try{await ciAcceptance.updateDesktopAcceptance({app,window,getState:state,getReady:()=>readyUpdate,plan:ciPlan,requestQuit});}catch(error){await requestQuit();throw error;}}
+ else if(process.env.CI==='true'&&process.env.NETTOOLS_ACCEPTANCE_DIR){try{await require('./core/desktop-acceptance.cjs').desktopAcceptance({app,window,getState:state,reportDir:path.resolve(process.env.NETTOOLS_ACCEPTANCE_DIR)});}finally{await requestQuit();}}
 }).catch(async error=>{logger?.add('error','startup',{message:error.message});if(process.env.CI!=='true')await dialog.showMessageBox({type:'error',title:'网络工具启动未完成',message:error.message,detail:'请使用完整安装包，或打开发布页重新下载。'});quitFromMenu();});
 app.on('before-quit',event=>{if(quitAllowed)return;event.preventDefault();quitFromMenu();});app.on('window-all-closed',()=>{if(!controller?.snapshot().settings?.enabled)quitFromMenu();});app.on('activate',()=>window?.show());

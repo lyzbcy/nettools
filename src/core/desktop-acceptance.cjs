@@ -2,13 +2,14 @@
 // CI-only acceptance of the installed Electron application. This entry is never
 // activated by the UI or a regular desktop launch and never sends feedback.
 const fs=require('node:fs/promises'),path=require('node:path');
+async function settlePage(window){await window.webContents.executeJavaScript('(async()=>{await document.fonts.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));})()',true);}
 async function desktopAcceptance({app,window,getState,reportDir}){
  if(process.env.CI!=='true'||!path.isAbsolute(reportDir))throw Error('桌面验收入口仅允许隔离 CI');
  const report={platform:process.platform,arch:process.arch,version:app.getVersion(),packaged:app.isPackaged,visible:window.isVisible(),steps:[],startedAt:new Date().toISOString()};
  const evaluate=code=>window.webContents.executeJavaScript(code,true),sleep=ms=>new Promise(r=>setTimeout(r,ms));
  async function waitFor(code){const end=Date.now()+15000;while(Date.now()<end){if(await evaluate(code))return;await sleep(75);}throw Error('界面验收等待超时');}
  async function screenshot(name){
-  await evaluate('(async()=>{await document.fonts.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));})()');
+  await settlePage(window);
   const current=getState();if(current.settings.intervalMinutes===17){const disk=JSON.parse(await fs.readFile(path.join(app.getPath('userData'),'settings.json'),'utf8'));if(disk.intervalMinutes!==17||disk.enabled||disk.restartOnTimeout||disk.launchAtLogin)throw Error('截图前磁盘设置与17分钟安全状态不一致');await waitFor("document.getElementById('interval-trigger').textContent.includes('17')");}
   const pixels=await window.webContents.capturePage();await fs.writeFile(path.join(reportDir,name+'.png'),pixels.toPNG());report.steps.push({name,screenshot:name+'.png',ok:true});
  }
@@ -31,4 +32,4 @@ async function desktopAcceptance({app,window,getState,reportDir}){
  finally{report.finishedAt=new Date().toISOString();await fs.writeFile(path.join(reportDir,'desktop-report.json'),JSON.stringify(report,null,2)+'\n');}
  return report;
 }
-module.exports={desktopAcceptance};
+module.exports={desktopAcceptance,settlePage};

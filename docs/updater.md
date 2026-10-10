@@ -31,3 +31,17 @@ Windows 安装版只复制当前产品精确 `DisplayName` 和 `InstallLocation`
 未替换用户已安装的应用、未提权、未重启电脑、未发布。Windows worker 的实际执行、NSIS 升级后卸载、正式 Mac/Windows 客户端窗口与数据保留，由平台安装验收提供后续证据。
 
 旧 4.x 用户应先手动安装一次新版本；旧固化更新器不保证安全迁移。未有真实平台升级证据前，不把逻辑或模拟测试写作已完成。
+
+## 正式 Electron 更新验收入口
+
+三个平台安装验收脚本先完成正常安装版桌面操作，退出并核对磁盘上的 17 分钟设置以及三个安全开关。随后只在真实 `RUNNER_TEMP` 的独立临时安装副本中运行两段更新：将安装副本标为 `4.99.0` 后从本次实际 `5.0.0` 候选 ZIP 更新；再从正常 `5.0.0` 更新到私有 `5.0.1` 故障副本，故障主进程正常进入 Electron ready 后以 42 退出，不写启动确认，等待原助手回滚并由原 main 展示失败提示。Mac 修改副本后重新签名；Windows 仅修改精确当前用户安装登记的版本。`4.99.0` 与 `5.0.1` 是测试副本，不是历史发行版本，也不得作为发行资源上传。
+
+更新传输固定标为 `fixture:true`、`published:false`、`transport:fixture.local`；符合原资源选择规则的元数据仅用于隔离测试，下载操作实际按字节复制本次候选 ZIP 并显示真实进度。窗口显示本地测试来源。测试走原 UI、Updater、校验、prepare、控制器 shutdown 与交接；不会替助手写 ready、commit、confirmed。新版正常 main 调用原启动确认后，独立观察再核对真实安装状态、窗口可见性、PID、可执行文件、数据目录、DOM 版本、17 分钟设置和公司配置/哨兵哈希，等待字体与两帧绘制后保存截图。外部脚本核对旧进程句柄关闭、助手退出和启动确认 PID。原 90 秒启动确认期限保持。
+
+Windows 两段更新后核对原卸载器哈希、登记版本与路径，再实际调用该卸载器 `/S /currentuser`，确认登记、安装目录和既有快捷方式消失、数据保留；不通过删除目录模拟卸载。正式候选 ZIP 和未打包目录在前后做指纹比较。失败时保存 UI 报告、日志、截图与退出证据；没有确认所属进程结束或真实卸载完成时保留临时安装目录。
+
+入口只接受 `CI=true`、真实 `RUNNER_TEMP` 下私有 `plan.json` 与匹配的 64 位小写十六进制 nonce：`NETTOOLS_UPDATE_ACCEPTANCE_PLAN` 和 `NETTOOLS_UPDATE_ACCEPTANCE_NONCE`。计划绑定当前平台、架构、安装目录和数据目录；安装、数据与证据目录不得重叠，路径不可含符号链接，Unix 计划文件和父目录需由当前用户独占。拒绝模拟平台、损坏设置、开启修复/重启/登录启动的数据以及待处理重启记录。没有这两个环境变量时不启用验收。Mac 助手以 `open --env` 显式转交四个固定 CI 环境字段，避免依赖 LaunchServices 环境继承。
+
+供软件中心复用的 `mode:"observe"` 只观察实际当前安装：计划字段为 `{protocol:1,mode:"observe",nonce,platform,arch,suiteRoot,caseRoot,installPath,dataDir,version}`，目录约束相同。使用单个 `--nettools-data=<dataDir>` 参数启动，禁止更新确认/回滚参数和本地传输。正常初始化后写 `probe.json` 和 `evidence/01-observed-production-window.png`；观察模块不会点击操作、改设置、执行修复、发送反馈、重启或写更新握手记录。向同一 caseRoot 的 `stop.json` 写入 `{nonce}` 后走原正常退出流程。普通启动的只读网络检查、日志和自动版本检查保持；它不是原生产 `shell.openPath` 启动行为的替代证据。
+
+本地边界与生命周期回归、原更新测试可证明入口约束和原助手事务；完整正式 Electron 成功更新、失败回滚和 Windows 真卸载仍以本次后续真实 CI 报告为准，当前不宣称已经通过。
