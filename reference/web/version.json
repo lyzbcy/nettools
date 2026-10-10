@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "softwareVersion": "5.0.0",
+  "updatedAt": "2026-10-11",
+  "changelog": [
+    {
+      "date": "2026-10-11",
+      "text": "新增 Windows / Intel Mac、可选检查间隔与网络保活，修复超时默认不重启，更新失败可恢复旧版。"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "nettools",
+  "name": "捞鱼的网络工具",
+  "version": "5.0.0",
+  "platform": "win32",
+  "architecture": "x64",
+  "executable": "LaoyuNetTools.exe",
+  "category": "开发工具",
+  "summary": "检查网络、按故障修复，并按所选间隔保活。",
+  "siteUrl": "https://help.wshoto.com/resource/70c3ed19ddbc4a9fa158d585895e683d/f4d7c86e.html",
+  "iconPath": "ui/assets/icon.png",
+  "videoIds": [],
+  "package": {
+    "type": "portable-zip",
+    "path": "release/final-413a5f3/nettools-5.0.0-win-x64.zip",
+    "url": "https://github.com/lyzbcy/nettools/releases/download/v5.0.0/nettools-5.0.0-win-x64.zip",
+    "sha256": "e25d2bffc8fec4fd301bb0f7464302e594bdab179af35543fe68fbd50e16f7ce"
+  },
+  "installation": {
+    "displayName": "捞鱼的网络工具"
+  }
+}
