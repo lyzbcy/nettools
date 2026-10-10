@@ -44,11 +44,11 @@ class Watchdog {
     this.session = null; this.periodicTimer = null; this.periodicVersion = 0; this.restartAttempted = false;
     this.pendingOperation = null; this.queuedCheck = false;
     this.status = { state: 'stopped', nextCheckAt: null, repairStartedAt: null, repairDeadlineAt: null,
-      restartAt: null, lastCheckAt: null, lastResult: null, lastError: null };
+      restartAt: null, lastCheckAt: null, lastResult: null, resultVersion: 0, lastError: null };
   }
 
   snapshot() { return copy({ ...this.status, ...this.settings, running: this.running, suspended: this.suspended,
-    restartAttempted: this.restartAttempted, operationPending: !!this.pendingOperation,
+    restartAttempted: this.restartAttempted, canCancelRestart: !!this.session?.restartFlow && this.status.state!=='restarting', operationPending: !!this.pendingOperation,
     operationCleanupPending: !!this.pendingOperation?.controller.signal.aborted, pendingAction: this.pendingOperation?.action || null }); }
   _publish() {
     // Observer/UI errors must never break cancellation or the safety deadline.
@@ -141,7 +141,7 @@ class Watchdog {
   checkNow() {
     if (!this._active() || this.session) return Promise.resolve(this.snapshot());
     if (this.pendingOperation) {
-      this.queuedCheck = true; this.status.state = 'idle'; this.status.lastResult = null;
+      this.queuedCheck = true; this.status.state = 'idle'; this.status.lastResult = null; this.status.resultVersion++;
       this._error(CLEANUP_PENDING, 'operation-cleanup'); return Promise.resolve(this.snapshot());
     }
     const session = this._newSession('check');
@@ -204,6 +204,7 @@ class Watchdog {
     this.status.lastCheckAt = this.clock.now(); this._publish();
     const outcome = await this._operation(session, 'network-check', signal => this.check({ signal }));
     if (!this._valid(session)) return null;
+    this.status.resultVersion++;
     if (!outcome.completed) { this.status.lastResult = null; this._error(outcome.error, 'network-check-failed'); return null; }
     if (typeof outcome.value?.ok !== 'boolean') { this.status.lastResult = null; this._error({ code: 'INVALID_RESULT', message: 'Network check returned no valid result' }, 'network-check-failed'); return null; }
     this.status.lastResult = copy(outcome.value);

@@ -1,0 +1,83 @@
+{
+  "platform": "win32",
+  "version": "5.0.0",
+  "scope": "Actual Windows native RPC, private config round trip, SYSTEM grant install, DNS cache flush and grant removal; no reboot or adapter reconfiguration",
+  "steps": [
+    {
+      "name": "actual-windows-settings-acl",
+      "durationMs": 336,
+      "ownerTrusted": true,
+      "ok": true,
+      "otherReaders": 0
+    },
+    {
+      "name": "get-status",
+      "durationMs": 2651,
+      "ok": true,
+      "linkAvailable": true,
+      "hasAddress": true,
+      "dhcp": true
+    },
+    {
+      "name": "network-check",
+      "durationMs": 4271,
+      "ok": true,
+      "networkHealthy": true,
+      "issue": "ok"
+    },
+    {
+      "name": "diagnose",
+      "durationMs": 5503,
+      "ok": true,
+      "count": 8
+    },
+    {
+      "name": "unicode-config-save",
+      "durationMs": 378,
+      "ok": true
+    },
+    {
+      "name": "unicode-config-load",
+      "durationMs": 343,
+      "ok": true
+    },
+    {
+      "name": "authorization-before",
+      "durationMs": 322,
+      "ok": true,
+      "installed": false
+    },
+    {
+      "name": "authorization-install",
+      "durationMs": 1325,
+      "ok": true
+    },
+    {
+      "name": "authorization-verified",
+      "durationMs": 2932,
+      "ok": true,
+      "installed": true
+    },
+    {
+      "name": "actual-system-dns-cache-flush",
+      "durationMs": 4899,
+      "ok": true
+    },
+    {
+      "name": "authorization-uninstall",
+      "durationMs": 12186,
+      "ok": true
+    },
+    {
+      "name": "authorization-removed",
+      "durationMs": 328,
+      "ok": true,
+      "installed": false
+    }
+  ],
+  "startedAt": "2026-10-10T16:37:37.967Z",
+  "currentStep": "authorization-removed",
+  "ok": true,
+  "finishedAt": "2026-10-10T16:38:13.455Z",
+  "ciRun": "https://github.com/lyzbcy/nettools/actions/runs/38068374519"
+}
