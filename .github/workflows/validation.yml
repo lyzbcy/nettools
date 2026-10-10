@@ -11,7 +11,7 @@ concurrency:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,10 +23,40 @@ jobs:
       - name: Actual Windows native and authorization acceptance
         shell: pwsh
         run: node scripts/ci-windows-native.cjs
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.16.1'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fixed packaging dependencies
+        shell: pwsh
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          python -m pip install Pillow==11.3.0
+      - name: Build complete Windows ZIP and themed installer
+        shell: pwsh
+        env:
+          NETTOOLS_FEEDBACK_WEBHOOK: ${{ secrets.NETTOOLS_FEEDBACK_WEBHOOK }}
+        run: node scripts/package.cjs win32 x64
+      - name: Actual installed desktop and persisted preferences
+        shell: pwsh
+        run: node scripts/ci-windows-desktop.cjs
       - name: Preserve actual acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: windows-native-evidence
           path: verification/windows/
+          if-no-files-found: warn
+      - name: Preserve candidate packages and integrity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nettools-windows-candidate
+          path: |
+            release/*.zip
+            release/.work-*.noindex/*-setup.exe
+            verification/packages/
+          include-hidden-files: true
           if-no-files-found: warn

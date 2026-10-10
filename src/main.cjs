@@ -45,5 +45,6 @@ app.whenReady().then(async()=>{
  window.on('close',event=>{if(!quitting&&controller?.snapshot().settings?.enabled){event.preventDefault();window.hide();}});
  const image=nativeImage.createFromPath(path.join(root,'ui/assets/icon.png')).resize({width:22,height:22});tray=new Tray(image);tray.setToolTip('捞鱼的网络工具');tray.setContextMenu(Menu.buildFromTemplate([{label:'打开网络工具',click:()=>{window.show();window.focus();}},{label:'退出并停止保活',click:()=>{quitting=true;controller?.stop();app.quit();}}]));tray.on('click',()=>{window.show();window.focus();});
  const setupPromise=setup();await window.loadFile(uiFile);await setupPromise;
+ if(process.env.CI==='true'&&process.env.NETTOOLS_ACCEPTANCE_DIR){try{await require('./core/desktop-acceptance.cjs').desktopAcceptance({app,window,getState:state,reportDir:path.resolve(process.env.NETTOOLS_ACCEPTANCE_DIR)});}finally{quitting=true;controller.stop();app.quit();}}
 }).catch(async error=>{logger?.add('error','startup',{message:error.message});await dialog.showMessageBox({type:'error',title:'网络工具启动未完成',message:error.message,detail:'请使用完整安装包，或打开发布页重新下载。'});quitting=true;app.quit();});
 app.on('before-quit',()=>{quitting=true;controller?.stop();updater?.cancel();});app.on('window-all-closed',()=>{if(!controller?.snapshot().settings?.enabled)app.quit();});app.on('activate',()=>window?.show());
