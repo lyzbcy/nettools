@@ -13,12 +13,14 @@ function clockText(ms){if(ms==null)return '—';const seconds=Math.ceil(ms/1000)
 function ticks(){if(!state)return;const g=state.guard||{};text('next-check',clockText(remaining(g.nextCheckAt)));text('repair-elapsed',g.repairStartedAt==null?'—':clockText(Math.max(0,state.now+performance.now()-stateAt-g.repairStartedAt)));const until=remaining(g.restartAt);text('restart-countdown',until==null?'—':Math.floor(Math.ceil(until/1000)/60)+':'+String(Math.ceil(until/1000)%60).padStart(2,'0'));}
 function render(value){
  state=value;stateAt=performance.now();const settings=value.settings||{},guard=value.guard||{},network=value.network,connection=value.status||{},authorization=value.authorization||{};
+ text('ci-source-banner',value.updateFixture?.label||'');show('ci-source-banner',!!value.updateFixture);
  text('version',value.version||'5.0.0');show('smoke-banner',!!value.smoke);show('windows-adapter-field',value.platform==='win32');show('engagement-banner',value.engagement?.show===true&&!value.smoke);
  const healthy=network?.ok===true,offline=network?.ok===false;
  text('network-pill',healthy?'公网已连通':offline?'需要排查':value.initializing?'正在读取':'尚未验证');$('network-pill').className='pill'+(offline?' warning':'');
  text('network-title',healthy?'网络现在是通的':offline?'有些地方需要看看':value.initializing?'正在看看网络…':'先检查，再下结论');text('network-description',network?issues[network.issue]||'请查看诊断结果和操作日志':value.lastError?.message||'本机有地址不等于公网可用，检查后会分别显示结果。');
  $('network-mascot').src=healthy?'assets/img/sticker/ok.png':offline?'assets/img/sticker/warn.png':'assets/img/sticker/mascot.png';
- text('connection-name',connection.service||network?.service||network?.interface||'尚未读取');text('connection-ip',connection.ip||network?.ip||'尚未取得有效 IP');
+ const currentConnection=network&&Object.hasOwn(network,'ip')?network:connection;
+ text('connection-name',currentConnection.service||currentConnection.interface||'尚未读取');text('connection-ip',currentConnection.ip||'尚未取得有效 IP');
  text('internet-label',healthy?'已连通':offline?'未通过检查':'尚未验证');text('internet-detail',network?issues[network.issue]||'请查看诊断':'本机有 IP 不等于公网可用');
  text('guard-brief',settings.enabled?labels[guard.state]||'运行中':'未开启');text('guard-brief-detail',settings.enabled?'每 '+settings.intervalMinutes+' 分钟检查；超时'+(settings.restartOnTimeout?'按选择重启':'无动作'):'默认不会自动修复或重启');
  $('guard-enabled').checked=!!settings.enabled;$('restart-enabled').checked=!!settings.restartOnTimeout;$('login-enabled').checked=!!settings.launchAtLogin;
