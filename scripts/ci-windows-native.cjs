@@ -7,7 +7,7 @@ async function run(){
  const report={platform:process.platform,version:require('../package.json').version,scope:'Actual Windows native RPC, private config round trip, SYSTEM grant install, DNS cache flush and grant removal; no reboot or adapter reconfiguration',steps:[],startedAt:new Date().toISOString()};
  const platform=createWindowsPlatform({configDir:root,resourcesDir:path.resolve(__dirname,'../src/platform')});
  let installed=false;
- async function step(name,fn,summary=v=>({ok:true})){const start=Date.now();const value=await fn();report.steps.push({name,durationMs:Date.now()-start,...summary(value)});return value;}
+ async function step(name,fn,summary=v=>({ok:true})){report.currentStep=name;const start=Date.now();const value=await fn();report.steps.push({name,durationMs:Date.now()-start,...summary(value)});return value;}
  try{
   const settingsFile=path.join(root,'settings.json');saveSettings(settingsFile,{enabled:false,intervalMinutes:30,restartOnTimeout:false,launchAtLogin:false});
   await step('actual-windows-settings-acl',async()=>{const ps=path.win32.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');const result=await runProcess(ps,['-NoProfile','-NonInteractive','-File',path.resolve(__dirname,'windows-settings-acl.ps1')],{input:JSON.stringify({file:settingsFile})});return JSON.parse(result.stdout);},v=>{if(!v.ok)throw Error('Settings are readable outside the trusted user/admin/system scope');return v;});
@@ -25,7 +25,7 @@ async function run(){
   await step('authorization-uninstall',()=>platform.invoke('uninstall-helper'));installed=false;
   await step('authorization-removed',()=>platform.invoke('helper-status'),v=>{if(v.installed)throw Error('Authorization remains');return {ok:true,installed:v.installed};});
   report.ok=true;
- }catch(e){report.ok=false;report.error={code:e.code||'ACCEPTANCE_FAILED',message:e.message};throw e;}
+ }catch(e){report.ok=false;report.error={code:e.code||'ACCEPTANCE_FAILED',message:e.message,stdout:String(e.stdout||'').slice(-4000),stderr:String(e.stderr||'').slice(-4000)};throw e;}
  finally{
   if(installed){try{await platform.invoke('uninstall-helper');report.cleanup=true;}catch(e){report.cleanup=false;report.cleanupError=e.code||e.message;}}
   await fs.rm(root,{recursive:true,force:true});report.finishedAt=new Date().toISOString();const output=path.resolve(__dirname,'../verification/windows');await fs.mkdir(output,{recursive:true});await fs.writeFile(path.join(output,'native-report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));
