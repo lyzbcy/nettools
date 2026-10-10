@@ -3,9 +3,10 @@ const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:
 async function run(){
  if(process.platform!=='win32'||process.env.CI!=='true')throw Error('需要实际隔离 Windows CI');
  const version=require('../package.json').version,report=JSON.parse(await fs.readFile(path.resolve(__dirname,'../verification/packages/win32-x64.json'),'utf8')),installer=report.assets.find(a=>a.name.endsWith('-setup.exe')).file;
- const temp=await fs.mkdtemp(path.join(os.tmpdir(),'nettools-desktop-')),install=path.join(temp,'Installed','LaoyuNetTools'),data=path.join(temp,'data'),evidence=path.resolve(__dirname,'../verification/windows/desktop');
+ const temp=await fs.mkdtemp(path.join(process.env.RUNNER_TEMP||os.tmpdir(),'nettools-desktop-')),install=path.join(temp,'Installed','LaoyuNetTools'),data=path.join(temp,'data'),evidence=path.resolve(__dirname,'../verification/windows/desktop');
  try{
-  await runProcess(installer,['/S','/D='+install],{timeoutMs:180000,maxOutput:1024*1024});
+  process.env.NETTOOLS_INSTALLER_ACCEPTANCE_ROOT=install;try{await runProcess(installer,[],{timeoutMs:240000,maxOutput:1024*1024});}finally{delete process.env.NETTOOLS_INSTALLER_ACCEPTANCE_ROOT;}
+  const installerEvidence=path.join(process.env.RUNNER_TEMP,'nettools-installer-evidence');await fs.cp(installerEvidence,path.resolve(__dirname,'../verification/windows/installer'),{recursive:true});const installerReport=JSON.parse(await fs.readFile(path.join(installerEvidence,'installer-report.json'),'utf8'));if(!installerReport.ok||!installerReport.visible||installerReport.desktopSelected!==false)throw Error('真实可见 WPF 安装未通过：'+(installerReport.error||''));
   const exe=path.join(install,'LaoyuNetTools.exe');await fs.access(exe);
   const installedVersion=JSON.parse(await fs.readFile(path.join(install,'resources/app/package.json'),'utf8')).version;if(installedVersion!==version)throw Error('实际安装版本不匹配');
   const original=process.env.NETTOOLS_ACCEPTANCE_DIR;process.env.NETTOOLS_ACCEPTANCE_DIR=evidence;

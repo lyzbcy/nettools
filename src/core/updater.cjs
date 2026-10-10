@@ -41,7 +41,9 @@ class Updater{
   },error=>{throw error;}).catch(error=>{this.status.state='error';this.status.error=String(error.message||error);this._publish();throw error;}).finally(()=>{this.pendingCheck=null;});
   return this.pendingCheck;
  }
- cancel(){this.controller?.abort();}
+ cancel(){this.controller?.abort();if(this.status.state==='ready'){this.status.state='available';this.status.progress=null;this._publish();}}
+ beginInstall(){if(this.status.state!=='ready'||this.stageRunning)throw Error('更新尚未准备就绪');this.status.state='installing';this.status.error=null;this._publish();}
+ failInstall(error){this.status.state='error';this.status.error=String(error?.message||error||'更新安装未完成');this._publish();}
  async stage(){
   if(this.stageRunning)throw Error('正在准备更新，请等待');
   this.stageRunning=true;this.controller=new AbortController();const signal=this.controller.signal;let partial;

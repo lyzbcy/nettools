@@ -22,6 +22,7 @@ $xaml=@'
 </Grid></Border></Window>
 '@
 $window=[Windows.Markup.XamlReader]::Parse($xaml);$ui=@{}
+$window.Title='捞鱼的网络工具安装'
 foreach($name in @('Header','Minimize','Close','Welcome','Location','Folders','Progress','Finish','Mascot','VersionText','Drives','InstallPath','Browse','Recommended','Desktop','FolderPath','FolderUp','FolderOpen','FolderList','FolderPrevious','FolderNext','FolderChoose','FolderCancel','ProgressMascot','ProgressFill','ProgressText','FinishMascot','InstalledText','Launch','ErrorText','Next')){$ui[$name]=$window.FindName($name)}
 $script:page='Welcome';$script:installing=$false;$script:installerProcess=$null;$script:folders=@();$script:folderOffset=0;$script:root=''
 foreach($name in @('Mascot','ProgressMascot','FinishMascot')){if($Logo -and [IO.File]::Exists($Logo)){$ui[$name].Source=New-Object Windows.Media.Imaging.BitmapImage([Uri]$Logo)}}
@@ -59,7 +60,10 @@ $timer.Add_Tick({
   $record=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue|Where-Object{$_.DisplayName -eq '捞鱼的网络工具' -and $_.DisplayVersion -eq $Version -and ([string]$_.InstallLocation).TrimEnd('\') -eq $script:root.TrimEnd('\')}|Select-Object -First 1
   if(!$record){throw '安装登记未通过校验，请重试。'}
   $ui.InstalledText.Text=$Version+' · '+$script:root;$ui.ProgressFill.Width=630;Set-Page 'Finish';$ui.Next.Content='完成'
- }catch{$timer.Stop();$script:installing=$false;$ui.Close.IsEnabled=$true;$ui.Next.IsEnabled=$true;Set-Page 'Location';$ui.ErrorText.Text=$_.Exception.Message;$ui.Next.Content='重试安装'}
+ }catch{
+  if($script:installerProcess -and !$script:installerProcess.HasExited){$ui.ProgressText.Text='安装仍在进行，暂时无法计算进度；请等待完成。';return}
+  $timer.Stop();$script:installing=$false;$ui.Close.IsEnabled=$true;$ui.Next.IsEnabled=$true;Set-Page 'Location';$ui.ErrorText.Text=$_.Exception.Message;$ui.Next.Content='重试安装'
+ }
 })
 $ui.Next.Add_Click({
  if($script:page -eq 'Welcome'){Set-Page 'Location';$ui.Next.Content='确认并安装';return}
@@ -77,4 +81,24 @@ $ui.Next.Add_Click({
   $script:installing=$true;$ui.Close.IsEnabled=$false;$ui.Next.IsEnabled=$false;Set-Page 'Progress';$script:installerProcess=Start-Process -FilePath $Installer -ArgumentList $options -PassThru -WindowStyle Hidden;$timer.Start()
  }catch{$script:installing=$false;$ui.Close.IsEnabled=$true;$ui.Next.IsEnabled=$true;$ui.ErrorText.Text=$_.Exception.Message}
 })
+if($env:CI -eq 'true' -and $env:NETTOOLS_INSTALLER_ACCEPTANCE_ROOT -and $env:RUNNER_TEMP){
+ # Exercise the same visible WPF window and installation handlers in an
+ # ephemeral runner. No preview installer or fake completion page is used.
+ $testRoot=[IO.Path]::GetFullPath($env:NETTOOLS_INSTALLER_ACCEPTANCE_ROOT);$runnerRoot=[IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')+'\'
+ if(!$testRoot.StartsWith($runnerRoot,[StringComparison]::OrdinalIgnoreCase)){throw '安装验收目录必须位于隔离 runner 临时目录'}
+ $evidence=Join-Path $runnerRoot 'nettools-installer-evidence';$null=[IO.Directory]::CreateDirectory($evidence)
+ function Capture-Installer([string]$name){$window.UpdateLayout();$bitmap=New-Object Windows.Media.Imaging.RenderTargetBitmap([int]$window.ActualWidth,[int]$window.ActualHeight,96,96,[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($window);$encoder=New-Object Windows.Media.Imaging.PngBitmapEncoder;$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));$stream=[IO.File]::Create((Join-Path $evidence ($name+'.png')));try{$encoder.Save($stream)}finally{$stream.Dispose()}}
+ $testTimer=New-Object Windows.Threading.DispatcherTimer;$testTimer.Interval=[TimeSpan]::FromMilliseconds(250);$script:testPhase=0;$script:testUntil=[DateTime]::UtcNow.AddMinutes(3)
+ $testTimer.Add_Tick({
+  try{
+   if([DateTime]::UtcNow -gt $script:testUntil){throw '真实安装向导超时'}
+   if($script:testPhase -eq 0){Capture-Installer '01-welcome';$ui.Next.RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent)));$ui.InstallPath.Text=$testRoot;$ui.Desktop.IsChecked=$false;Capture-Installer '02-location';$ui.Next.RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent)));$script:testPhase=1;return}
+   if($script:page -eq 'Finish'){
+    Capture-Installer '03-finish';$report=@{ok=$true;visible=$window.IsVisible;version=$Version;installRoot=$script:root;desktopSelected=$ui.Desktop.IsChecked;installerEntry=$Installer};[IO.File]::WriteAllText((Join-Path $evidence 'installer-report.json'),($report|ConvertTo-Json -Compress),(New-Object Text.UTF8Encoding($false)));$testTimer.Stop();$ui.Launch.IsChecked=$false;$ui.Next.RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent)));return
+   }
+   if($script:page -eq 'Location' -and $ui.ErrorText.Text){throw $ui.ErrorText.Text}
+  }catch{$report=@{ok=$false;error=$_.Exception.Message;visible=$window.IsVisible};[IO.File]::WriteAllText((Join-Path $evidence 'installer-report.json'),($report|ConvertTo-Json -Compress),(New-Object Text.UTF8Encoding($false)));$testTimer.Stop();if(!$script:installing){$window.Close()}}
+ })
+ $window.Add_ContentRendered({$testTimer.Start()})
+}
 $null=$window.ShowDialog();$timer.Stop()

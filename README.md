@@ -1,107 +1,41 @@
-# 🌐 捞鱼的网络工具
+# 捞鱼的网络工具
 
-> macOS 网络自诊断、自修复工具。DNS / 代理 / WiFi 体检 / 网速测试 / 公网连通守护 / 公司内网 VPN 与梯子共存。
+面向 Mac / Windows 的网络诊断、修复与可选保活工具，使用星星布丁原创图标。
 
-灵感来自 Windows 上的「360 断网急救箱」，但用 macOS 原生命令实现——没有 Winsock/LSP 这些 Windows 专属的网络栈，一切靠 `networksetup` / `scutil` / `route` / `dscacheutil` 等系统工具。
+**5.0.0 目前为候选版本，尚未正式交付。** 已有发布页的 4.x 包不是本次新版；最终下载入口会在安装、更新及软件中心验收完成后公布。
 
-## ✨ 功能
+## 网络保活
 
-| 功能 | 说明 |
-|---|---|
-| 🚀 一键智能诊断 | 8 项体检：本机网络、默认路由、公网连通、DNS、网页访问、系统代理、hosts、防火墙。只读检查，不改配置 |
-| 🛡️ 公网连通守护 | 每 30 秒检查公网，断了自动按 DNS→代理→DHCP 顺序对症修复。安装免密授权后可无人值守（保活远程连接） |
-| 🧹 修复工具箱 | 清 DNS 缓存 / 换公共 DNS / 临时关闭失效代理 / 续租 DHCP，每个都有"撤销" |
-| 📶 WiFi 体检 | 信号强度 RSSI、噪声、信噪比、信道、速率、安全协议 |
-| ⚡ 网速测试 | Cloudflare 测速源 |
-| 🔒 公司 VPN 共存 | 与梯子同时用：精确路由 + 分域 DNS + 代理直连，互不抢流量（需配置） |
-| 🔐 免密授权 | setuid root 助手，一次安装永久免密，守护可真正无人值守 |
+- 默认关闭；启用后立即检查，随后按你选择的间隔检查，默认 30 分钟，可设 1–1440 分钟。
+- 检查发现故障后，只执行对应的安全修复动作。没有授权会如实提示，不反复弹密码框。
+- 本轮修复超过 5 分钟仍失败，默认无动作，等下一次定期检查。
+- 自动重启需单独确认开启。重启前复查网络，提供 60 秒取消提醒；休眠、关闭保活、网络恢复或取消都会使过期任务失效。
+- 进程清理未确认时停止后续操作；不确定是否已发出重启请求时保留防循环保护。
 
-## 📦 安装
+## 平台与功能
 
-### 方式一：下载成品（推荐普通用户）
+Mac 分 Apple Silicon / Intel 两个包，基于 Electron 44，最低 macOS 13；Windows 为 Windows 10+ x64。界面和保活运行在同一个主进程架构，系统网络动作分别通过 Swift 和固定 PowerShell 接口执行。
 
-到 [Releases](../../releases) 下载 `捞鱼的网络工具.app`，拖到「应用程序」即可。
+支持连接读取、八项诊断、DNS/失效本机代理/DHCP 修复与恢复、WiFi 信息、公网延迟、下载测速及公司 VPN 配置。正常代理和静态 IP 会保留；系统不给出的无线指标会明确说明。Mac VPN 连接使用 Tunnelblick，Windows 连接使用已存在的原生 VPN 名称。
 
-首次打开如果被 Gatekeeper 拦截：右键 → 打开，或在「系统设置 → 隐私与安全性」点「仍要打开」。
+设置、公司配置、日志独立于安装目录；日志可以复制和清空，并经过脱敏。反馈有预览，仅点击发送才提交。更新按上海日期每日首次检查，可手动重试，下载后校验原始 SHA-256，助手交接后才退出旧版，确认新版启动前保留旧程序。
 
-### 方式二：自己编译（推荐开发者）
+## 开发与验收
 
-```bash
-git clone <repo-url>
-cd 网络工具
-./build.sh
-open 捞鱼的网络工具.app
+先读 [SKILL.md](SKILL.md) 和 [docs/agent.md](docs/agent.md)。真实完成范围见 [交付进度](docs/roadmap.md)；打包、实际平台运行、升级及公开发行分别验收。
+
+```sh
+pnpm install --frozen-lockfile --ignore-scripts
+node --test test/*.test.cjs
+node scripts/package.cjs darwin arm64
+node scripts/package.cjs darwin x64
+node scripts/package.cjs win32 x64
 ```
 
-需要：macOS 11+ / Apple Silicon (arm64) / Xcode Command Line Tools。
+打包需要固定 Electron 运行时、Pillow 和本地反馈通道配置；反馈凭据不得进入源码或日志。Mac 构建需要系统 Swift 工具链，Windows 安装器由 NSIS 和离线 WPF 前端组成。候选构建目录使用 `.noindex`，避免被系统误识别成正式安装。
 
-## ⚙️ 配置公司 VPN（可选）
+Windows 原生授权、缓存刷新与撤销的实际证据见 [CI 38068374519](https://github.com/lyzbcy/nettools/actions/runs/38068374519)。这不代替完整桌面安装和自身升级验收。
 
-VPN 共存功能需要填写你公司的内网信息。app 首次启动会在以下位置创建空配置：
+旧 4.x 用户需先手动安装一次新版本。旧“超级守护”不会自动开启新的重启选项。历史说明保留于 `doc/README-4.x-history.md`。
 
-```
-~/Library/Application Support/local.zeen.nettools/config.json
-```
-
-编辑它，填入你公司的值（参考 `config.example.json`）：
-
-```json
-{
-  "company": {
-    "name": "你的公司名",
-    "intranetCIDR": "如 10.0.0.0/8",
-    "intranetDNS": ["内网DNS1", "内网DNS2"],
-    "resolverDomain": "如 corp.example.com",
-    "internalHost": "如 gitlab.corp.example.com",
-    "internalProbeIP": "如 10.0.0.5"
-  },
-  "vpn": {
-    "enabled": true,
-    "configName": "Tunnelblick 里的配置名",
-    "clientAppPath": "/Applications/Tunnelblick.app"
-  }
-}
-```
-
-不知道这些值？问你的网络管理员，或在公司 VPN 连接时用 `dig` / `ifconfig` / `netstat -rn` 自查。
-
-**这个配置文件只在你的本地，不进 git**——开源代码里不含任何公司内部信息。
-
-## 🔐 免密授权（推荐开启）
-
-默认每次网络修复都会弹系统密码框。如果你要用「公网连通守护」（无人值守），强烈建议安装免密授权：
-
-1. 打开 app → 修复工具页 → 「🔐 免密授权」卡片
-2. 点「安装免密授权」→ 输一次开机密码
-3. 之后所有操作和守护都不再弹密码
-
-原理：app 安装一个 setuid root 的助手二进制（`/usr/local/bin/netrepair-helper`），它只接受固定的 7 个网络修复动作（白名单），不接受任意命令。可随时卸载。
-
-## 🏗️ 架构
-
-```
-NetRepair (Swift + WKWebView 壳)
-    ├─ index.html (前端 UI，单文件)
-    └─ 调用 Swift action ←→ JS 桥接
-            ↓ 特权操作
-netrepair-helper (setuid root 二进制，固定白名单)
-```
-
-详见 [`doc/`](doc/) 目录。
-
-## 🔒 安全说明
-
-- 免密助手只认固定的 7 个 action（flush-dns / set-dns / clear-proxy / restore-proxy / renew-dhcp / vpn-coexist / vpn-coexist-reset），拒绝任意命令
-- 参数严格校验（IP / 网卡名正则），防注入
-- 可随时卸载，恢复弹密码模式
-- 不存储任何密码
-
-## 📄 License
-
-MIT — 自由使用、修改、分发。
-
-## 💖 关于作者
-
-由 [捞鱼](https://lyzbcy.github.io/) 制作 · 捞鱼工作室 · 「一个弱小但有梦想的开发者」
-
-如果帮到了你，欢迎[请喝杯奶茶](https://lyzbcy.github.io/) 🧋
+捞鱼工作室制作 · [个人主页](https://lyzbcy.github.io/) · MIT License
