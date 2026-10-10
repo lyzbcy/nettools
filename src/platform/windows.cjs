@@ -54,7 +54,7 @@ function createWindowsPlatform({configDir,resourcesDir,runner=runProcess,stateIO
   try{
    if(action==='install-helper'||action==='uninstall-helper'){
     const status=await rpc('helper-status',{},options.signal),mode=action==='install-helper'?'install':'uninstall';
-    const result=await runner(powershell,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',authorization,'-Mode',mode,'-CallerSid',status.sid],{input:'',signal:options.signal,timeoutMs:120000,maxOutput:32768});
+    let result;try{result=await runner(powershell,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',authorization,'-Mode',mode,'-CallerSid',status.sid],{input:'',signal:options.signal,timeoutMs:120000,maxOutput:32768});}catch(error){if(error.code==='PROCESS_EXIT'&&error.stdout)return nativeResult(error.stdout);throw error;}
     const data=nativeResult(result.stdout);return data;
    }
    if(PRIVILEGED.has(action))return await authorized(action,normalized,options.signal);

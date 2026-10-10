@@ -20,7 +20,7 @@ function Protect-Directory([string]$LiteralPath,[string]$Sddl){
     $security.SetOwner((New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')))
     Set-Acl -LiteralPath $LiteralPath -AclObject $security
 }
-$resultFile=''
+$resultFile='';$stageName='validate'
 try{
     if($CallerSid -notmatch '^S-1-5-21-(\d+-){2,}\d+$'){Reject 'INVALID_SID' 'Invalid authorizing user'}
     $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
@@ -42,7 +42,7 @@ try{
         [Console]::Out.WriteLine(($result|ConvertTo-Json -Compress -Depth 8));exit 0
     }
     $publicAcl='O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FRFX;;;BU)'
-    Protect-Directory $base $publicAcl;Protect-Directory $grants $publicAcl
+    $stageName='protect-folders';Protect-Directory $base $publicAcl;Protect-Directory $grants $publicAcl
     $privateAcl='O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FRFX;;;'+$CallerSid+')'
     Protect-Directory $grantRoot $privateAcl
     $taskPath='\LaoyuNetTools\'+$CallerSid+'\'
@@ -61,12 +61,14 @@ try{
         $ps=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $schedule=New-Object -ComObject 'Schedule.Service';$schedule.Connect()
         foreach($name in $Actions){
+            $stageName='register-'+$name
             $arguments='-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$destination+'" -WorkerAction '+$name+' -GrantSid '+$CallerSid
             $action=New-ScheduledTaskAction -Execute $ps -Argument $arguments -WorkingDirectory $grantRoot
             $user=New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
             $settings=New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 45) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
             $null=Register-ScheduledTask -TaskPath $taskPath -TaskName $name -Action $action -Principal $user -Settings $settings -Force
-            $task=$schedule.GetFolder($taskPath).GetTask($name)
+            $stageName='task-permissions-'+$name
+            $task=$schedule.GetFolder($taskPath.TrimEnd('\')).GetTask($name)
             $task.SetSecurityDescriptor(('D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGX;;;'+$CallerSid+')'),0)
         }
         $result=@{ok=$true;data=@{mode=$Mode;installed=$true;version=$Version;message='Unattended repair authorization installed'}}
@@ -83,7 +85,7 @@ try{
     [Console]::Out.WriteLine(($result|ConvertTo-Json -Compress -Depth 8));exit 0
 }catch{
     $code=[string]$_.Exception.Data['code'];if(!$code){$code='AUTH_FAILED'}
-    $result=@{ok=$false;error=@{code=$code;message=$_.Exception.Message}}
+    $result=@{ok=$false;error=@{code=$code;message=($stageName+': '+$_.Exception.Message)}}
     if($Elevated -and $resultFile -and (Test-Path -LiteralPath (Split-Path $resultFile -Parent))){try{Write-Result $resultFile $result}catch{}}
     [Console]::Out.WriteLine(($result|ConvertTo-Json -Compress -Depth 8));exit 1
 }
