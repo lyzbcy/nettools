@@ -38,7 +38,7 @@ async function pack(platform=process.platform,arch=process.arch){
  const feedback=path.join(root,'.local-tools/feedback-channel.json');if(endpoint){await fs.mkdir(path.dirname(feedback),{recursive:true});await fs.writeFile(feedback,JSON.stringify({endpoint}),{mode:0o600});}await fs.access(feedback);
  const extraResources=[{from:feedback,to:'private/feedback-channel.json'}];if(platform==='darwin')extraResources.push({from:path.join(root,'build/native'),to:'native'});
  const config={appId:'com.laoyu.nettools',productName:'捞鱼的网络工具',executableName:'LaoyuNetTools',electronVersion:pkg.devDependencies.electron,electronDist:runtime,asar:false,npmRebuild:false,buildDependenciesFromSource:false,directories:{output,buildResources:path.join(root,'build/assets')},files:['src/**/*','ui/**/*','scripts/update-mac.sh','scripts/update-win.ps1','package.json','LICENSE','!src/NetRepair*.swift'],extraResources,mac:{identity:null,icon:path.join(root,'ui/assets/icon.icns'),category:'public.app-category.utilities',minimumSystemVersion:'13.0'},win:{icon:path.join(root,'build/assets/icon.ico'),signAndEditExecutable:false},nsis:{uninstallDisplayName:'捞鱼的网络工具',oneClick:false,perMachine:false,allowToChangeInstallationDirectory:true,createDesktopShortcut:true,createStartMenuShortcut:true,runAfterFinish:true,include:path.join(__dirname,'installer.nsh'),installerHeader:path.join(root,'build/assets/installer-header.bmp'),installerSidebar:path.join(root,'build/assets/installer-sidebar.bmp'),uninstallerSidebar:path.join(root,'build/assets/installer-sidebar.bmp'),license:path.join(root,'LICENSE'),artifactName:`${t.name}-setup.exe`}};
- const buildPlatform=platform==='darwin'?Platform.MAC:Platform.WINDOWS;try{await build({projectDir:root,targets:buildPlatform.createTarget(['dir'],arch==='arm64'?Arch.arm64:Arch.x64),config});}finally{await clearBuildPolicyPlaceholder();}
+ const buildPlatform=platform==='darwin'?Platform.MAC:Platform.WINDOWS;try{await build({publish:'never',projectDir:root,targets:buildPlatform.createTarget(['dir'],arch==='arm64'?Arch.arm64:Arch.x64),config});}finally{await clearBuildPolicyPlaceholder();}
  const unpacked=path.join(output,platform==='darwin'?(arch==='arm64'?'mac-arm64':'mac'):'win-unpacked');
  if(platform==='win32')await patchWindows(path.join(unpacked,'LaoyuNetTools.exe'));
  else{
@@ -52,17 +52,17 @@ async function pack(platform=process.platform,arch=process.arch){
  }
  const verified=await verifyDirectory(unpacked,platform,arch),archive=path.join(root,'release',t.name+'.zip');await fs.rm(archive,{force:true});
  if(platform==='darwin')await execute('/usr/bin/ditto',['-c','-k','--sequesterRsrc','--keepParent',verified.app,archive]);
- else{const builderDir=path.dirname(require.resolve('electron-builder')),seven=require(require.resolve('7zip-bin',{paths:[builderDir]}));await execute(seven.path7za,['a','-tzip',archive,'.'],{cwd:unpacked,maxBuffer:5*1024*1024});}
+ else{const builderDir=path.dirname(require.resolve('electron-builder')),utilDir=path.dirname(require.resolve('builder-util',{paths:[builderDir]})),seven=require(require.resolve('7zip-bin',{paths:[utilDir]}));await execute(seven.path7za,['a','-tzip',archive,'.'],{cwd:unpacked,maxBuffer:5*1024*1024});}
  let installer;
  if(platform==='win32'){
   let payloadBytes=0;async function total(dir){for(const item of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,item.name);if(item.isDirectory())await total(file);else if(item.isFile())payloadBytes+=(await fs.stat(file)).size;}}await total(unpacked);
   await fs.writeFile(path.join(root,'build/assets/installer-payload.nsh'),`!define NETTOOLS_PAYLOAD_BYTES ${payloadBytes}\n`);
   const template=await fs.readFile(path.join(__dirname,'installer-ui.ps1'),'utf8');await fs.writeFile(path.join(root,'build/assets/installer-ui.ps1'),'\uFEFF'+template.replace(/^\uFEFF/,''));await fs.copyFile(path.join(root,'ui/assets/icon.png'),path.join(root,'build/assets/installer-logo.png'));
-  try{await build({projectDir:root,prepackaged:unpacked,targets:Platform.WINDOWS.createTarget(['nsis'],Arch.x64),config});}finally{await clearBuildPolicyPlaceholder();}installer=path.join(output,t.name+'-setup.exe');
+  try{await build({publish:'never',projectDir:root,prepackaged:unpacked,targets:Platform.WINDOWS.createTarget(['nsis'],Arch.x64),config});}finally{await clearBuildPolicyPlaceholder();}installer=path.join(output,t.name+'-setup.exe');
  }
  else{installer=path.join(root,'release',t.name+'.dmg');await fs.rm(installer,{force:true});const staging=path.join(output,'dmg');await fs.mkdir(staging);await fs.symlink('/Applications',path.join(staging,'Applications'));await execute('/usr/bin/ditto',[verified.app,path.join(staging,path.basename(verified.app))]);await execute('/usr/bin/hdiutil',['create','-volname','捞鱼的网络工具','-srcfolder',staging,'-format','UDZO',installer],{maxBuffer:5*1024*1024});}
  const report={candidate:true,version:pkg.version,platform,arch,verifiedDirectory:unpacked,assets:[]};for(const file of [archive,installer])report.assets.push({name:path.basename(file),file,size:(await fs.stat(file)).size,sha256:await sha(file)});
  await fs.mkdir(path.join(root,'verification/packages'),{recursive:true});await fs.writeFile(path.join(root,'verification/packages',`${platform}-${arch}.json`),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));return report;
 }
-if(require.main===module)pack(...process.argv.slice(2)).catch(error=>{console.error(error.message);process.exitCode=1;});
+if(require.main===module)pack(...process.argv.slice(2)).catch(error=>{console.error(error.message);process.exit(1);});
 module.exports={target,pack,verifyDirectory,sha};
