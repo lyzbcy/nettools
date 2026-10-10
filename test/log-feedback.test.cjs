@@ -57,3 +57,7 @@ test('all genuine complete IPv6 forms redact once, including loopback, scoped an
 test('malformed or word-attached IPv6 candidates remain whole rather than redacting a valid substring',()=>{
  for(const text of ['2001:db8:::1','2001:db8::gggg','cafe::12345','prefix2001:db8::1suffix'])assert.equal(log.redact(text),text);
 });
+test('IPv6 redaction accepts explicit non-IP labels and preserves sentence-ending colon punctuation',()=>{
+ for(const [value,expected] of [['DNS:fe80::1%en0','DNS:[IP已隐藏]'],['IPv6:2001:db8::1','IPv6:[IP已隐藏]'],['address:2001:db8::1','address:[IP已隐藏]'],['2001:db8::1: timeout','[IP已隐藏]: timeout'],['DNS:fe80::1%en0: timeout','DNS:[IP已隐藏]: timeout'],['mapped:::ffff:192.0.2.128','mapped:[IP已隐藏]']])assert.equal(log.redact(value),expected,value);
+ for(const value of ['2001:db8:::1','2001:db8:::',':::','prefix2001:db8::1suffix','2026-10-10T18:37:11.220Z','18:37:11'])assert.equal(log.redact(value),value);
+});

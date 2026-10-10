@@ -2,11 +2,18 @@
 const fs=require('node:fs'),path=require('node:path');
 const {isIP}=require('node:net');
 const ALLOWED_META=new Set(['message','code','durationMs','ok','phase','issue']);
-function hideIPv6(candidate){
- if(isIP(candidate)===6)return '[IP已隐藏]';
+function hideIPv6(token){
+ if(!token.includes(':'))return token;
+ let prefix='',candidate=token;
+ const label=token.match(/^([a-z_][\w.-]*):(.*)$/i);
+ // A non-IP word followed by ':' is an explicit field label. Hexadecimal
+ // hextets and numeric time/date prefixes stay part of the complete candidate.
+ if(label&&/[^a-f\d]/i.test(label[1])){prefix=label[1]+':';candidate=label[2];}
+ if(candidate.endsWith(':')&&!candidate.endsWith('::')&&isIP(candidate.slice(0,-1))===6)return prefix+'[IP已隐藏]:';
+ if(isIP(candidate)===6)return prefix+'[IP已隐藏]';
  // A sentence-ending period is punctuation, including after IPv4-mapped IPv6.
  const address=candidate.replace(/\.+$/,'');
- return address!==candidate&&isIP(address)===6?'[IP已隐藏]'+candidate.slice(address.length):candidate;
+ return address!==candidate&&isIP(address)===6?prefix+'[IP已隐藏]'+candidate.slice(address.length):token;
 }
 function redact(value){
  return String(value??'')
@@ -15,7 +22,7 @@ function redact(value){
   .replace(/https?:\/\/[^\s<>"']+/gi,'[链接已隐藏]')
   .replace(/\b[A-Za-z]:[\\/][^\r\n"<>]+/g,'[路径已隐藏]')
   .replace(/\/(?:Users|home|private|var|tmp|etc|Volumes|Library|Applications)\/[^\s"'<>]+/g,'[路径已隐藏]')
-  .replace(/(?<![\w.:%])(?:[a-f\d]*:){2,}[a-f\d:.]*(?:%[\w.:-]+)?(?![\w.:%])/gi,hideIPv6)
+  .replace(/[\w.:%+-]+/g,hideIPv6)
   .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g,'[IP已隐藏]')
   .replace(/\b(?:[a-z\d](?:[a-z\d-]*[a-z\d])?\.)+[a-z]{2,}\b/gi,'[域名已隐藏]');
 }
