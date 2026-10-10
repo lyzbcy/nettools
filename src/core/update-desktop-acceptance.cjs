@@ -54,6 +54,10 @@ function assertUpdateSnapshot({plan,role,version,isPackaged,visible,execPath,dat
 async function digest(file){const hash=crypto.createHash('sha256');for await(const bytes of fs.createReadStream(file))hash.update(bytes);return hash.digest('hex');}
 async function atomic(file,value){const tmp=file+'.'+crypto.randomUUID()+'.tmp';await fsp.writeFile(tmp,JSON.stringify(value,null,2)+'\n',{flag:'wx',mode:0o600});await fsp.rename(tmp,file);}
 module.exports={PLAN_KEY,NONCE_KEY,inside,privatePath,fixtureVersions,planPaths,loadUpdateAcceptancePlan,fixtureTransport,assertUpdateSnapshot,digest,atomic};
+async function watchInstallHandoff({app,window,getState,waitFor,onFailure}){
+ let closing=false;const beforeQuit=()=>{closing=true;};app.once('before-quit',beforeQuit);try{await waitFor(async()=>{if(closing||window.isDestroyed())return true;const update=getState().update;if(update?.state==='error'){const failure=Object.assign(Error('实际更新交接失败：'+update.error),{code:'CI_HANDOFF_FAILED'});try{await onFailure(update);}catch(error){failure.captureError=error.message;}throw failure;}return false;});return 'original-closing';}finally{app.removeListener('before-quit',beforeQuit);}
+}
+module.exports.watchInstallHandoff=watchInstallHandoff;
 async function updateDesktopAcceptance({app,window,getState,getReady,plan,requestQuit}){
  if(!plan||process.env.CI!=='true')throw Error('缺少已验证的 CI 计划');
  const evaluate=code=>window.webContents.executeJavaScript(code,true),pause=()=>new Promise(resolve=>setTimeout(resolve,75));
@@ -80,7 +84,7 @@ async function updateDesktopAcceptance({app,window,getState,getReady,plan,reques
   if(plan.role==='drive'){
    await capture('01-fixture-old-installed-window');await click('check-update');await waitFor(()=>{const status=getState().update;if(status?.state==='error')throw Error('实际更新查新失败：'+status.error);return status?.state==='available';});if(getState().update.release.version!==plan.targetVersion)throw Error('UI 查新未选中精确 CI 版本');await capture('02-ui-available-local-source');await click('download-update');
    await waitFor(()=>{const status=getState().update;if(status?.state==='error')throw Error('实际更新准备失败：'+status.error);return status?.state==='ready'&&getReady()?.ready;});const ready=getReady();if(!ready?.ready||ready.version!==plan.targetVersion)throw Error('实际准备记录缺失');privatePath(plan.dataDir,ready.payloadFile,{kind:'file'});
-   await waitFor(async()=>await evaluate("document.getElementById('install-update').getBoundingClientRect().height>0"));await capture('03-verified-ready-local-package');report.ok=true;report.ready={token:ready.token,payloadFile:ready.payloadFile,attempt:ready.attempt,version:ready.version};await atomic(plan.driverFile,report);await click('install-update');return report;
+   await waitFor(async()=>await evaluate("document.getElementById('install-update').getBoundingClientRect().height>0"));await capture('03-verified-ready-local-package');report.ok=true;report.ready={token:ready.token,payloadFile:ready.payloadFile,attempt:ready.attempt,version:ready.version};await atomic(plan.driverFile,report);await click('install-update');report.phase='handoff';await watchInstallHandoff({app,window,getState,waitFor,onFailure:async update=>{report.update=update;await capture('04-original-visible-handoff-failure');}});return report;
   }
   if(plan.role==='confirmed'){
    if(plan.scenario!=='success')throw Error('故障副本错误地完成了正常启动确认');await capture('04-real-updated-visible-window');
@@ -88,6 +92,6 @@ async function updateDesktopAcceptance({app,window,getState,getReady,plan,reques
    const recovery=getState().updateRecovery;if(!recovery?.failed||!recovery.rolledBack||getState().update.state!=='error')throw Error('原 main 没有显示已验证的回滚失败结果');await waitFor(async()=>await evaluate("!document.getElementById('update-modal').classList.contains('hidden')&&document.getElementById('update-message').textContent.includes('已恢复原版本')"));report.recovery=recovery;await capture('05-real-rollback-failure-message');await click('close-update');await waitFor(async()=>await evaluate("document.getElementById('update-modal').classList.contains('hidden')"));
   }else throw Error('CI 观察角色无效');
   await clickSelector('[data-page=guard]');await waitFor(async()=>await evaluate("document.getElementById('page-guard').classList.contains('active')&&document.getElementById('interval-trigger').textContent.includes('17')"));await capture('06-preserved-seventeen-minute-setting');report.ok=true;await atomic(plan.probeFile,report);await stopWhenRequested();return report;
- }catch(error){report.ok=false;report.error=error.message;try{await atomic(plan.errorFile,report);}catch{}throw error;}
+ }catch(error){report.ok=false;report.error=error.message;if(error.captureError)report.captureError=error.captureError;try{await atomic(plan.errorFile,report);}catch{}throw error;}
 }
 module.exports.updateDesktopAcceptance=updateDesktopAcceptance;
