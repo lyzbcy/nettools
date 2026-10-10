@@ -5,7 +5,7 @@ set -eu
 exec /usr/bin/osascript -l JavaScript - "$1" <<'JXA'
 ObjC.import('Foundation');ObjC.import('AppKit');
 function run(argv){
- const fm=$.NSFileManager.defaultManager;let p=null,moved=false,installed=false,newPid=null;
+ const fm=$.NSFileManager.defaultManager;let p=null,moved=false,installed=false,newPid=null,transactionConfirmed=false;
  const exists=f=>Boolean(fm.fileExistsAtPath(f));
  const read=f=>{const d=$.NSData.dataWithContentsOfFile(f);if(!d)throw Error('无法读取更新交接文件');return JSON.parse($.NSString.alloc.initWithDataEncoding(d,$.NSUTF8StringEncoding).js);};
  const write=(f,o)=>{if(!$(JSON.stringify(o)).writeToFileAtomicallyEncodingError(f,true,$.NSUTF8StringEncoding,null))throw Error('更新状态写入失败');};
@@ -37,8 +37,11 @@ function run(argv){
   identity(p.target,p.oldVersion);identity(p.incoming,p.version);tree(p.incoming);move(p.target,p.backup);moved=true;move(p.incoming,p.target);installed=true;identity(p.target,p.version);newPid=launch(p.target,true);
   write(p.resultFile,{status:'installed',token:p.token,version:p.version,newPid:newPid});end=Date.now()+p.confirmationTimeoutMs;
   let confirmed=false;while(Date.now()<end){if(aborted())throw Error('更新已取消');if(exists(p.confirmFile)){const c=read(p.confirmFile);if(c.token===p.token&&c.version===p.version&&c.appPath===p.target&&c.visible===true&&c.pid===newPid&&alive(newPid)){confirmed=true;break;}}if(!alive(newPid))throw Error('新版启动后退出，准备恢复旧版');pause(100);}
-  if(!confirmed)throw Error('新版未确认可见启动，准备恢复旧版');write(p.resultFile,{status:'confirmed',token:p.token,version:p.version,newPid:newPid});try{unlink(p.backup);}catch(e){write(p.resultFile,{status:'confirmed',token:p.token,version:p.version,newPid:newPid,backupRetained:true,backup:p.backup,cleanupError:String(e)});}return 'confirmed';
+  if(!confirmed)throw Error('新版未确认可见启动，准备恢复旧版');transactionConfirmed=true;write(p.resultFile,{status:'confirmed',token:p.token,version:p.version,newPid:newPid});try{unlink(p.backup);}catch(e){write(p.resultFile,{status:'confirmed',token:p.token,version:p.version,newPid:newPid,backupRetained:true,backup:p.backup,cleanupError:String(e)});}return 'confirmed';
  }catch(error){
+  // Startup acknowledgement is the irreversible commit point. A failed log or
+  // partially deleted backup must never cause deletion of a running new app.
+  if(transactionConfirmed){try{write(p.resultFile,{status:'confirmed',token:p.token,version:p.version,newPid:newPid,backupRetained:exists(p.backup),backup:p.backup,cleanupError:String(error)});}catch{}return 'confirmed';}
   let rollbackError=null;
   if(p){try{if(newPid&&alive(newPid))stopNew(newPid);if(moved){if(installed&&exists(p.target))unlink(p.target);if(exists(p.backup))move(p.backup,p.target);}if(exists(p.incoming))unlink(p.incoming);}catch(e){rollbackError=String(e);}
    write(p.resultFile,{status:'failed',token:p.token,version:p.version,message:String(error),rolledBack:moved&&!rollbackError,rollbackError:rollbackError,backup:p.backup});

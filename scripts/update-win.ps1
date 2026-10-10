@@ -1,7 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$PayloadFile)
 $ErrorActionPreference='Stop'
 $env:PSModulePath=(Join-Path $PSHOME 'Modules')+';'+[Environment]::GetEnvironmentVariable('PSModulePath','Machine')
-$p=$null; $moved=$false; $installed=$false; $newProcess=$null
+$p=$null; $moved=$false; $installed=$false; $newProcess=$null; $transactionConfirmed=$false
 $utf8=New-Object Text.UTF8Encoding $false
 function Read-Json([string]$file) { return ([IO.File]::ReadAllText($file,[Text.Encoding]::UTF8) | ConvertFrom-Json) }
 function Write-State([string]$file,$value) { $tmp=$file+'.'+[Guid]::NewGuid().ToString()+'.tmp';[IO.File]::WriteAllText($tmp,($value|ConvertTo-Json -Depth 10 -Compress),$utf8);Move-Item -LiteralPath $tmp -Destination $file -Force }
@@ -46,10 +46,14 @@ try {
  $deadline=[DateTime]::UtcNow.AddMilliseconds($p.confirmationTimeoutMs);$confirmed=$false
  while([DateTime]::UtcNow -lt $deadline){if(Is-Aborted){throw '更新已取消'};if(Test-Path -LiteralPath $p.confirmFile){$c=Read-Json $p.confirmFile;if($c.token -eq $p.token -and $c.version -eq $p.version -and $c.appPath -eq $p.target -and $c.visible -eq $true -and $c.pid -eq $newProcess.Id -and !$newProcess.HasExited){$confirmed=$true;break}};if($newProcess.HasExited){throw '新版启动后退出，准备恢复旧版'};Start-Sleep -Milliseconds 100}
  if(!$confirmed){throw '新版未确认可见启动，准备恢复旧版'}
+ $transactionConfirmed=$true
  foreach($registration in $registrations){Set-ItemProperty -LiteralPath $registration.key -Name DisplayVersion -Value $p.version}
  Write-State $p.resultFile @{status='confirmed';token=$p.token;version=$p.version;newPid=$newProcess.Id}
  try{Remove-Item -LiteralPath $p.backup -Recurse -Force}catch{Write-State $p.resultFile @{status='confirmed';token=$p.token;version=$p.version;newPid=$newProcess.Id;backupRetained=$true;backup=$p.backup;cleanupError=$_.Exception.Message}}
 } catch {
+ # Never enter rollback after startup acknowledged success: logging and backup
+ # cleanup can fail independently, including after only part of a backup remains.
+ if($transactionConfirmed){try{Write-State $p.resultFile @{status='confirmed';token=$p.token;version=$p.version;newPid=$newProcess.Id;backupRetained=(Test-Path -LiteralPath $p.backup);backup=$p.backup;cleanupError=$_.Exception.Message}}catch{};exit 0}
  $message=$_.Exception.Message;$rollbackError=$null
  if($p){try{if($newProcess -and !$newProcess.HasExited){& (Join-Path $env:SystemRoot 'System32\taskkill.exe') /PID $newProcess.Id /T /F | Out-Null;if(!$newProcess.WaitForExit(5000)){throw '新版进程仍未退出，未删除任何应用'}};if($moved){if($installed -and (Test-Path -LiteralPath $p.target)){Remove-Item -LiteralPath $p.target -Recurse -Force};if(Test-Path -LiteralPath $p.backup){Move-Item -LiteralPath $p.backup -Destination $p.target}};if(Test-Path -LiteralPath $p.incoming){Remove-Item -LiteralPath $p.incoming -Recurse -Force}}catch{$rollbackError=$_.Exception.Message}
   if($moved -and !$rollbackError){foreach($registration in $registrations){try{Set-ItemProperty -LiteralPath $registration.key -Name DisplayVersion -Value $registration.version}catch{$rollbackError=$_.Exception.Message}}}
