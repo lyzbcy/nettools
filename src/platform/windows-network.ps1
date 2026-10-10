@@ -1,4 +1,5 @@
 ﻿param([string]$WorkerAction = '', [string]$GrantSid = '', [switch]$Library)
+if ($PSVersionTable.PSEdition -ne 'Core') { $env:PSModulePath = $PSHOME + '\Modules;' + [Environment]::GetEnvironmentVariable('PSModulePath','Machine') }
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)

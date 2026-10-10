@@ -1,4 +1,5 @@
 ﻿param([ValidateSet('install','uninstall')][string]$Mode, [string]$CallerSid, [switch]$Elevated)
+if ($PSVersionTable.PSEdition -ne 'Core') { $env:PSModulePath = $PSHOME + '\Modules;' + [Environment]::GetEnvironmentVariable('PSModulePath','Machine') }
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 [Console]::OutputEncoding=New-Object Text.UTF8Encoding($false)
