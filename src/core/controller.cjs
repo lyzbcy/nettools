@@ -14,12 +14,17 @@ class Controller{
  constructor({dataDir,platform,version,name='捞鱼的网络工具',onState,log,clock,confirmRestart=async()=>false,applyLoginStartup,readLoginStartup}){
   if(!path.isAbsolute(dataDir)||!platform||typeof platform.invoke!=='function')throw TypeError('控制器配置无效');
   Object.assign(this,{dataDir,platform,version,name,onState,log,clock,confirmRestart,applyLoginStartup,readLoginStartup});this.settings=null;this.guard=null;this.network=null;this.status=null;this.authorization={installed:false};this.operation=null;this.lastError=null;this.settingsTail=Promise.resolve();
-  this.settingsFile=path.join(dataDir,'settings.json');this.markerFile=path.join(dataDir,'reboot-guard.json');this.manualBusy=false;this.guardResultVersion=0;
+  this.settingsFile=path.join(dataDir,'settings.json');this.markerFile=path.join(dataDir,'reboot-guard.json');this.manualBusy=false;this.guardResultVersion=0;this.calls=new Set();this.shuttingDown=false;this.shutdownPromise=null;
  }
- snapshot(){return structuredClone({name:this.name,version:this.version,platform:process.platform,arch:process.arch,settings:this.settings,guard:this.guard?.snapshot()||null,network:this.network,status:this.status,authorization:this.authorization,operation:this.operation,lastError:this.lastError,now:this.clock?.now()??performance.now()});}
+ snapshot(){return structuredClone({name:this.name,version:this.version,platform:process.platform,arch:process.arch,settings:this.settings,guard:this.guard?.snapshot()||null,network:this.network,status:this.status,authorization:this.authorization,operation:this.operation,lastError:this.lastError,shuttingDown:this.shuttingDown,now:this.clock?.now()??performance.now()});}
  _publish(){try{this.onState?.(this.snapshot());}catch{}}
  _log(level,action,meta={}){try{this.log?.add(level,action,meta);}catch{}}
- async _call(action,args={},options={}){return unwrap(await this.platform.invoke(action,args,options));}
+ _assertOpen(){if(this.shuttingDown)throw Object.assign(Error('正在停止系统操作，请等待退出完成'),{code:'CLOSING'});}
+ async _tracked(action,fn,signal){
+  this._assertOpen();const controller=new AbortController(),lease={action,controller};const abort=()=>controller.abort();if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});this.calls.add(lease);
+  try{return await fn(controller.signal);}finally{signal?.removeEventListener('abort',abort);this.calls.delete(lease);}
+ }
+ async _call(action,args={},options={}){return this._tracked(action,async signal=>unwrap(await this.platform.invoke(action,args,{...options,signal})),options.signal);}
  async initialize(){
   fs.mkdirSync(this.dataDir,{recursive:true,mode:0o700});if(fs.lstatSync(this.dataDir).isSymbolicLink())throw Error('应用数据目录不能是符号链接');plainFile(this.settingsFile);
   this.settings=loadSettings(this.settingsFile);
@@ -47,16 +52,17 @@ class Controller{
    catch(error){this.lastError={code:error.code||'INITIAL_CHECK',message:error.message};this._log('warn',action,this.lastError);}
    this._publish();
   }
-  await this.guard.start();return this.snapshot();
+  if(!this.shuttingDown)await this.guard.start();return this.snapshot();
  }
  async updateSettings(patch){
   validateSettings(patch);const request=structuredClone(patch);const result=this.settingsTail.then(()=>this._updateSettings(request));this.settingsTail=result.catch(()=>{});return result;
  }
  async _updateSettings(patch){
+  this._assertOpen();
   const next=validateSettings({...this.settings,...patch});
   if(!this.settings.restartOnTimeout&&next.restartOnTimeout){
-   if(!await this.confirmRestart())throw Object.assign(Error('已取消开启自动重启'),{code:'CANCELLED'});
-   if(this.platform.prepareRestart){const ready=await this.platform.prepareRestart({});if(ready?.ok!==true)throw Object.assign(Error(ready?.error?.message||'系统未允许自动重启'),{code:ready?.error?.code||'RESTART_PERMISSION'});}
+   if(!await this._tracked('restart-confirmation',signal=>this.confirmRestart({signal})))throw Object.assign(Error('已取消开启自动重启'),{code:'CANCELLED'});
+   this._assertOpen();if(this.platform.prepareRestart){const ready=await this._tracked('restart-preparation',signal=>this.platform.prepareRestart({signal}));if(ready?.ok!==true)throw Object.assign(Error(ready?.error?.message||'系统未允许自动重启'),{code:ready?.error?.code||'RESTART_PERMISSION'});}
   }
   const loginChanged=this.settings.launchAtLogin!==next.launchAtLogin;
   if(loginChanged&&this.applyLoginStartup)await this.applyLoginStartup(next.launchAtLogin);
@@ -70,8 +76,17 @@ class Controller{
  suspend(){this.guard?.suspend();}
  resume(){return this.guard?.resume();}
  stop(){this.guard?.stop();}
+ shutdown({timeoutMs=180000}={}){
+  if(this.shutdownPromise)return this.shutdownPromise;this.shuttingDown=true;this.stop();
+  // A UAC/administrator installation may already be running independently.
+  // Let that explicit authorization finish; killing its parent cannot cancel it.
+  for(const call of this.calls)if(!['install-helper','uninstall-helper'].includes(call.action))call.controller.abort();this._publish();
+  this.shutdownPromise=(async()=>{const deadline=performance.now()+timeoutMs;while(this.calls.size||this.manualBusy||this.guard?.snapshot().operationPending){if(performance.now()>=deadline)throw Object.assign(Error('系统操作尚未确认退出，已停止保活；请稍后再退出'),{code:'OPERATION_CLEANUP'});await new Promise(r=>setTimeout(r,10));}await this.settingsTail;if(this.platform.isCleanupPending?.())throw Object.assign(Error('已停止保活，但系统操作清理未确认。请先在系统中确认操作已结束，再重新打开应用；修复记录会保留'),{code:'CLEANUP_PENDING'});return this.snapshot();})().catch(error=>{this.lastError={code:error.code||'SHUTDOWN_FAILED',message:error.message};this._publish();throw error;}).finally(()=>{this.shutdownPromise=null;});return this.shutdownPromise;
+ }
+ async reopenAfterShutdown(){if(this.calls.size||this.manualBusy||this.guard?.snapshot().operationPending||this.platform.isCleanupPending?.())throw Object.assign(Error('上一系统操作尚未确认结束'),{code:'CLEANUP_PENDING'});this.shuttingDown=false;await this.guard?.start();this._publish();}
  async _drain(){const until=Date.now()+60000;while(this.guard.snapshot().operationPending){if(Date.now()>until)throw Object.assign(Error('上一项操作尚未确认退出，请稍后重试'),{code:'OPERATION_CLEANUP'});await new Promise(r=>setTimeout(r,25));}}
  async invoke(action,args={}){
+  this._assertOpen();
   const normalized=validateRequest(action,args);
   if(this.manualBusy)throw Object.assign(Error('正在执行网络操作，请稍后重试'),{code:'BUSY'});
   const write=WRITE_ACTIONS.has(action);this.manualBusy=true;
@@ -84,7 +99,7 @@ class Controller{
    if(['install-helper','uninstall-helper','helper-status'].includes(action))this.authorization=await this._call('helper-status');
    this._log('info',action,{ok:true,durationMs:performance.now()-this.operation.startedAt});return result;
   }catch(error){if(action==='network-check')this.network=null;this.lastError={code:error.code||'ACTION_FAILED',message:error.message};this._log('error',action,this.lastError);throw error;}
-  finally{this.operation=null;this.manualBusy=false;if(write)void this.guard.resume().catch(error=>{this.lastError={code:error.code||'RESUME_FAILED',message:error.message};this._publish();});this._publish();}
+  finally{this.operation=null;this.manualBusy=false;if(write&&!this.shuttingDown)void this.guard.resume().catch(error=>{this.lastError={code:error.code||'RESUME_FAILED',message:error.message};this._publish();});this._publish();}
  }
 }
 module.exports={Controller,unwrap,validateSender,validateLink};

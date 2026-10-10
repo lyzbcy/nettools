@@ -1,6 +1,6 @@
 'use strict';
 const api=window.nettools,$=id=>document.getElementById(id);
-let state=null,stateAt=performance.now(),toastTimer,busy=false,configLoaded=false;
+let state=null,stateAt=performance.now(),toastTimer,busy=false,configLoaded=false,recoveryShown=false;
 const labels={disabled:'未开启',stopped:'已停止',idle:'等待下次检查',checking:'正在检查',repairing:'正在修复',countdown:'重启倒计时',restarting:'正在请求重启',suspended:'暂时暂停'};
 const issues={dns:'域名解析异常','stale-proxy':'本机代理端口失效','no-route':'未验证到可用的公网出口','no-link':'未检测到有效的本机连接',http:'HTTPS 访问未验证通过',unknown:'检查结果暂时未知',ok:'DNS、网页与代理均已完成检查'};
 const actionNames={'get-status':'读取连接','network-check':'检查网络',diagnose:'完整诊断','wifi-info':'WiFi 体检','ping-test':'公网延迟',speedtest:'下载测速','flush-dns':'刷新 DNS','set-dns':'设置 DNS','restore-dns':'恢复 DNS','clear-proxy':'处理失效代理','restore-proxy':'恢复代理','renew-dhcp':'续租 DHCP','install-helper':'安装修复授权','uninstall-helper':'撤销修复授权','get-config':'读取 VPN 配置','save-config':'保存 VPN 配置','vpn-connect':'连接 VPN','vpn-coexist':'设置 VPN 共存','vpn-coexist-reset':'恢复 VPN 配置','vpn-status':'检查 VPN 状态'};
@@ -26,12 +26,12 @@ function render(value){
  text('timeout-description',settings.restartOnTimeout?'已允许自动重启：超过 5 分钟仍失败后先复查，并提供 60 秒取消提醒。':'默认无动作：停止本轮修复，保留下次定期检查。');text('timeout-action',settings.restartOnTimeout?'复查后可重启':'无动作');text('guard-state',labels[guard.state]||'未开启');
  const guardError=guard.lastError?.message;text('guard-error',guardError);show('guard-error',!!guardError);show('restart-modal',guard.canCancelRestart===true);
  text('auth-status',authorization.installed?'已授权':'未授权');$('auth-status').className='pill'+(authorization.installed?'':' warning');text('auth-description',authorization.installed?'已验证当前版本的修复授权。':'未授权时可以检查，但自动修复会明确提示权限不足，不反复弹密码。');
- const activeAction=value.operation?.action;const inProgress=value.initializing||!!activeAction||guard.state==='checking'||guard.state==='repairing';show('busy-banner',inProgress);text('busy-text',value.initializing?'正在读取网络与授权状态…':activeAction?(actionNames[activeAction]||activeAction)+'，请稍候…':guard.state==='repairing'?'正在按故障类型修复，并持续复查…':'正在检查网络…');
+ const activeAction=value.operation?.action;const inProgress=value.shuttingDown||value.initializing||!!activeAction||guard.state==='checking'||guard.state==='repairing';show('busy-banner',inProgress);text('busy-text',value.shuttingDown?['OPERATION_CLEANUP','CLEANUP_PENDING'].includes(value.lastError?.code)?value.lastError.message:'正在停止保活，等待系统操作确认结束…':value.initializing?'正在读取网络与授权状态…':activeAction?(actionNames[activeAction]||activeAction)+'，请稍候…':guard.state==='repairing'?'正在按故障类型修复，并持续复查…':'正在检查网络…');
  text('footer-status',value.initializing?'正在准备…':settings.enabled?'保活已开启 · 关闭窗口后继续守护':'保活未开启 · 配置与日志保存在本机');
  const update=value.update||{};show('update-banner',update.state==='available');text('update-summary',update.release?.hasUpdate?'发现新版本 '+update.release.version:'');
  if(['downloading','verifying','preparing','ready'].includes(update.state))show('update-modal',true);
  const updates={downloading:'正在下载更新…',verifying:'正在校验下载包…',preparing:'正在准备安装，当前应用会保留…',ready:'更新已准备好，点击安装后自动重新打开。',installing:'正在确认安装助手；就绪后会关闭当前窗口并重新打开。',error:update.error||'更新未完成，可以重试或前往发布页。'};
- if(updates[update.state])text('update-message',updates[update.state]);$('update-progress').style.width=(update.progress?.percent||0)+'%';show('install-update',update.state==='ready');show('retry-update',update.state==='error'&&update.release?.hasUpdate===true);$('cancel-update').disabled=update.state==='installing';ticks();
+ if(updates[update.state])text('update-message',updates[update.state]);if(value.updateRecovery?.failed&&!recoveryShown){recoveryShown=true;show('update-modal',true);text('update-message',(value.updateRecovery.rolledBack?'更新未完成，已恢复原版本。':'更新未完成，请查看恢复记录。')+' '+value.updateRecovery.message);}$('update-progress').style.width=(update.progress?.percent||0)+'%';show('install-update',update.state==='ready');show('retry-update',update.state==='error'&&update.release?.hasUpdate===true);$('cancel-update').disabled=update.state==='installing';ticks();
 }
 async function perform(fn){if(busy){toast('上一项操作还在进行，请稍候');return;}busy=true;try{return await fn();}catch(error){toast(error.message);throw error;}finally{busy=false;}}
 async function call(action,args={}){

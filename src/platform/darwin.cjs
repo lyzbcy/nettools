@@ -39,6 +39,6 @@ function createDarwinPlatform({enginePath,configDir,resourcesDir,runner=runProce
   // obtains Automation consent while they are present, without a system change.
   return serial(async()=>{if(cleanupBlocked)return {ok:false,error:{code:'CLEANUP_PENDING',message:'上一操作清理未确认，未请求授权'}};try{await runner('/usr/bin/osascript',['-e','tell application "System Events" to get name'],{signal,timeoutMs:60000});return {ok:true,data:{ready:true}};}catch(e){if(e.code==='ABORT_ERR')throw e;return {ok:false,error:{code:'AUTOMATION_REQUIRED',message:'请先允许本应用控制 System Events；自动重启尚未开启'}};}});
  }
- return {invoke,repair,restart,prepareRestart};
+ return {invoke,repair,restart,prepareRestart,isCleanupPending:()=>cleanupBlocked};
 }
 module.exports={createDarwinPlatform};

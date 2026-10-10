@@ -200,7 +200,7 @@ class Watchdog {
   }
   async _check(session) {
     if (!this._valid(session)) return null;
-    if (this.pendingOperation) { this.status.lastResult = null; this._error(CLEANUP_PENDING, 'network-check-failed'); return null; }
+    if (this.pendingOperation) { this.status.lastResult = null; this.status.resultVersion++; this._error(CLEANUP_PENDING, 'network-check-failed'); return null; }
     this.status.lastCheckAt = this.clock.now(); this._publish();
     const outcome = await this._operation(session, 'network-check', signal => this.check({ signal }));
     if (!this._valid(session)) return null;
