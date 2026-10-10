@@ -43,3 +43,49 @@ test('production PowerShell functions preserve static IP, original snapshots and
  const {runProcess}=require('../src/platform/common.cjs');const result=await runProcess(exe,['-NoProfile','-NonInteractive','-File',path.join(__dirname,'../scripts/test-windows-platform.ps1')],{timeoutMs:30000});
  const report=JSON.parse(result.stdout.trim());assert.equal(report.failed,0);assert.ok(report.passed>=20);assert.ok(report.scope.includes('no real network writes'));
 });
+function authFixture(t,authorization,query){
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'nettools-win-auth-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));const calls=[],sid='S-1-5-21-1-2-3-1001';
+ const platform=api.createWindowsPlatform({configDir:dir,resourcesDir:dir,pollDelayMs:1,runner:async(file,args,options)=>{
+  calls.push({file,args,options});if(args.includes('-Mode')){const nonce=args[args.indexOf('-Nonce')+1],mode=args[args.indexOf('-Mode')+1];return authorization({options,nonce,mode,sid});}
+  const r=JSON.parse(options.input);if(r.action==='helper-status')return {stdout:JSON.stringify({ok:true,data:{sid}})};
+  if(r.action==='authorization-process-status')return query(r,options);return {stdout:'{"ok":true,"data":{}}'};
+ }});return {platform,calls};
+}
+function authAck({nonce,mode,sid},extra={}){return {type:'nettools-auth-child',nonce,mode,CallerSid:sid,pid:1234,createdTicks:'638900000000000000',...extra};}
+function cancelled(){return Object.assign(Error('parent cancelled'),{code:'ABORT_ERR'});}
+test('authorization has no dialog timeout and cancellation retains lease until the exact elevated instance exits',async t=>{
+ let release,queries=0;const gate=new Promise(r=>release=r);const {platform,calls}=authFixture(t,async info=>{assert.equal(info.options.timeoutMs,null);assert.equal(info.options.killDescendants,false);info.options.onStderr(Buffer.from(JSON.stringify(authAck(info))+'\n'));throw cancelled();},async r=>{
+  queries++;if(queries===1)await gate;return {stdout:JSON.stringify({ok:true,data:{...r.args,state:queries<2?'running':'exited'}})};
+ });
+ const pending=platform.invoke('install-helper');pending.catch(()=>{});const deadline=Date.now()+1000;while(!queries&&Date.now()<deadline)await new Promise(r=>setTimeout(r,1));assert.ok(queries);assert.equal(platform.isCleanupPending(),true);await assert.rejects(platform.restart(),{code:'BUSY'});await assert.rejects(platform.invoke('get-status'),{code:'BUSY'});release();await assert.rejects(pending,{code:'ABORT_ERR'});assert.equal(queries,2);assert.equal(platform.isCleanupPending(),false);assert.ok(calls.every(x=>!x.args.includes('/End')));
+});
+test('authorization query failure and missing/stale ACK leave a persistent barrier',async t=>{
+ for(const ack of ['valid','missing','stale','conflicting']){
+  let queries=0;const {platform}=authFixture(t,async info=>{if(ack!=='missing'){info.options.onStderr(Buffer.from(JSON.stringify(authAck(info,ack==='stale'?{nonce:'00000000-0000-0000-0000-000000000000'}:{}))+'\n'));if(ack==='conflicting')info.options.onStderr(Buffer.from(JSON.stringify(authAck(info,{pid:9999}))+'\n'));}throw cancelled();},async()=>{queries++;throw Object.assign(Error('query denied'),{code:'EACCES'});});
+  await assert.rejects(platform.invoke('uninstall-helper'),{code:'ABORT_ERR'});assert.equal(platform.isCleanupPending(),true);await assert.rejects(platform.invoke('get-status'),{code:'BUSY'});await assert.rejects(platform.restart(),{code:'BUSY'});assert.equal(queries,ack==='valid'?1:0);
+ }
+});
+test('exact-instance replacement releases a cancelled authorization without killing any process',async t=>{
+ const {platform}=authFixture(t,async info=>{info.options.onStderr(Buffer.from(JSON.stringify(authAck(info))+'\n'));throw cancelled();},async r=>({stdout:JSON.stringify({ok:true,data:{...r.args,state:'replaced'}})}));
+ await assert.rejects(platform.invoke('install-helper'),{code:'ABORT_ERR'});assert.equal(platform.isCleanupPending(),false);await platform.invoke('get-status');await assert.rejects(platform.invoke('authorization-process-status'));
+});
+test('bound closed direct-admin and cancelled-before-launch envelopes release the authorization lease',async t=>{
+ for(const execution of ['direct','none']){
+  const {platform}=authFixture(t,async info=>{throw Object.assign(Error('closed'),{code:'PROCESS_EXIT',stdout:JSON.stringify({ok:false,error:{code:execution==='none'?'AUTH_CANCELLED':'AUTH_FAILED',message:'refused'},authorization:{nonce:info.nonce,mode:info.mode,CallerSid:info.sid,execution,closed:true}})});},()=>{throw Error('must not query');});
+  await assert.rejects(platform.invoke('install-helper'),{code:execution==='none'?'AUTH_CANCELLED':'AUTH_FAILED'});assert.equal(platform.isCleanupPending(),false);await platform.invoke('get-status');
+ }
+});
+test('unbound completion and malformed process status cannot release an uncertain authorization',async t=>{
+ const {platform}=authFixture(t,async info=>({stdout:JSON.stringify({ok:true,data:{installed:true},authorization:{nonce:'stale',mode:info.mode,CallerSid:info.sid,execution:'direct',closed:true}})}),()=>{throw Error('no ack');});
+ await assert.rejects(platform.invoke('install-helper'));assert.equal(platform.isCleanupPending(),true);
+ const other=authFixture(t,async info=>{info.options.onStderr(Buffer.from(JSON.stringify(authAck(info))+'\n'));throw cancelled();},async r=>({stdout:JSON.stringify({ok:true,data:{...r.args,createdTicks:'638900000000000001',state:'exited'}})})).platform;
+ await assert.rejects(other.invoke('install-helper'),{code:'ABORT_ERR'});assert.equal(other.isCleanupPending(),true);
+});
+test('bound successful direct and elevated completions release without querying, with fragmented ACKs',async t=>{
+ for(const execution of ['direct','child']){
+  const nonces=[];const {platform}=authFixture(t,async info=>{nonces.push(info.nonce);const identity=authAck(info);if(execution==='child'){const line=JSON.stringify(identity)+'\n';info.options.onStderr(Buffer.from(line.slice(0,20)));info.options.onStderr(Buffer.from(line.slice(20)));}
+   return {stdout:JSON.stringify({ok:true,data:{installed:true},authorization:{nonce:info.nonce,mode:info.mode,CallerSid:info.sid,execution,closed:true,...(execution==='child'?{pid:identity.pid,createdTicks:identity.createdTicks}:{})}})};
+  },()=>{throw Error('closed completion must not query');});
+  assert.equal((await platform.invoke('install-helper')).installed,true);assert.equal(platform.isCleanupPending(),false);await platform.invoke('install-helper');assert.notEqual(nonces[0],nonces[1]);
+ }
+});

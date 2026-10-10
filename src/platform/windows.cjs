@@ -12,11 +12,54 @@ function createWindowsPlatform({configDir,resourcesDir,runner=runProcess,stateIO
  if(!Number.isInteger(pollDelayMs)||pollDelayMs<1||pollDelayMs>5000)throw TypeError('无效任务检查间隔');
  const powershell=path.win32.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
  const script=path.join(resourcesDir,'windows-network.ps1'),authorization=path.join(resourcesDir,'windows-authorization.ps1');
- let active=null;
+ let active=null,cleanupBlocked=false;
  async function rpc(action,args={},signal){
   const request={action,args,configDir,version:'5.0.0'};
   try{const result=await runner(powershell,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',script],{input:JSON.stringify(request),signal,timeoutMs:action==='speedtest'?90000:30000,maxOutput:512*1024});return nativeResult(result.stdout);}
   catch(error){if(error.code==='PROCESS_EXIT'&&error.stdout)return nativeResult(error.stdout);throw error;}
+ }
+ async function authorizationOperation(mode,sid,signal){
+  if(signal?.aborted)throw Object.assign(Error('操作已取消，未启动授权'),{code:'ABORT_ERR'});
+  const nonce=crypto.randomUUID();let ack=null,ambiguous=false,buffer='',bytes=0;
+  const bound=value=>value&&value.nonce===nonce&&value.mode===mode&&value.CallerSid===sid;
+  const onStderr=chunk=>{
+   bytes+=chunk.length;if(bytes>32768){ambiguous=true;return;}buffer+=chunk.toString('utf8');
+   while(buffer.includes('\n')){const index=buffer.indexOf('\n'),line=buffer.slice(0,index).trim();buffer=buffer.slice(index+1);let value;try{value=JSON.parse(line);}catch{continue;}
+    if(value?.type!=='nettools-auth-child')continue;
+    const keys=['type','nonce','mode','CallerSid','pid','createdTicks'];
+    if(!bound(value)||Object.keys(value).length!==keys.length||Object.keys(value).some(key=>!keys.includes(key))||!Number.isInteger(value.pid)||value.pid<1||value.pid>2147483647||typeof value.createdTicks!=='string'||!/^\d{18}$/.test(value.createdTicks)){ambiguous=true;continue;}
+    if(ack&&(ack.pid!==value.pid||ack.createdTicks!==value.createdTicks)){ambiguous=true;continue;}ack=value;
+   }
+  };
+  let response,failure;
+  try{response=await runner(powershell,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',authorization,'-Mode',mode,'-CallerSid',sid,'-Nonce',nonce],{input:'',signal,timeoutMs:null,maxOutput:32768,onStderr,killDescendants:false});}
+  catch(error){failure=error;response={stdout:error.stdout||''};}
+  let envelope;try{envelope=JSON.parse(response.stdout.trim().replace(/^\uFEFF/,''));}catch{}
+  const completed=envelope?.authorization;
+  // Only a bound completion from the fixed parent script, emitted after its
+  // original Process handle closed, can prove closure without a query.
+  const completionValid=bound(completed)&&completed.closed===true&&(
+   (completed.execution==='direct'&&!ack&&!ambiguous)||
+   (completed.execution==='child'&&ack&&!ambiguous&&completed.pid===ack.pid&&completed.createdTicks===ack.createdTicks)||
+   (completed.execution==='none'&&!ack&&!ambiguous&&envelope?.ok===false&&['AUTH_CANCELLED','UNAUTHORIZED','INVALID_SID','INVALID_NONCE'].includes(envelope.error?.code))
+  );
+  if(!completionValid){
+   if(ack&&!ambiguous){
+    try{while(true){
+     const identity={nonce,mode,CallerSid:sid,pid:ack.pid,createdTicks:ack.createdTicks};
+     const status=await rpc('authorization-process-status',identity);
+     if(!bound(status)||status.pid!==ack.pid||status.createdTicks!==ack.createdTicks||!['running','exited','replaced'].includes(status.state))throw Object.assign(Error('授权进程查询格式无效'),{code:'INVALID_RESULT'});
+     if(status.state!=='running')break;
+     await new Promise(resolve=>setTimeout(resolve,pollDelayMs));
+    }}catch{cleanupBlocked=true;}
+   }else cleanupBlocked=true;
+   // A response without a completion proof is never a success, even if the
+   // action returned an apparent success object before its parent was killed.
+   failure??=Object.assign(Error('授权进程退出尚未确认'),{code:'AUTH_CLEANUP_UNCONFIRMED'});
+  }
+  if(completionValid&&failure?.code==='PROCESS_EXIT')return nativeResult(response.stdout);
+  if(failure){if(cleanupBlocked)failure.cleanupPending=true;throw failure;}
+  return nativeResult(response.stdout);
  }
  async function authorized(action,args,signal){
   const status=await rpc('helper-status',{},signal);if(!status.installed)throw Object.assign(Error('请先安装无人值守修复授权'),{code:'PERMISSION_REQUIRED'});
@@ -49,13 +92,12 @@ function createWindowsPlatform({configDir,resourcesDir,runner=runProcess,stateIO
   }
  }
  async function invoke(action,args={},options={}){
-  const normalized=validateRequest(action,args);if(active)throw Object.assign(Error('正在执行网络操作，请稍后重试'),{code:'BUSY'});
+  const normalized=validateRequest(action,args);if(active||cleanupBlocked)throw Object.assign(Error('正在执行网络操作，请稍后重试'),{code:'BUSY'});
   const lease={};active=lease;
   try{
    if(action==='install-helper'||action==='uninstall-helper'){
     const status=await rpc('helper-status',{},options.signal),mode=action==='install-helper'?'install':'uninstall';
-    let result;try{result=await runner(powershell,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',authorization,'-Mode',mode,'-CallerSid',status.sid],{input:'',signal:options.signal,timeoutMs:120000,maxOutput:32768});}catch(error){if(error.code==='PROCESS_EXIT'&&error.stdout)return nativeResult(error.stdout);throw error;}
-    const data=nativeResult(result.stdout);return data;
+    return await authorizationOperation(mode,status.sid,options.signal);
    }
    if(PRIVILEGED.has(action))return await authorized(action,normalized,options.signal);
    return await rpc(action,normalized,options.signal);
@@ -67,10 +109,10 @@ function createWindowsPlatform({configDir,resourcesDir,runner=runProcess,stateIO
   const result=await invoke(action,{}, {signal,background:true});return {ok:true,...result};
  }
  async function restart({signal}={}){
-  if(active)throw Object.assign(Error('网络操作仍在清理，未重启'),{code:'BUSY'});
+  if(active||cleanupBlocked)throw Object.assign(Error('网络操作仍在清理，未重启'),{code:'BUSY'});
   const shutdown=path.win32.join(process.env.SystemRoot||'C:\\Windows','System32','shutdown.exe');
   await runner(shutdown,['/r','/t','0','/d','p:0:0','/c','Laoyu NetTools: repair timeout, explicitly enabled by user'],{signal,timeoutMs:10000});return {ok:true};
  }
- return {invoke,repair,restart};
+ return {invoke,repair,restart,isCleanupPending:()=>Boolean(active)||cleanupBlocked};
 }
 module.exports={createWindowsPlatform,nativeResult};

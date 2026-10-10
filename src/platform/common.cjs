@@ -37,9 +37,11 @@ function validateRequest(action,args={}){
  * the actual child closes; descendants share a POSIX process group. Timeout is
  * TERM then KILL, with bounded stdout/stderr. The caller may safely serialize on
  * this promise, including when a child takes time to undo work after TERM.
+ * Internal authorization waiters use null timeout and parent-only termination;
+ * their separately elevated child must be observed by the caller's cleanup gate.
  */
-function runProcess(file,args=[],{input,signal,timeoutMs=30000,maxOutput=512*1024,onStdout}={}){
- if(typeof file!=='string'||!path.isAbsolute(file)||!Array.isArray(args)||!args.every(a=>typeof a==='string')||!Number.isFinite(timeoutMs)||timeoutMs<1)throw TypeError('无效系统调用');
+function runProcess(file,args=[],{input,signal,timeoutMs=30000,maxOutput=512*1024,onStdout,onStderr,killDescendants=true}={}){
+ if(typeof file!=='string'||!path.isAbsolute(file)||!Array.isArray(args)||!args.every(a=>typeof a==='string')||typeof killDescendants!=='boolean'||(timeoutMs!==null&&(!Number.isFinite(timeoutMs)||timeoutMs<1)))throw TypeError('无效系统调用');
  if(signal?.aborted)return Promise.reject(Object.assign(Error('操作已取消'),{code:'ABORT_ERR'}));
  return new Promise((resolve,reject)=>{
   let child,timeout,escalate,failure,stdout='',stderr='',size=0,done=false;
@@ -47,20 +49,21 @@ function runProcess(file,args=[],{input,signal,timeoutMs=30000,maxOutput=512*102
   const killTree=force=>{
    if(!child?.pid)return;
    if(process.platform==='win32'){
-    // The fixed system taskkill path avoids PATH hijacking; /T kills descendants.
-    const killer=spawn(path.join(process.env.SystemRoot||'C:\\Windows','System32','taskkill.exe'),['/PID',String(child.pid),'/T',...(force?['/F']:[])],{windowsHide:true,stdio:'ignore',shell:false});killer.on('error',()=>{try{child.kill(force?'SIGKILL':'SIGTERM');}catch{}});
-   }else{try{process.kill(-child.pid,force?'SIGKILL':'SIGTERM');}catch(e){if(e.code!=='ESRCH'){try{child.kill(force?'SIGKILL':'SIGTERM');}catch{}}}}
+    // The fixed system path avoids PATH hijacking. Authorization waiters omit
+    // /T: their elevated child is independently tracked, never forcibly killed.
+    const killer=spawn(path.join(process.env.SystemRoot||'C:\\Windows','System32','taskkill.exe'),['/PID',String(child.pid),...(killDescendants?['/T']:[]),...(force?['/F']:[])],{windowsHide:true,stdio:'ignore',shell:false});killer.on('error',()=>{try{child.kill(force?'SIGKILL':'SIGTERM');}catch{}});
+   }else{try{process.kill(killDescendants?-child.pid:child.pid,force?'SIGKILL':'SIGTERM');}catch(e){if(e.code!=='ESRCH'){try{child.kill(force?'SIGKILL':'SIGTERM');}catch{}}}}
   };
   const terminate=()=>{killTree(false);if(!escalate)escalate=setTimeout(()=>killTree(true),750);};
   const aborted=()=>{fail('ABORT_ERR','操作已取消');terminate();};
   const finish=error=>{if(done)return;done=true;clearTimeout(timeout);clearTimeout(escalate);signal?.removeEventListener('abort',aborted);error?reject(error):resolve({stdout,stderr});};
   try{child=spawn(file,args,{stdio:['pipe','pipe','pipe'],shell:false,windowsHide:true,detached:process.platform!=='win32'});}catch(e){finish(e);return;}
-  const collect=(chunk,isError)=>{size+=chunk.length;if(size>maxOutput){fail('OUTPUT_LIMIT','系统返回超过大小限制');terminate();return;}if(isError)stderr+=chunk.toString('utf8');else{stdout+=chunk.toString('utf8');try{onStdout?.(chunk);}catch{}}};
+  const collect=(chunk,isError)=>{size+=chunk.length;if(size>maxOutput){fail('OUTPUT_LIMIT','系统返回超过大小限制');terminate();return;}if(isError)stderr+=chunk.toString('utf8');else stdout+=chunk.toString('utf8');try{(isError?onStderr:onStdout)?.(chunk);}catch{}};
   child.stdout.on('data',c=>collect(c,false));child.stderr.on('data',c=>collect(c,true));
   child.on('error',e=>{fail(e.code||'PROCESS_START','无法启动系统操作');});
-  child.on('close',(exitCode,exitSignal)=>{if(failure){finish(failure);return;}if(exitCode!==0){finish(Object.assign(Error('系统操作失败'),{code:'PROCESS_EXIT',exitCode,exitSignal,stdout,stderr}));return;}finish();});
+  child.on('close',(exitCode,exitSignal)=>{if(failure){finish(Object.assign(failure,{stdout,stderr}));return;}if(exitCode!==0){finish(Object.assign(Error('系统操作失败'),{code:'PROCESS_EXIT',exitCode,exitSignal,stdout,stderr}));return;}finish();});
   child.stdin.on('error',()=>{});child.stdin.end(input??'');signal?.addEventListener('abort',aborted,{once:true});
-  timeout=setTimeout(()=>{fail('PROCESS_TIMEOUT','系统操作超时');terminate();},timeoutMs);
+  if(timeoutMs!==null)timeout=setTimeout(()=>{fail('PROCESS_TIMEOUT','系统操作超时');terminate();},timeoutMs);
  });
 }
 module.exports={READ_ACTIONS,WRITE_ACTIONS,validateRequest,validateConfig,runProcess,ip,domain,cidr};

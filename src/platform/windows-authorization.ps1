@@ -1,4 +1,4 @@
-﻿param([ValidateSet('install','uninstall')][string]$Mode, [string]$CallerSid, [switch]$Elevated)
+﻿param([ValidateSet('install','uninstall')][string]$Mode, [string]$CallerSid, [string]$Nonce, [switch]$Elevated, [switch]$Library)
 if ($PSVersionTable.PSEdition -ne 'Core') { $env:PSModulePath = $PSHOME + '\Modules;' + [Environment]::GetEnvironmentVariable('PSModulePath','Machine') }
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
@@ -20,8 +20,31 @@ function Protect-Directory([string]$LiteralPath,[string]$Sddl){
     $security.SetOwner((New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')))
     Set-Acl -LiteralPath $LiteralPath -AclObject $security
 }
+function Authorization-Completion {
+    $value=@{nonce=$Nonce;mode=$Mode;CallerSid=$CallerSid;execution=$script:authorizationExecution;closed=$script:authorizationClosed}
+    if($script:authorizationChildIdentity){$value.pid=$script:authorizationChildIdentity.pid;$value.createdTicks=$script:authorizationChildIdentity.createdTicks}
+    return $value
+}
+function Wait-AuthorizationChild([string]$PowerShell,[string]$Arguments) {
+    $script:authorizationExecution='unknown';$script:authorizationClosed=$false
+    try{$child=Start-Process -FilePath $PowerShell -ArgumentList $Arguments -Verb RunAs -WindowStyle Hidden -PassThru}
+    catch{
+        $cause=$_.Exception;while($cause.InnerException){$cause=$cause.InnerException}
+        if($cause -is [ComponentModel.Win32Exception] -and $cause.NativeErrorCode -eq 1223){$script:authorizationExecution='none';$script:authorizationClosed=$true;Reject 'AUTH_CANCELLED' 'Authorization was declined'}
+        throw
+    }
+    $script:authorizationExecution='child'
+    $script:authorizationChildIdentity=@{type='nettools-auth-child';nonce=$Nonce;mode=$Mode;CallerSid=$CallerSid;pid=$child.Id;createdTicks=$child.StartTime.ToUniversalTime().Ticks.ToString([Globalization.CultureInfo]::InvariantCulture)}
+    [Console]::Error.WriteLine(($script:authorizationChildIdentity|ConvertTo-Json -Compress));[Console]::Error.Flush()
+    # Wait on the returned handle; a PID lookup can refer to a later process.
+    $child.WaitForExit();$child.Refresh();$script:authorizationClosed=$true
+    return $child
+}
+if($Library){return}
+$script:authorizationExecution='none';$script:authorizationClosed=$true;$script:authorizationChildIdentity=$null
 $resultFile='';$stageName='validate'
 try{
+    if($Nonce -cnotmatch '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'){Reject 'INVALID_NONCE' 'Invalid authorization attempt'}
     if($CallerSid -notmatch '^S-1-5-21-(\d+-){2,}\d+$'){Reject 'INVALID_SID' 'Invalid authorizing user'}
     $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
     $principal=New-Object Security.Principal.WindowsPrincipal($identity)
@@ -31,16 +54,16 @@ try{
     if(!$isAdmin){
         if($Elevated -or $identity.User.Value -ne $CallerSid){Reject 'UNAUTHORIZED' 'Authorization must be initiated by the installing user'}
         $ps=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-        $arguments='-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$PSCommandPath+'" -Mode '+$Mode+' -CallerSid '+$CallerSid+' -Elevated'
-        # No redirected streams: the short parent waits for the UAC child itself,
-        # then reads a fixed administrator-owned result file.
-        $child=Start-Process -FilePath $ps -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -PassThru -Wait
+        $arguments='-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$PSCommandPath+'" -Mode '+$Mode+' -CallerSid '+$CallerSid+' -Nonce '+$Nonce+' -Elevated'
+        $child=Wait-AuthorizationChild $ps $arguments
         if($child.ExitCode -ne 0){Reject 'AUTH_FAILED' 'Authorization was cancelled or failed'}
         Check-Ordinary $resultFile
         $result=[IO.File]::ReadAllText($resultFile,[Text.Encoding]::UTF8)|ConvertFrom-Json
-        if(!$result.ok -or $result.data.mode -ne $Mode){Reject 'AUTH_FAILED' 'Authorization result did not match this operation'}
+        if($result.authorization.nonce -cne $Nonce -or $result.authorization.mode -cne $Mode -or $result.authorization.CallerSid -cne $CallerSid -or $result.authorization.closed -ne $true){Reject 'AUTH_FAILED' 'Authorization result did not match this operation'}
+        $result.authorization=Authorization-Completion
         [Console]::Out.WriteLine(($result|ConvertTo-Json -Compress -Depth 8));exit 0
     }
+    $script:authorizationExecution='direct';$script:authorizationClosed=$true
     $publicAcl='O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FRFX;;;BU)'
     $stageName='protect-folders';Protect-Directory $base $publicAcl;Protect-Directory $grants $publicAcl
     $privateAcl='O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FRFX;;;'+$CallerSid+')'
@@ -81,11 +104,12 @@ try{
         # Recovery snapshots remain protected for a later explicit reinstall.
         $result=@{ok=$true;data=@{mode=$Mode;installed=$false;version=$Version;message='Authorization removed; recovery snapshots preserved'}}
     }
+    $result.authorization=Authorization-Completion
     Write-Result $resultFile $result
     [Console]::Out.WriteLine(($result|ConvertTo-Json -Compress -Depth 8));exit 0
 }catch{
     $code=[string]$_.Exception.Data['code'];if(!$code){$code='AUTH_FAILED'}
-    $result=@{ok=$false;error=@{code=$code;message=($stageName+': '+$_.Exception.Message)}}
+    $result=@{ok=$false;error=@{code=$code;message=($stageName+': '+$_.Exception.Message)};authorization=(Authorization-Completion)}
     if($Elevated -and $resultFile -and (Test-Path -LiteralPath (Split-Path $resultFile -Parent))){try{Write-Result $resultFile $result}catch{}}
     [Console]::Out.WriteLine(($result|ConvertTo-Json -Compress -Depth 8));exit 1
 }

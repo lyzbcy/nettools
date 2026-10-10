@@ -308,6 +308,31 @@ function Invoke-Privileged([string]$Action,$ActionArgs,[string]$Sid,[string]$Gra
         default { Fail 'INVALID_ACTION' 'Unknown privileged action' }
     }
 }
+# Private read-only cleanup query; never dispatched through the public JS API.
+function Authorization-ProcessStatus($Identity) {
+    $keys=@('nonce','mode','CallerSid','pid','createdTicks')
+    $given=if($Identity -is [Collections.IDictionary]){@($Identity.Keys)}else{@($Identity.PSObject.Properties.Name)}
+    if($given.Count -ne $keys.Count -or @($given|Where-Object {$_ -notin $keys}).Count -or
+       $Identity.nonce -cnotmatch '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' -or
+       $Identity.mode -notin @('install','uninstall') -or $Identity.CallerSid -cne (Caller-Sid) -or
+       ($Identity.pid -isnot [int] -and $Identity.pid -isnot [long]) -or $Identity.pid -lt 1 -or $Identity.pid -gt 2147483647 -or $Identity.createdTicks -isnot [string] -or $Identity.createdTicks -cnotmatch '^\d{18}$') {Fail 'INVALID_REQUEST' 'Invalid authorization process identity'}
+    $instance=Read-AuthorizationProcess $Identity.pid
+    $state=if(!$instance.exists){'exited'}elseif($instance.createdTicks -cne $Identity.createdTicks){'replaced'}else{'running'}
+    return @{nonce=$Identity.nonce;mode=$Identity.mode;CallerSid=$Identity.CallerSid;pid=$Identity.pid;createdTicks=$Identity.createdTicks;state=$state}
+}
+function Read-AuthorizationProcess([int]$ProcessId) {
+    # Only ArgumentException from GetProcessById means this PID is absent.
+    # Access denied and all StartTime/handle query failures remain real failures.
+    try{$instance=[Diagnostics.Process]::GetProcessById($ProcessId)}catch{
+        $cause=$_.Exception;while($cause.InnerException){$cause=$cause.InnerException}
+        if($cause -is [ArgumentException]){return @{exists=$false}}
+        throw
+    }
+    try{
+        if($instance.HasExited){return @{exists=$false}}
+        return @{exists=$true;createdTicks=$instance.StartTime.ToUniversalTime().Ticks.ToString([Globalization.CultureInfo]::InvariantCulture)}
+    }finally{$instance.Dispose()}
+}
 function Invoke-Read([string]$Action,$ActionArgs,[string]$ConfigDirectory) {
     switch($Action) {
         'get-status' { $id=Active-Identity;return @{iface=$id.iface;service=$id.service;ip=$id.ip;gateway=$id.gateway;online=$null;linkAvailable=($id.ip -ne '');os=[Environment]::OSVersion.VersionString;dhcp=$id.dhcp} }
@@ -329,6 +354,7 @@ function Invoke-Read([string]$Action,$ActionArgs,[string]$ConfigDirectory) {
             return @{items=$items;issue=$check.issue}
         }
         'helper-status' { return Helper-Status }
+        'authorization-process-status' { return Authorization-ProcessStatus $ActionArgs }
         'task-status' { if($ActionArgs.taskAction -notin $PrivilegedActions){Fail 'INVALID_ACTION' 'Invalid task query'};$sid=Caller-Sid;$task=Get-ScheduledTask -TaskPath ('\LaoyuNetTools\'+$sid+'\') -TaskName $ActionArgs.taskAction;return @{state=[string]$task.State} }
         'get-config' { return @{config=(Load-Config $ConfigDirectory)} }
         'export-config' { return @{json=((Load-Config $ConfigDirectory)|ConvertTo-Json -Depth 10);message='Configuration ready to copy'} }
