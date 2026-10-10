@@ -1,5 +1,5 @@
 'use strict';
-const fs=require('node:fs'),fsp=fs.promises,path=require('node:path'),crypto=require('node:crypto');
+const fs=require('./raw-fs.cjs'),fsp=fs.promises,path=require('node:path'),crypto=require('node:crypto');
 const RELEASE_PAGE='https://github.com/lyzbcy/nettools/releases';
 function parsedVersion(v){if(typeof v!=='string'||!/^\d+\.\d+\.\d+$/.test(v))throw Error('版本号必须是正式 x.y.z');const nums=v.split('.').map(Number);if(nums.some(n=>!Number.isSafeInteger(n)))throw Error('版本号过大');return nums;}
 function compareVersions(a,b){const x=parsedVersion(a),y=parsedVersion(b);for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]>y[i]?1:-1;return 0;}

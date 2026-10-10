@@ -1,5 +1,5 @@
 'use strict';
-const fs=require('node:fs'),fsp=fs.promises,path=require('node:path'),crypto=require('node:crypto'),zlib=require('node:zlib'),{spawn}=require('node:child_process');
+const fs=require('./raw-fs.cjs'),fsp=fs.promises,path=require('node:path'),crypto=require('node:crypto'),zlib=require('node:zlib'),{spawn}=require('node:child_process');
 const {compareVersions,hashFile}=require('./updater.cjs');
 const {runProcess}=require('../platform/common.cjs');
 const APP_NAME='捞鱼的网络工具.app',PRODUCT='laoyu-nettools',IDENTIFIER='com.laoyu.nettools';

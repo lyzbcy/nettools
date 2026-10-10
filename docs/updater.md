@@ -45,3 +45,7 @@ Windows 两段更新后核对原卸载器哈希、登记版本与路径，再实
 供软件中心复用的 `mode:"observe"` 只观察实际当前安装：计划字段为 `{protocol:1,mode:"observe",nonce,platform,arch,suiteRoot,caseRoot,installPath,dataDir,version}`，目录约束相同。使用单个 `--nettools-data=<dataDir>` 参数启动，禁止更新确认/回滚参数和本地传输。正常初始化后写 `probe.json` 和 `evidence/01-observed-production-window.png`；观察模块不会点击操作、改设置、执行修复、发送反馈、重启或写更新握手记录。向同一 caseRoot 的 `stop.json` 写入 `{nonce}` 后走原正常退出流程。普通启动的只读网络检查、日志和自动版本检查保持；它不是原生产 `shell.openPath` 启动行为的替代证据。
 
 本地边界与生命周期回归、原更新测试可证明入口约束和原助手事务；完整正式 Electron 成功更新、失败回滚和 Windows 真卸载仍以本次后续真实 CI 报告为准，当前不宣称已经通过。
+
+真实 CI `38081682666` 的三平台普通安装桌面均进入了实际更新流程，但准备阶段在 `resources/default_app.asar` 报 `Invalid package`。Electron 的普通 `fs` 会把 `.asar` 当成虚拟目录；这不仅阻止新文件解压写入，也会让 stat、流式哈希和清单遍历读到归档内部。更新、原始包下载和更新观察现在共享 `raw-fs.cjs`：Electron 使用内置 `original-fs`，普通 Node 仅在精确缺少该模块时回退；Electron 缺模块、模块内部缺依赖和初始化失败均保持失败。ZIP/CRC/SHA、链接、身份、签名与清单规则保持，不删除 ASAR 文件规避问题。
+
+`test/update-raw-fs.test.cjs` 启动固定版本的真实 Electron main（不启用 RUN_AS_NODE、不创建窗口、不访问网络、不交接更新），先证明普通 fs 的 ASAR 虚拟目录与新文件写入错误，再在临时夹具中验证有效默认 ASAR 与不透明 ASAR 的真实解压字节、物理文件大小、哈希和文件清单，确认没有归档内虚拟条目，错误 SHA 仍被拒绝，旧副本版本保持。CI 在三个平台完整构建取得固定运行时后强制再跑该回归，不能用普通 Node 的绿色结果代替 Electron 语义验证。此修复的后续完整安装更新结果仍待真实 CI。

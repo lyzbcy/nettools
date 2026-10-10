@@ -1,6 +1,6 @@
 'use strict';
 // Fixed CI acceptance, never renderer-supplied code, commands or URLs.
-const fs=require('node:fs'),fsp=fs.promises,path=require('node:path'),crypto=require('node:crypto');
+const fs=require('./raw-fs.cjs'),fsp=fs.promises,path=require('node:path'),crypto=require('node:crypto');
 const {compareVersions,parsedVersion}=(()=>{const u=require('./updater.cjs');return {compareVersions:u.compareVersions,parsedVersion:v=>u.compareVersions(v,v)};})();
 const PLAN_KEY='NETTOOLS_UPDATE_ACCEPTANCE_PLAN',NONCE_KEY='NETTOOLS_UPDATE_ACCEPTANCE_NONCE';
 function inside(root,file){const relative=path.relative(root,file);return relative!==''&&!path.isAbsolute(relative)&&relative!=='..'&&!relative.startsWith('..'+path.sep);}

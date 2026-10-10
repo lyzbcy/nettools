@@ -46,6 +46,11 @@ jobs:
           NETTOOLS_PYTHON: python
           NETTOOLS_FEEDBACK_WEBHOOK: ${{ secrets.NETTOOLS_FEEDBACK_WEBHOOK }}
         run: node scripts/package.cjs darwin ${{ matrix.arch }}
+      # The unmodified pinned runtime is available only after the package build.
+      - name: Actual Electron raw ASAR update regression
+        env:
+          NETTOOLS_RAW_FS_REQUIRE_ELECTRON: 'true'
+        run: node --test test/update-raw-fs.test.cjs
       - name: Actual packaged native helper and cleanup
         run: node scripts/ci-macos-native.cjs
       - name: Actual installed desktop and persisted preferences
@@ -94,6 +99,11 @@ jobs:
         env:
           NETTOOLS_FEEDBACK_WEBHOOK: ${{ secrets.NETTOOLS_FEEDBACK_WEBHOOK }}
         run: node scripts/package.cjs win32 x64
+      - name: Actual Electron raw ASAR update regression
+        shell: pwsh
+        env:
+          NETTOOLS_RAW_FS_REQUIRE_ELECTRON: 'true'
+        run: node --test test/update-raw-fs.test.cjs
       - name: Actual installed desktop and persisted preferences
         shell: pwsh
         run: node scripts/ci-windows-desktop.cjs

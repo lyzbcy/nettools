@@ -1,5 +1,5 @@
 'use strict';
-const fs=require('node:fs/promises');
+const fs=require('./raw-fs.cjs').promises;
 function cancellation(signal){if(signal?.aborted)throw Object.assign(Error('操作已取消'),{code:'ABORT_ERR'});}
 function boundedSignal(signal,timeoutMs){cancellation(signal);const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs),abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});return {signal:controller.signal,dispose(){clearTimeout(timer);signal?.removeEventListener('abort',abort);}};}
 async function jsonRequest(fetch,url,{body,signal,timeoutMs=20000}={}){
