@@ -52,7 +52,7 @@ class Controller{
    catch(error){this.lastError={code:error.code||'INITIAL_CHECK',message:error.message};this._log('warn',action,this.lastError);}
    this._publish();
   }
-  if(!this.shuttingDown)await this.guard.start();return this.snapshot();
+  if(!this.shuttingDown)void this.guard.start().catch(error=>{this.lastError={code:error.code||'GUARD_START',message:error.message};this._publish();});return this.snapshot();
  }
  async updateSettings(patch){
   validateSettings(patch);const request=structuredClone(patch);const result=this.settingsTail.then(()=>this._updateSettings(request));this.settingsTail=result.catch(()=>{});return result;

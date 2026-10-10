@@ -34,6 +34,15 @@ test('verified package alone reaches prepare and returns readiness without claim
 test('cancelled readiness cannot install, duplicate handoff is refused, and handoff failures can be retried',async t=>{
  const u=context(t);assert.throws(()=>u.beginInstall());await u.stage();u.cancel();assert.equal(u.snapshot().state,'available');assert.throws(()=>u.beginInstall());await u.stage();u.beginInstall();assert.equal(u.snapshot().state,'installing');assert.throws(()=>u.beginInstall());u.failInstall(Error('helper readiness failed'));assert.equal(u.snapshot().state,'error');assert.equal(u.snapshot().error,'helper readiness failed');await u.stage();assert.equal(u.snapshot().state,'ready');
 });
+test('checking the same release preserves readiness while a changed release explicitly invalidates preparation',async t=>{
+ const invalidated=[];const u=context(t,{onReadyInvalidated:async ready=>invalidated.push(ready.version)});await u.stage();await u.check({manual:true});assert.equal(u.snapshot().state,'ready');assert.deepEqual(invalidated,[]);u.getRelease=async()=>release('5.2.0');await u.check({manual:true});assert.equal(u.snapshot().state,'available');assert.deepEqual(invalidated,['5.1.0']);assert.throws(()=>u.beginInstall());await u.stage();u.beginInstall();await assert.rejects(u.check({manual:true}),/交接/);
+});
+test('cancelling while rechecking cannot revive an aborted ready package',async t=>{
+ const u=context(t);await u.stage();let finish;u.getRelease=()=>new Promise(r=>finish=r);const check=u.check({manual:true});await new Promise(r=>setImmediate(r));u.cancel();finish(release());await check;assert.equal(u.readyRecord,null);assert.equal(u.snapshot().state,'available');assert.throws(()=>u.beginInstall());u.getRelease=async()=>release();await u.stage();assert.equal(u.snapshot().state,'ready');
+});
+test('a failed recheck aborts old readiness and permits the visible retry action',async t=>{
+ const aborted=[];const u=context(t,{onReadyInvalidated:async ready=>aborted.push(ready.version)});await u.stage();u.getRelease=async()=>{throw Error('offline');};await assert.rejects(u.check({manual:true}),/offline/);assert.equal(u.readyRecord,null);assert.equal(u.snapshot().state,'error');assert.deepEqual(aborted,['5.1.0']);u.getRelease=async()=>release();await u.stage();assert.equal(u.snapshot().state,'ready');
+});
 test('wrong hash deletes partial package and never prepares',async t=>{
  let prepared=0;const u=context(t,{download:async(r,file)=>fs.writeFileSync(file,'tampered'),prepare:async()=>{prepared++;}});
  await assert.rejects(u.stage(),/校验/);assert.equal(prepared,0);assert.equal(u.snapshot().state,'error');assert.ok(!fs.readdirSync(u.downloadDir).some(n=>n.endsWith('.part')));

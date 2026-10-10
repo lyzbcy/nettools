@@ -17,6 +17,9 @@ test('compiled native validation is pure and rejects unsafe actions and all untr
 test('compiled helper refuses unauthenticated actions before any network command',()=>{
  const {helper}=binaries();const r=rpc(helper,{action:'flush-dns',args:{}},['--rpc']);assert.equal(r.ok,false);assert.equal(r.error.code,'PERMISSION_REQUIRED');
 });
+test('DNS refresh targets only the system daemon owners despite retaining the installing real UID',()=>{
+ const {helper,dir}=binaries();const result=rpc(helper,{action:'flush-dns',args:{},fixture:{stateDir:path.join(dir,'flush')}},['--fixture']);assert.equal(result.ok,true);const hup=result.commands.find(c=>c.path==='/usr/bin/pkill');assert.deepEqual(hup?.args,['-HUP','-U','root,_mdnsresponder','-x','mDNSResponder']);assert.ok(!result.commands.some(c=>c.path==='/usr/bin/killall'));
+});
 test('fixture static IP refuses DHCP and step failure cannot become success',()=>{
  const {helper,dir}=binaries();const r=rpc(helper,{action:'renew-dhcp',args:{},fixture:{stateDir:path.join(dir,'static'),method:'Manual'}},['--fixture']);
  assert.equal(r.ok,false);assert.equal(r.error.code,'STATIC_IP');assert.ok(!r.commands.some(c=>c.args[0]==='set'));

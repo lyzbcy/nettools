@@ -22,10 +22,10 @@ function notLink(file){try{if(fs.lstatSync(file).isSymbolicLink())throw Error('�
 function atomicJson(file,data){fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});notLink(file);const tmp=file+'.'+crypto.randomUUID()+'.tmp';try{fs.writeFileSync(tmp,JSON.stringify(data)+'\n',{mode:0o600,flag:'wx'});fs.renameSync(tmp,file);}finally{fs.rmSync(tmp,{force:true});}}
 async function hashFile(file){const hash=crypto.createHash('sha256');for await(const bytes of fs.createReadStream(file))hash.update(bytes);return hash.digest('hex');}
 class Updater{
- constructor({version,platform,arch,historyFile,downloadDir,getRelease,download,prepare,onProgress,now=()=>new Date()}){
+ constructor({version,platform,arch,historyFile,downloadDir,getRelease,download,prepare,onProgress,onReadyInvalidated,now=()=>new Date()}){
   parsedVersion(version);for(const [k,v]of Object.entries({getRelease,download,prepare}))if(typeof v!=='function')throw TypeError(k+' must be a function');
-  Object.assign(this,{version,platform,arch,historyFile,downloadDir,getRelease,download,prepare,onProgress,now});
-  this.record=null;this.stageRunning=false;this.pendingCheck=null;this.controller=null;
+  Object.assign(this,{version,platform,arch,historyFile,downloadDir,getRelease,download,prepare,onProgress,onReadyInvalidated,now});
+  this.record=null;this.readyRecord=null;this.stageRunning=false;this.pendingCheck=null;this.controller=null;
   this.status={state:'idle',lastAttemptDay:null,lastSuccessDay:null,error:null,progress:null,release:null};
   notLink(historyFile);try{const history=JSON.parse(fs.readFileSync(historyFile,'utf8'));for(const key of ['lastAttemptDay','lastSuccessDay'])if(/^\d{4}-\d{2}-\d{2}$/.test(history[key]||''))this.status[key]=history[key];}catch(e){if(e.code!=='ENOENT'&&!(e instanceof SyntaxError))throw e;}
  }
@@ -33,19 +33,25 @@ class Updater{
  _publish(){try{this.onProgress?.(this.snapshot());}catch{}}
  _history(){atomicJson(this.historyFile,{lastAttemptDay:this.status.lastAttemptDay,lastSuccessDay:this.status.lastSuccessDay});}
  check({manual=false}={}){
+  if(this.status.state==='installing')return Promise.reject(Error('正在交接安装，请等待完成后再检查更新'));
+  if(this.stageRunning&&['downloading','verifying','preparing'].includes(this.status.state))return Promise.reject(Error('正在准备更新包，请完成或取消后再检查'));
   if(this.pendingCheck)return this.pendingCheck;
   const day=dayInShanghai(this.now());if(!manual&&this.status.lastAttemptDay===day)return Promise.resolve(this.record);
   this.status.lastAttemptDay=day;this._history();this.status.state='checking';this.status.error=null;this._publish();
-  this.pendingCheck=Promise.resolve().then(()=>this.getRelease()).then(release=>{
-   const record=selectRelease(release,this.version,this.platform,this.arch);this.record=record;this.status.release=record;this.status.lastSuccessDay=day;this.status.state=record.hasUpdate?'available':'current';this._history();this._publish();return record;
-  },error=>{throw error;}).catch(error=>{this.status.state='error';this.status.error=String(error.message||error);this._publish();throw error;}).finally(()=>{this.pendingCheck=null;});
+  this.pendingCheck=Promise.resolve().then(()=>this.getRelease()).then(async release=>{
+   const record=selectRelease(release,this.version,this.platform,this.arch),ready=this.readyRecord;
+   const sameReady=ready&&record.hasUpdate&&['version','name','url','sha256','size'].every(key=>ready[key]===record[key]);
+   if(ready&&!sameReady){this.readyRecord=null;await this.onReadyInvalidated?.(ready);}
+   this.record=record;this.status.release=record;this.status.lastSuccessDay=day;this.status.state=sameReady?'ready':record.hasUpdate?'available':'current';this._history();this._publish();return record;
+  },error=>{throw error;}).catch(async error=>{const ready=this.readyRecord;this.readyRecord=null;if(ready)try{await this.onReadyInvalidated?.(ready);}catch{}this.status.state='error';this.status.error=String(error.message||error);this._publish();throw error;}).finally(()=>{this.pendingCheck=null;});
   return this.pendingCheck;
  }
- cancel(){this.controller?.abort();if(this.status.state==='ready'){this.status.state='available';this.status.progress=null;this._publish();}}
- beginInstall(){if(this.status.state!=='ready'||this.stageRunning)throw Error('更新尚未准备就绪');this.status.state='installing';this.status.error=null;this._publish();}
+ cancel(){this.controller?.abort();if(this.readyRecord){this.readyRecord=null;this.status.state='available';this.status.progress=null;this._publish();}}
+ beginInstall(){if(this.status.state!=='ready'||this.stageRunning)throw Error('更新尚未准备就绪');this.readyRecord=null;this.status.state='installing';this.status.error=null;this._publish();}
  failInstall(error){this.status.state='error';this.status.error=String(error?.message||error||'更新安装未完成');this._publish();}
  async stage(){
   if(this.stageRunning)throw Error('正在准备更新，请等待');
+  if(this.readyRecord)throw Error('已有准备好的更新，请直接安装或先取消');
   this.stageRunning=true;this.controller=new AbortController();const signal=this.controller.signal;let partial;
   try{
    const record=await this.check({manual:true});if(signal.aborted)throw Error('更新已取消');if(!record?.hasUpdate)throw Error('当前没有可用的正式更新');
@@ -60,7 +66,7 @@ class Updater{
    const file=partial.slice(0,-5);await fsp.rename(partial,file);partial=null;
    this.status.state='preparing';this._publish();
    const ready=await this.prepare({...record,file},{signal});if(signal.aborted)throw Error('更新已取消');if(ready?.ready!==true)throw Error('更新准备失败，保留当前程序');
-   this.status.state='ready';this._publish();return {...record,file,...ready};
+   this.readyRecord={...record,file,...ready};this.status.state='ready';this._publish();return this.readyRecord;
   }catch(error){this.status.state='error';this.status.error=String(error.message||error);this._publish();throw error;}
   finally{if(partial)await fsp.rm(partial,{force:true});this.stageRunning=false;this.controller=null;}
  }

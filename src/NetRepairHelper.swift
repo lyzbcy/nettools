@@ -377,7 +377,13 @@ final class Network {
         return ["ok": webOK, "issue": issue, "interface": id.interface, "service": id.service, "ip": id.ip, "gateway": id.gateway, "addressMethod": id.method, "dnsOk": !dns.isEmpty, "dnsIp": dns.first ?? "", "httpOk": webOK, "httpCode": http["code"] ?? 0, "directHttpOk": direct["ok"] ?? false, "rawOk": raw["ok"] ?? false, "proxyPath": "system", "proxies": proxy]
     }
     func status() throws -> [String: Any] { let id = try identity(); return ["iface": id.interface, "interface": id.interface, "service": id.service, "ip": id.ip, "gateway": id.gateway, "addressMethod": id.method, "linkAvailable": !id.ip.isEmpty, "online": NSNull(), "version": nativeVersion] }
-    func flush() throws { try command("/usr/bin/dscacheutil", ["-flushcache"]); try command("/usr/bin/killall", ["-HUP", "mDNSResponder"]) }
+    func flush() throws {
+        try command("/usr/bin/dscacheutil", ["-flushcache"])
+        // The setuid coordinator retains the installing real UID so its user
+        // engine can cancel it. killall implicitly filters by that real UID.
+        // pkill uses an explicit system-owner and exact daemon-name selection.
+        try command("/usr/bin/pkill", ["-HUP", "-U", "root,_mdnsresponder", "-x", "mDNSResponder"])
+    }
     func setDNS(_ service: String, _ values: [String]) throws {
         try verifyService(service); guard values.allSatisfy(isIP) else { throw fail("INVALID_REQUEST", "备份 DNS 无效") }
         _ = try setup("-setdnsservers", service, values.isEmpty ? ["empty"] : values)
