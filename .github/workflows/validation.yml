@@ -1,0 +1,32 @@
+name: Network tools delivery validation
+on:
+  push:
+    branches: [codex/nettools-cross-platform-delivery]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nettools-validation-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Core and production PowerShell fixture tests
+        shell: pwsh
+        run: node --test test/*.test.cjs
+      - name: Actual Windows native and authorization acceptance
+        shell: pwsh
+        run: node scripts/ci-windows-native.cjs
+      - name: Preserve actual acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-native-evidence
+          path: verification/windows/
+          if-no-files-found: warn

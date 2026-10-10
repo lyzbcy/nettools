@@ -1,0 +1,21 @@
+{
+  "name": "laoyu-nettools",
+  "version": "5.0.0",
+  "private": true,
+  "description": "捞鱼的网络工具 · Mac / Windows 网络诊断、修复与保活",
+  "main": "src/main.cjs",
+  "author": "捞鱼工作室",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "pack": "node scripts/package.cjs",
+    "pack:mac": "node scripts/package.cjs darwin arm64",
+    "pack:win": "node scripts/package.cjs win32 x64"
+  },
+  "devDependencies": {
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3",
+    "resedit": "3.0.2"
+  }
+}
