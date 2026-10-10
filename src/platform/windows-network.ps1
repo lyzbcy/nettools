@@ -69,15 +69,22 @@ function Helper-Status {
     } catch { $state.message='Authorization needs reinstalling or permission verification' }
     return $state
 }
+function Ordinary-Adapter($Adapter) {
+    if(!$Adapter -or $Adapter.Status -ne 'Up'){return $false}
+    if($Adapter.HardwareInterface){return $true}
+    # Guest Ethernet adapters are ordinary local links too. Known VPN/TUN
+    # adapters must not be mistaken for the physical/default repair target.
+    return $Adapter.InterfaceDescription -notmatch '(?i)TAP|TUN\b|WireGuard|Tailscale|VPN|Tunnel' -and $Adapter.InterfaceType -in @(6,71)
+}
 function Active-Identity {
     $route=@(Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Sort-Object RouteMetric | Select-Object -First 1)
     $adapter=$null
     if ($route.Count -gt 0) { $adapter=Get-NetAdapter -InterfaceIndex $route[0].InterfaceIndex -ErrorAction SilentlyContinue }
-    if (!$adapter -or !$adapter.HardwareInterface) { $adapter=Get-NetAdapter -Physical | Where-Object { $_.Status -eq 'Up' } | Sort-Object ifIndex | Select-Object -First 1 }
+    if (!(Ordinary-Adapter $adapter)) { $adapter=Get-NetAdapter | Where-Object { Ordinary-Adapter $_ } | Sort-Object @{Expression='HardwareInterface';Descending=$true},ifIndex | Select-Object -First 1 }
     if (!$adapter) { return @{iface='';service='';ip='';gateway='';index=0;guid='';physical=$false;dhcp=$false;hasRoute=($route.Count -gt 0)} }
     $address=Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -notlike '169.254.*' } | Select-Object -First 1
     $ipInterface=Get-NetIPInterface -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4
-    return @{iface=$adapter.Name;service=$adapter.Name;ip=([string]$address.IPAddress);gateway=$(if($route.Count -gt 0){[string]$route[0].NextHop}else{''});index=[int]$adapter.ifIndex;guid=$adapter.InterfaceGuid.ToString();physical=[bool]$adapter.HardwareInterface;dhcp=($ipInterface.Dhcp -eq 'Enabled');hasRoute=($route.Count -gt 0)}
+    return @{iface=$adapter.Name;service=$adapter.Name;ip=([string]$address.IPAddress);gateway=$(if($route.Count -gt 0){[string]$route[0].NextHop}else{''});index=[int]$adapter.ifIndex;guid=$adapter.InterfaceGuid.ToString();physical=(Ordinary-Adapter $adapter);dhcp=($ipInterface.Dhcp -eq 'Enabled');hasRoute=($route.Count -gt 0)}
 }
 function Test-Port([string]$HostName,[int]$Port) {
     $client=New-Object Net.Sockets.TcpClient
@@ -217,7 +224,7 @@ function Renew-DHCP {
     return @{ok=$true;message='DHCP lease renewed'}
 }
 function VPN-Status($Config) {
-    $adapter=$null;if($Config.windows.adapterName){$adapter=Get-NetAdapter -Name ([string]$Config.windows.adapterName) -ErrorAction SilentlyContinue}
+    $adapter=$null;if($Config.windows.adapterName){$adapter=Get-NetAdapter -ErrorAction SilentlyContinue|Where-Object {$_.Name -ceq [string]$Config.windows.adapterName}|Select-Object -First 1}
     $connected=$adapter -and $adapter.Status -eq 'Up';$rules=@()
     if($Config.company.resolverDomain){$rules=@(Get-DnsClientNrptRule -ErrorAction SilentlyContinue | Where-Object { $_.Namespace -contains ('.'+$Config.company.resolverDomain) })}
     return @{configured=[bool]$Config.windows.adapterName;vpnConnected=[bool]$connected;resolverInstalled=($rules.Count -gt 0);detail=$(if($connected){'Configured VPN adapter is connected'}else{'Select the actual connected VPN adapter in configuration'})}
@@ -225,36 +232,64 @@ function VPN-Status($Config) {
 function VPN-Coexist($Config,[string]$Sid,[string]$GrantRoot) {
     $Config=Validate-Config $Config;$c=$Config.company
     if(!$Config.windows.adapterName -or !$c.intranetCIDR -or !$c.resolverDomain -or !@($c.intranetDNS).Count){Fail 'VPN_CONFIG_REQUIRED' 'VPN adapter, private route, domain and DNS are required'}
-    $adapter=Get-NetAdapter -Name ([string]$Config.windows.adapterName)
+    $adapter=Get-NetAdapter | Where-Object {$_.Name -ceq [string]$Config.windows.adapterName} | Select-Object -First 1
     if($adapter.Status -ne 'Up' -or $adapter.HardwareInterface){Fail 'VPN_NOT_CONNECTED' 'Selected VPN adapter must be an active virtual adapter'}
     $file=Join-Path $GrantRoot 'vpn-backup.json'
     if(Test-Path -LiteralPath $file){$existing=Read-Json $file;if($existing.pending){Fail 'PENDING_RESTORE' 'Coexistence already applied; restore before changing its configuration'}}
     $conflict=@(Get-DnsClientNrptRule -ErrorAction SilentlyContinue | Where-Object { $_.Namespace -contains ('.'+$c.resolverDomain) });if($conflict.Count){Fail 'NRPT_CONFLICT' 'Existing domain DNS policy preserved; ask the network administrator'}
     $originalProxy=Proxy-Info $Sid
-    $halves=@(Get-NetRoute -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.DestinationPrefix -in @('0.0.0.0/1','128.0.0.0/1') } | ForEach-Object {@{prefix=$_.DestinationPrefix;gateway=$_.NextHop;metric=[int]$_.RouteMetric}})
-    $snapshot=@{pending=$true;index=[int]$adapter.ifIndex;guid=$adapter.InterfaceGuid.ToString();domain=[string]$c.resolverDomain;originalOverride=$originalProxy.override;addedRoutes=@();removedRoutes=@();ruleName='';appliedOverride=''}
+    $broadPrefixes=@('0.0.0.0/0','0.0.0.0/1','128.0.0.0/1','::/0','::/1','8000::/1')
+    $broad=@(Get-NetRoute -InterfaceIndex $adapter.ifIndex -ErrorAction SilentlyContinue | Where-Object { $_.DestinationPrefix -in $broadPrefixes } | ForEach-Object {@{prefix=$_.DestinationPrefix;gateway=$_.NextHop;metric=[int]$_.RouteMetric;family=$(if($_.DestinationPrefix.Contains(':')){'IPv6'}else{'IPv4'})}})
+    foreach($family in @($broad|ForEach-Object {$_.family}|Select-Object -Unique)){
+        $default=if($family -eq 'IPv6'){'::/0'}else{'0.0.0.0/0'}
+        $physical=@(Get-NetRoute -AddressFamily $family -DestinationPrefix $default -ErrorAction SilentlyContinue|Where-Object {$_.InterfaceIndex -ne $adapter.ifIndex -and (Ordinary-Adapter (Get-NetAdapter -InterfaceIndex $_.InterfaceIndex -ErrorAction SilentlyContinue))})
+        if(!$physical.Count){Fail 'NO_PUBLIC_DEFAULT' 'No verified non-VPN default route; original VPN routes preserved'}
+    }
+    $tag='LaoyuNetTools-'+[guid]::NewGuid().ToString()
+    $bypass=@($originalProxy.override.Split(';') | Where-Object {$_});$bypass+='*.'+$c.resolverDomain;if($c.internalHost){$bypass+=[string]$c.internalHost}
+    $snapshot=@{pending=$true;index=[int]$adapter.ifIndex;guid=$adapter.InterfaceGuid.ToString();domain=[string]$c.resolverDomain;originalOverride=$originalProxy.override;addedRoutes=@();removedRoutes=@();ruleName='';ruleTag=$tag;appliedOverride=(($bypass|Select-Object -Unique)-join ';')}
     Write-Json $file $snapshot
     try {
-        $prefixes=@([string]$c.intranetCIDR)+@($c.intranetDNS | Where-Object {$_ -match '^\d{1,3}(\.\d{1,3}){3}$'} | ForEach-Object {$_+'/32'})
+        $prefixes=@([string]$c.intranetCIDR)+@($c.intranetDNS | ForEach-Object {if($_.Contains(':')){$_+'/128'}else{$_+'/32'}})
         foreach($prefix in ($prefixes | Select-Object -Unique)) {
             $old=@(Get-NetRoute -InterfaceIndex $adapter.ifIndex -DestinationPrefix $prefix -ErrorAction SilentlyContinue)
-            if(!$old.Count){$null=New-NetRoute -InterfaceIndex $adapter.ifIndex -DestinationPrefix $prefix -NextHop '0.0.0.0' -PolicyStore ActiveStore;$snapshot.addedRoutes+=@{prefix=$prefix;gateway='0.0.0.0'};Write-Json $file $snapshot}
+            if(!$old.Count){
+                $family=if($prefix.Contains(':')){'IPv6'}else{'IPv4'}
+                $gateway=if($family -eq 'IPv6'){'::'}else{'0.0.0.0'}
+                $via=@($broad|Where-Object {$_.family -eq $family}|Select-Object -First 1);if($via.Count){$gateway=$via[0].gateway}
+                # Durable write-ahead plan: a crash after New-NetRoute cannot
+                # leave a route absent from the recovery snapshot.
+                $snapshot.addedRoutes+=@{prefix=$prefix;gateway=$gateway};Write-Json $file $snapshot
+                $null=New-NetRoute -InterfaceIndex $adapter.ifIndex -DestinationPrefix $prefix -NextHop $gateway -PolicyStore ActiveStore
+            }
         }
-        foreach($route in $halves){Remove-NetRoute -InterfaceIndex $adapter.ifIndex -DestinationPrefix $route.prefix -NextHop $route.gateway -Confirm:$false;$snapshot.removedRoutes+=$route;Write-Json $file $snapshot}
-        $rule=Add-DnsClientNrptRule -Namespace ('.'+$c.resolverDomain) -NameServers @($c.intranetDNS) -Comment ('LaoyuNetTools '+$Sid) -PassThru
+        foreach($route in $broad){$snapshot.removedRoutes+=$route;Write-Json $file $snapshot;Remove-NetRoute -InterfaceIndex $adapter.ifIndex -DestinationPrefix $route.prefix -NextHop $route.gateway -Confirm:$false}
+        # NRPT assigns its own opaque Name. Persist a unique tag before creating
+        # the rule so reset can find it even if creation's reply was interrupted.
+        Write-Json $file $snapshot
+        $rule=Add-DnsClientNrptRule -Namespace ('.'+$c.resolverDomain) -NameServers @($c.intranetDNS) -DisplayName $tag -Comment ('LaoyuNetTools '+$Sid+' '+$tag) -PassThru
         $snapshot.ruleName=[string]$rule.Name;Write-Json $file $snapshot
-        $bypass=@($originalProxy.override.Split(';') | Where-Object {$_});$bypass+='*.'+$c.resolverDomain;if($c.internalHost){$bypass+=[string]$c.internalHost};$snapshot.appliedOverride=($bypass | Select-Object -Unique) -join ';'
         Set-ItemProperty -LiteralPath (Proxy-Path $Sid) -Name ProxyOverride -Value $snapshot.appliedOverride;Write-Json $file $snapshot;Clear-DnsClientCache
         $verified=VPN-Status $Config;if(!$verified.vpnConnected -or !$verified.resolverInstalled){Fail 'VPN_VERIFY_FAILED' 'VPN route or domain DNS validation failed'}
+        Start-Sleep -Milliseconds 700
+        if(@(Get-NetRoute -InterfaceIndex $adapter.ifIndex -ErrorAction SilentlyContinue|Where-Object {$_.DestinationPrefix -in $broadPrefixes}).Count){Fail 'VPN_VERIFY_FAILED' 'VPN client reintroduced a broad public route'}
+        foreach($family in @($broad|ForEach-Object {$_.family}|Select-Object -Unique)){
+            $probe=if($family -eq 'IPv6'){'2606:4700:4700::1111'}else{'223.5.5.5'}
+            $best=@(Find-NetRoute -RemoteIPAddress $probe|Where-Object {$_.PSObject.Properties['DestinationPrefix']})
+            if(!$best.Count -or $best[0].InterfaceIndex -eq $adapter.ifIndex){Fail 'VPN_VERIFY_FAILED' 'Public traffic still selects the VPN interface'}
+        }
     } catch { Fail 'VPN_PARTIAL' 'Coexistence did not fully apply; use restore to recover the saved original configuration' }
     return @{ok=$true;allOk=$true;message='VPN private routes and domain DNS applied; public traffic stays outside the VPN half-routes'}
 }
 function Reset-VPN([string]$Sid,[string]$GrantRoot) {
     $file=Join-Path $GrantRoot 'vpn-backup.json';$snapshot=Read-Json $file;if(!$snapshot.pending){Fail 'NO_BACKUP' 'No pending coexistence configuration'};$null=Assert-Adapter $snapshot
-    if($snapshot.ruleName){$rule=Get-DnsClientNrptRule -Name $snapshot.ruleName -ErrorAction SilentlyContinue;if($rule){if($rule.Comment -ne ('LaoyuNetTools '+$Sid)){Fail 'POLICY_CHANGED' 'Domain policy belongs to another administrator'};Remove-DnsClientNrptRule -Name $snapshot.ruleName -Force}}
+    $rules=@()
+    if($snapshot.ruleName){$rules=@(Get-DnsClientNrptRule -Name $snapshot.ruleName -ErrorAction SilentlyContinue)}
+    if(!$rules.Count -and $snapshot.ruleTag){$rules=@(Get-DnsClientNrptRule -ErrorAction SilentlyContinue|Where-Object {$_.DisplayName -eq $snapshot.ruleTag})}
+    foreach($rule in $rules){if($rule.Comment -ne ('LaoyuNetTools '+$Sid+' '+$snapshot.ruleTag) -or $rule.Namespace -notcontains ('.'+$snapshot.domain)){Fail 'POLICY_CHANGED' 'Domain policy belongs to another administrator'};Remove-DnsClientNrptRule -Name $rule.Name -Force}
     foreach($route in @($snapshot.addedRoutes)){ $found=@(Get-NetRoute -InterfaceIndex $snapshot.index -DestinationPrefix $route.prefix -NextHop $route.gateway -ErrorAction SilentlyContinue);foreach($entry in $found){Remove-NetRoute -InputObject $entry -Confirm:$false} }
     foreach($route in @($snapshot.removedRoutes)){if(!@(Get-NetRoute -InterfaceIndex $snapshot.index -DestinationPrefix $route.prefix -NextHop $route.gateway -ErrorAction SilentlyContinue).Count){$null=New-NetRoute -InterfaceIndex $snapshot.index -DestinationPrefix $route.prefix -NextHop $route.gateway -RouteMetric $route.metric -PolicyStore ActiveStore}}
-    $current=Proxy-Info $Sid;if($snapshot.appliedOverride -and $current.override -ne $snapshot.appliedOverride){Fail 'PROXY_CHANGED' 'Proxy bypass was edited after coexistence; original snapshot preserved'}
+    $current=Proxy-Info $Sid;if($current.override -ne $snapshot.appliedOverride -and $current.override -ne $snapshot.originalOverride){Fail 'PROXY_CHANGED' 'Proxy bypass was edited after coexistence; original snapshot preserved'}
     Set-ItemProperty -LiteralPath (Proxy-Path $Sid) -Name ProxyOverride -Value ([string]$snapshot.originalOverride)
     Clear-DnsClientCache;$snapshot.pending=$false;Write-Json $file $snapshot
     return @{ok=$true;message='Original VPN route and proxy bypass settings restored'}
@@ -317,6 +352,7 @@ function Invoke-Read([string]$Action,$ActionArgs,[string]$ConfigDirectory) {
 }
 if($Library){return}
 $nonce='';$resultFile=''
+$workerMutex=$null;$workerLockHeld=$false
 try {
     if($WorkerAction) {
         if($WorkerAction -notin $PrivilegedActions -or [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -ne 'S-1-5-18'){Fail 'UNAUTHORIZED' 'Privileged worker requires a registered SYSTEM task'}
@@ -325,6 +361,11 @@ try {
         $hash=(Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant();if($hash -ne $grant.scriptSha256){Fail 'AUTH_HASH' 'Privileged worker has changed'}
         $request=Read-Json (Join-Path $grantRoot 'requests\request.json');$nonce=[string]$request.nonce
         if($request.action -ne $WorkerAction -or $nonce -notmatch '^[a-fA-F0-9-]{36}$'){Fail 'INVALID_REQUEST' 'Request does not match fixed task action'}
+        $requested=[DateTime]::Parse([string]$request.requestedAt).ToUniversalTime()
+        if([Math]::Abs(([DateTime]::UtcNow-$requested).TotalSeconds) -gt 60){Fail 'STALE_REQUEST' 'The repair request is no longer current'}
+        $workerMutex=New-Object Threading.Mutex($false,('Local\LaoyuNetTools.'+$GrantSid))
+        try{$workerLockHeld=$workerMutex.WaitOne(1000)}catch [Threading.AbandonedMutexException]{$workerLockHeld=$true}
+        if(!$workerLockHeld){Fail 'BUSY' 'Another authorized worker is still active'}
         $resultFile=Join-Path $grantRoot ($WorkerAction+'.result.json')
         $actionArgs=$request.args
         $data=Invoke-Privileged $WorkerAction $actionArgs $GrantSid $grantRoot
@@ -342,4 +383,4 @@ try {
     if($resultFile){try{Write-Json $resultFile $result}catch{}}
     else{[Console]::Out.WriteLine(($result|ConvertTo-Json -Depth 8 -Compress))}
     exit 1
-}
+}finally{if($workerMutex){if($workerLockHeld){$workerMutex.ReleaseMutex()};$workerMutex.Dispose()}}

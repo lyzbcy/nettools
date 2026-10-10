@@ -36,7 +36,7 @@ test('missing settings are safe and durable writes round trip', t => {
   assert.deepEqual(requireApi('saveSettings')(file, next), next);
   assert.deepEqual(load(file), next);
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), next);
-  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o600);
   assert.equal(fs.readdirSync(path.dirname(file)).filter(n => n.endsWith('.tmp')).length, 0);
 });
 test('corrupt and legacy settings are preserved in backups and replaced safely', t => {

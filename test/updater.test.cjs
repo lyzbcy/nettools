@@ -35,9 +35,10 @@ test('wrong hash deletes partial package and never prepares',async t=>{
  let prepared=0;const u=context(t,{download:async(r,file)=>fs.writeFileSync(file,'tampered'),prepare:async()=>{prepared++;}});
  await assert.rejects(u.stage(),/校验/);assert.equal(prepared,0);assert.equal(u.snapshot().state,'error');assert.ok(!fs.readdirSync(u.downloadDir).some(n=>n.endsWith('.part')));
 });
-test('duplicate update is rejected and cancellation never prepares',async t=>{
- let unblock,prepared=0;const u=context(t,{download:async(r,file,{signal})=>new Promise((res,rej)=>{unblock=()=>res();signal.addEventListener('abort',()=>rej(Object.assign(Error('cancelled'),{code:'ABORT_ERR'})),{once:true});}),prepare:async()=>{prepared++;}});
- const pending=u.stage();for(let i=0;i<20&&!unblock;i++)await new Promise(r=>setImmediate(r));assert.equal(typeof unblock,'function');await assert.rejects(u.stage(),/正在/);u.cancel();await assert.rejects(pending);assert.equal(prepared,0);
+test('duplicate update is rejected and cancellation never prepares',{timeout:10000},async t=>{
+ let began,prepared=0;const started=new Promise(resolve=>{began=resolve;});
+ const u=context(t,{download:async(r,file,{signal})=>new Promise((res,rej)=>{began();signal.addEventListener('abort',()=>rej(Object.assign(Error('cancelled'),{code:'ABORT_ERR'})),{once:true});}),prepare:async()=>{prepared++;}});
+ const pending=u.stage();await Promise.race([started,pending.then(()=>{throw Error('stage ended before download');})]);await assert.rejects(u.stage(),/正在/);u.cancel();await assert.rejects(pending);assert.equal(prepared,0);
 });
 test('fresh staging checks latest rather than reusing old cached record',async t=>{
  let version='5.1.0';const u=context(t,{getRelease:async()=>release(version)});await u.check();version='5.2.0';const r=await u.stage();assert.equal(r.version,'5.2.0');

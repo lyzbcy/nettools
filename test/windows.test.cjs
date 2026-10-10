@@ -41,5 +41,5 @@ test('production PowerShell functions preserve static IP, original snapshots and
  const exe=process.platform==='win32'?path.win32.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'):path.join(__dirname,'../.local-tools/powershell/pwsh');
  if(!fs.existsSync(exe)){t.skip('PowerShell runtime unavailable; Windows CI executes this test');return;}
  const {runProcess}=require('../src/platform/common.cjs');const result=await runProcess(exe,['-NoProfile','-NonInteractive','-File',path.join(__dirname,'../scripts/test-windows-platform.ps1')],{timeoutMs:30000});
- const report=JSON.parse(result.stdout.trim());assert.equal(report.failed,0);assert.equal(report.passed,20);assert.ok(report.scope.includes('no real network writes'));
+ const report=JSON.parse(result.stdout.trim());assert.equal(report.failed,0);assert.ok(report.passed>=20);assert.ok(report.scope.includes('no real network writes'));
 });

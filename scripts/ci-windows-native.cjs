@@ -1,5 +1,6 @@
 'use strict';
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{createWindowsPlatform}=require('../src/platform/windows.cjs');
+const {saveSettings}=require('../src/core/settings.cjs'),{runProcess}=require('../src/platform/common.cjs');
 async function run(){
  if(process.platform!=='win32')throw Error('This acceptance requires actual Windows');
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'nettools-验收-'));
@@ -8,6 +9,8 @@ async function run(){
  let installed=false;
  async function step(name,fn,summary=v=>({ok:true})){const start=Date.now();const value=await fn();report.steps.push({name,durationMs:Date.now()-start,...summary(value)});return value;}
  try{
+  const settingsFile=path.join(root,'settings.json');saveSettings(settingsFile,{enabled:false,intervalMinutes:30,restartOnTimeout:false,launchAtLogin:false});
+  await step('actual-windows-settings-acl',async()=>{const ps=path.win32.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');const result=await runProcess(ps,['-NoProfile','-NonInteractive','-File',path.resolve(__dirname,'windows-settings-acl.ps1')],{input:JSON.stringify({file:settingsFile})});return JSON.parse(result.stdout);},v=>{if(!v.ok)throw Error('Settings are readable outside the trusted user/admin/system scope');return v;});
   await step('get-status',()=>platform.invoke('get-status'),v=>({ok:true,linkAvailable:v.linkAvailable,hasAddress:!!v.ip,dhcp:v.dhcp}));
   await step('network-check',()=>platform.invoke('network-check'),v=>({ok:typeof v.ok==='boolean',networkHealthy:v.ok,issue:v.issue}));
   await step('diagnose',()=>platform.invoke('diagnose'),v=>{if(!Array.isArray(v.items)||v.items.length!==8)throw Error('Expected all eight checks');return {ok:true,count:v.items.length};});
