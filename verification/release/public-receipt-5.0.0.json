@@ -1,0 +1,55 @@
+{
+  "version": "5.0.0",
+  "published": true,
+  "anonymousMetadataVerified": true,
+  "latestVerified": true,
+  "ciRun": 38085097075,
+  "headSha": "413a5f3d5c78adf10154907487a025ac858eba8b",
+  "releaseId": 409205949,
+  "releaseUrl": "https://github.com/lyzbcy/nettools/releases/tag/v5.0.0",
+  "assets": [
+    {
+      "name": "nettools-5.0.0-mac-arm64.dmg",
+      "size": 145627907,
+      "sha256": "eeaa518ec8a785c66d81cf5d48ccac34f1f93bffb0f88ff13845a158283ab76c",
+      "url": "https://github.com/lyzbcy/nettools/releases/download/v5.0.0/nettools-5.0.0-mac-arm64.dmg",
+      "anonymousPublicBytesVerified": true
+    },
+    {
+      "name": "nettools-5.0.0-mac-arm64.zip",
+      "size": 131361594,
+      "sha256": "820dfc09623b69fed3613e88efae2de85b0a7c11bd7e57cc896b182af55e703b",
+      "url": "https://github.com/lyzbcy/nettools/releases/download/v5.0.0/nettools-5.0.0-mac-arm64.zip",
+      "anonymousPublicBytesVerified": true
+    },
+    {
+      "name": "nettools-5.0.0-mac-x64.dmg",
+      "size": 152337452,
+      "sha256": "cbbd5c17a1114561a95fded841f750bfca79aa3ca31f9db21f3646779f5a6f69",
+      "url": "https://github.com/lyzbcy/nettools/releases/download/v5.0.0/nettools-5.0.0-mac-x64.dmg",
+      "anonymousPublicBytesVerified": true
+    },
+    {
+      "name": "nettools-5.0.0-mac-x64.zip",
+      "size": 137053353,
+      "sha256": "65e6ccd1ed93d499495016224ebd3d157b31fcd7e52869052f46753b2c36e6bb",
+      "url": "https://github.com/lyzbcy/nettools/releases/download/v5.0.0/nettools-5.0.0-mac-x64.zip",
+      "anonymousPublicBytesVerified": true
+    },
+    {
+      "name": "nettools-5.0.0-win-x64-setup.exe",
+      "size": 114205859,
+      "sha256": "e4ea8b1320bb774d153dfe037091405f60b7a2e969246290f8a812f668512e1f",
+      "url": "https://github.com/lyzbcy/nettools/releases/download/v5.0.0/nettools-5.0.0-win-x64-setup.exe",
+      "anonymousPublicBytesVerified": true
+    },
+    {
+      "name": "nettools-5.0.0-win-x64.zip",
+      "size": 155501509,
+      "sha256": "e25d2bffc8fec4fd301bb0f7464302e594bdab179af35543fe68fbd50e16f7ce",
+      "url": "https://github.com/lyzbcy/nettools/releases/download/v5.0.0/nettools-5.0.0-win-x64.zip",
+      "anonymousPublicBytesVerified": true
+    }
+  ],
+  "checkedAt": "2026-10-10T21:17:54Z"
+}

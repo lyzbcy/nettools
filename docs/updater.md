@@ -1,6 +1,6 @@
 # 自身更新
 
-现状：准备、独立交接及启动确认已实现；正式安装版完整升级仍分别验收。负责人：捞鱼工作室。更新时间：2026-10-11。
+现状：5.0.0 三平台实际安装版正常升级、可见启动、故障回滚及数据保留通过 CI 38085097075；Windows 原卸载器真实卸载通过。负责人：捞鱼工作室。更新时间：2026-10-11。
 
 正式版本源 package.json。每天首次运行按 Asia/Shanghai 检查 GitHub `lyzbcy/nettools` 正式新版，尝试和成功日期分开保存；断网不记成功，手动检查可以重试。按数字语义版本比较，拒绝降级和默认预览版。
 
@@ -17,7 +17,7 @@ Windows 安装版只复制当前产品精确 `DisplayName` 和 `InstallLocation`
 ## 主进程接口
 
 - `prepareUpdate(record, {signal, appPath, dataDir})`：返回 `{ready:true, token, payloadFile, attempt, version, appPath, dataDir, file}`，不替换应用。
-- `handoffUpdate(ready, {oldPid, signal})`：等待真实 token 就绪确认并提交，返回后主进程停止守护、退出；同一尝试只允许一次交接。
+- `handoffUpdate(ready, {oldPid, signal})`：等待真实 token 就绪确认并提交，调用前主进程先停止守护并等待操作清理，交接成功返回后退出；失败时恢复控制器；同一尝试只允许一次交接。
 - `abortUpdate(ready)`：撤销尚未完成的尝试，写本次 token 的 abort 标记。
 - `confirmUpdateStartup({version, appPath, dataDir, argv, visible:true})`：在初始化成功、窗口 `isVisible()` 后调用；识别 `--nettools-update-confirm=<file>`。两端助手同时传 `--nettools-data=<原 dataDir>`。
 - `readUpdateStartupResult({version, appPath, dataDir, argv})`：识别回滚重开时的 `--nettools-update-result=<file>`，返回经身份验证的失败信息，供主窗口展示重试/发布页回退。
@@ -28,7 +28,7 @@ Windows 安装版只复制当前产品精确 `DisplayName` 和 `InstallLocation`
 
 `test/update-install.test.cjs` 覆盖原始哈希、危险路径/链接、CRC、数量/大小限制、版本与架构、取消、独立 token、重复交接、Windows 引导器与 BOM，以及实际隔离 Mac 助手的成功替换、取消和无确认回滚。两端另覆盖确认后清理及警告写入双重失败、回滚时结果写入双重失败；Windows 以真实生产尾部及回滚块配模拟启动函数执行，并验证 CRLF/LF 边界，未代替完整安装升级。Mac 测试使用临时签名 Objective-C 应用与模拟启动 ACK；它证明实际助手和文件事务，不证明正式 Electron 窗口真正可见。临时目录清理先等待助手结束，再发现全部所属应用 PID 并确认退出，最后删除目录。
 
-未替换用户已安装的应用、未提权、未重启电脑、未发布。Windows worker 的实际执行、NSIS 升级后卸载、正式 Mac/Windows 客户端窗口与数据保留，由平台安装验收提供后续证据。
+此阶段的隔离夹具未替换用户已安装的应用，未执行真实电脑重启。后续 CI 38085097075 已完成 Windows worker、NSIS 更新后原卸载器、Mac 双芯片与 Windows 的正常可见窗口及数据保留；公开原始包再由 `verification/release/public-receipt-5.0.0.json` 匿名核验。
 
 旧 4.x 用户应先手动安装一次新版本；旧固化更新器不保证安全迁移。未有真实平台升级证据前，不把逻辑或模拟测试写作已完成。
 
@@ -44,8 +44,8 @@ Windows 两段更新后核对原卸载器哈希、登记版本与路径，再实
 
 供软件中心复用的 `mode:"observe"` 只观察实际当前安装：计划字段为 `{protocol:1,mode:"observe",nonce,platform,arch,suiteRoot,caseRoot,installPath,dataDir,version}`，目录约束相同。使用单个 `--nettools-data=<dataDir>` 参数启动，禁止更新确认/回滚参数和本地传输。正常初始化后写 `probe.json` 和 `evidence/01-observed-production-window.png`；观察模块不会点击操作、改设置、执行修复、发送反馈、重启或写更新握手记录。向同一 caseRoot 的 `stop.json` 写入 `{nonce}` 后走原正常退出流程。普通启动的只读网络检查、日志和自动版本检查保持；它不是原生产 `shell.openPath` 启动行为的替代证据。
 
-本地边界与生命周期回归、原更新测试可证明入口约束和原助手事务；完整正式 Electron 成功更新、失败回滚和 Windows 真卸载仍以本次后续真实 CI 报告为准，当前不宣称已经通过。
+本地边界与生命周期回归、原更新测试证明入口约束和助手事务；后续最终 CI 38085097075 已完成三平台正式 Electron 可见成功更新、失败回滚及 Windows 真实卸载。两类证据分别记录。
 
 真实 CI `38081682666` 的三平台普通安装桌面均进入了实际更新流程，但准备阶段在 `resources/default_app.asar` 报 `Invalid package`。Electron 的普通 `fs` 会把 `.asar` 当成虚拟目录；这不仅阻止新文件解压写入，也会让 stat、流式哈希和清单遍历读到归档内部。更新、原始包下载和更新观察现在共享 `raw-fs.cjs`：Electron 使用内置 `original-fs`，普通 Node 仅在精确缺少该模块时回退；Electron 缺模块、模块内部缺依赖和初始化失败均保持失败。ZIP/CRC/SHA、链接、身份、签名与清单规则保持，不删除 ASAR 文件规避问题。
 
-`test/update-raw-fs.test.cjs` 启动固定版本的真实 Electron main（不启用 RUN_AS_NODE、不创建窗口、不访问网络、不交接更新），先证明普通 fs 的 ASAR 虚拟目录与新文件写入错误，再在临时夹具中验证有效默认 ASAR 与不透明 ASAR 的真实解压字节、物理文件大小、哈希和文件清单，确认没有归档内虚拟条目，错误 SHA 仍被拒绝，旧副本版本保持。CI 在三个平台完整构建取得固定运行时后强制再跑该回归，不能用普通 Node 的绿色结果代替 Electron 语义验证。此修复的后续完整安装更新结果仍待真实 CI。
+`test/update-raw-fs.test.cjs` 启动固定版本的真实 Electron main（不启用 RUN_AS_NODE、不创建窗口、不访问网络、不交接更新），先证明普通 fs 的 ASAR 虚拟目录与新文件写入错误，再在临时夹具中验证有效默认 ASAR 与不透明 ASAR 的真实解压字节、物理文件大小、哈希和文件清单，确认没有归档内虚拟条目，错误 SHA 仍被拒绝，旧副本版本保持。CI 在三个平台完整构建取得固定运行时后强制再跑该回归，不能用普通 Node 的绿色结果代替 Electron 语义验证。此修复已在最终 CI 38085097075 的三个平台通过真实 Electron 回归及完整安装更新验收。

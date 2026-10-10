@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "nettools",
+  "name": "捞鱼的网络工具",
+  "version": "5.0.0",
+  "platform": "darwin",
+  "architecture": "x64",
+  "bundleName": "捞鱼的网络工具.app",
+  "bundleIdentifier": "com.laoyu.nettools",
+  "executable": "Contents/MacOS/LaoyuNetTools",
+  "minimumSystemVersion": "13.0",
+  "package": {
+    "type": "app-zip",
+    "path": "../../release/final-413a5f3/nettools-5.0.0-mac-x64.zip",
+    "url": "https://github.com/lyzbcy/nettools/releases/download/v5.0.0/nettools-5.0.0-mac-x64.zip",
+    "size": 137053353,
+    "sha256": "65e6ccd1ed93d499495016224ebd3d157b31fcd7e52869052f46753b2c36e6bb"
+  },
+  "verificationScope": "Native Mac bundle identity, CPU, original ZIP SHA and ad-hoc codesign. The Windows launcher checker does not validate this descriptor."
+}

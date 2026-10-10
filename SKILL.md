@@ -8,7 +8,7 @@ description: Use when developing, repairing, packaging or releasing the 捞鱼�
 
 面向 Mac / Windows 用户的本地网络诊断、修复和可选无人值守保活工具。
 
-技术：Electron 本地界面与主进程、Node CommonJS；Mac Swift 原生执行层，Windows 固定动作 PowerShell。正式版本源为 `package.json.version`，目前 5.0.0 候选。
+技术：Electron 本地界面与主进程、Node CommonJS；Mac Swift 原生执行层，Windows 固定动作 PowerShell。正式版本源为 `package.json.version`，目前 5.0.0 已公开发布；软件中心客户端与原介绍页同步尚待完成。
 
 ## 目录与入口
 
@@ -19,7 +19,7 @@ description: Use when developing, repairing, packaging or releasing the 捞鱼�
 - `scripts/`：构建、更新交接、安装和验收。
 - `test/`：核心与平台回归；不得真实重启用户电脑。
 - `reference/`：接入与深度资料；`doc/` 是历史资料，不能据其声明当前功能。
-- `release/`：最终候选包、真实哈希；不提交二进制入源码仓库。
+- `release/`：构建与冻结发行包、真实哈希；不提交二进制入源码仓库。
 
 ## 开发约定
 
@@ -40,4 +40,4 @@ description: Use when developing, repairing, packaging or releasing the 捞鱼�
 
 ## 状态与验收
 
-当前正在验收双平台 5.0.0 候选，完成范围与证据统一见 `docs/roadmap.md`。核心测试入口 `node --test test/*.test.cjs`；安装打包依赖后再运行 `node --test test/package.test.cjs`，涵盖固定构建器的实际配置归一化。Mac 双芯片和 Windows 均使用真实系统 CI；最终包、主窗口、原生修复、完整升级和软件中心客户端发行分别验收。不把源码推送、隔离夹具或未发布候选写作正式交付。
+5.0.0 在 CI 38085097075 的 Mac 双芯片和 Windows 实际安装、可见升级、故障回滚及数据保留通过，Windows 实际卸载通过。六个正式资产已匿名回读原字节；报告见 `verification/release/public-receipt-5.0.0.json`。核心测试入口 `node --test test/*.test.cjs`；安装锁定依赖后运行包与实际 Electron 回归。软件中心真实下载、缓存查新、系统打开和客户端发行，以及原网址部署另行验收；未执行真实电脑重启，不将 CI sudo 等同本机授权对话框。
