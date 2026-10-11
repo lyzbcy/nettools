@@ -1,0 +1,25 @@
+{
+  "clientDate": "2026-10-11",
+  "releases": [
+    {
+      "version": "5.0.0",
+      "repository": "lyzbcy/nettools",
+      "publishedAssetsMetadataStillExact": true,
+      "assetCount": 6
+    },
+    {
+      "version": "0.9.3",
+      "repository": "lyzbcy/laoyu-software-center-downloads",
+      "publishedAssetsMetadataStillExact": true,
+      "assetCount": 5
+    },
+    {
+      "version": "0.8.7",
+      "repository": "lyzbcy/laoyu-software-center-downloads",
+      "publishedAssetsMetadataStillExact": true,
+      "assetCount": 3
+    }
+  ],
+  "windowsLatest": "v0.8.7",
+  "originalBytesProof": "Existing anonymous full-asset byte receipts; current release digest/size/name/URL revalidated"
+}
