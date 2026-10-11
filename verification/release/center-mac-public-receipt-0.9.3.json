@@ -1,0 +1,47 @@
+{
+  "version": "0.9.3",
+  "ciRun": 38114074313,
+  "sourceSHA": "150c6835e810a9d6e0326d5dfb8ab22d4b4b13cf",
+  "releaseId": 409441433,
+  "releaseUrl": "https://github.com/lyzbcy/laoyu-software-center-downloads/releases/tag/v0.9.3",
+  "published": true,
+  "assets": [
+    {
+      "name": "laoyu-software-center-0.9.3-mac-x64.dmg",
+      "url": "https://github.com/lyzbcy/laoyu-software-center-downloads/releases/download/v0.9.3/laoyu-software-center-0.9.3-mac-x64.dmg",
+      "sizeBytes": 123730618,
+      "sha256": "5ef2ac2dba0f9f2d6dd45d2b2a56a99056743340b92b76205191ae9fee182733",
+      "anonymousPublicBytesVerified": true
+    },
+    {
+      "name": "laoyu-software-center-0.9.3-mac-x64.zip",
+      "url": "https://github.com/lyzbcy/laoyu-software-center-downloads/releases/download/v0.9.3/laoyu-software-center-0.9.3-mac-x64.zip",
+      "sizeBytes": 110773733,
+      "sha256": "ad8abaddd8bfe872663a76685261aed942257c5cdfa8827329541deb8bb1fc29",
+      "anonymousPublicBytesVerified": true
+    },
+    {
+      "name": "laoyu-software-center-0.9.3-mac-arm64.dmg",
+      "url": "https://github.com/lyzbcy/laoyu-software-center-downloads/releases/download/v0.9.3/laoyu-software-center-0.9.3-mac-arm64.dmg",
+      "sizeBytes": 116335532,
+      "sha256": "cea923df32c3ebe19e15ebf9d057ee0b2024bac463767158ee484e5924d8bb99",
+      "anonymousPublicBytesVerified": true
+    },
+    {
+      "name": "laoyu-software-center-0.9.3-mac-arm64.zip",
+      "url": "https://github.com/lyzbcy/laoyu-software-center-downloads/releases/download/v0.9.3/laoyu-software-center-0.9.3-mac-arm64.zip",
+      "sizeBytes": 103779725,
+      "sha256": "d63bf0dd6ae7281ffd95339757ca400c807ab0efb9e6f93fb8a59df515c6a35a",
+      "anonymousPublicBytesVerified": true
+    },
+    {
+      "name": "SHA256SUMS-0.9.3.txt",
+      "url": "https://github.com/lyzbcy/laoyu-software-center-downloads/releases/download/v0.9.3/SHA256SUMS-0.9.3.txt",
+      "sizeBytes": 428,
+      "sha256": "6a3afe810860a75e29925a0798ee47f02cf80018d0c7c91173ac4f4bb3d8be12",
+      "anonymousPublicBytesVerified": true
+    }
+  ],
+  "windowsLatestPreserved": "v0.8.3",
+  "checkedAt": "2026-10-11T05:36:49Z"
+}

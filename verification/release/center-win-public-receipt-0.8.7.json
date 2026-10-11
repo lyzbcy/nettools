@@ -1,0 +1,33 @@
+{
+  "version": "0.8.7",
+  "ciRun": 38119522879,
+  "sourceSHA": "ccfec6ace07ad6fd73dab0774617162a1a0aae5a",
+  "releaseId": 409491153,
+  "releaseUrl": "https://github.com/lyzbcy/laoyu-software-center-downloads/releases/tag/v0.8.7",
+  "published": true,
+  "assets": [
+    {
+      "name": "laoyu-software-center-0.8.7-win-x64.exe",
+      "url": "https://github.com/lyzbcy/laoyu-software-center-downloads/releases/download/v0.8.7/laoyu-software-center-0.8.7-win-x64.exe",
+      "sizeBytes": 77762148,
+      "sha256": "1b4a486b7a2eea5ea2c87707b489c1f20a3db95cc1ce6102f722f74267552981",
+      "anonymousPublicBytesVerified": true
+    },
+    {
+      "name": "laoyu-software-center-0.8.7-win-x64.zip",
+      "url": "https://github.com/lyzbcy/laoyu-software-center-downloads/releases/download/v0.8.7/laoyu-software-center-0.8.7-win-x64.zip",
+      "sizeBytes": 105828758,
+      "sha256": "7f5a9369c4485fb2dda388ea43f1b41931efd70a55df17e62c212ed2b0402677",
+      "anonymousPublicBytesVerified": true
+    },
+    {
+      "name": "SHA256SUMS-0.8.7.txt",
+      "url": "https://github.com/lyzbcy/laoyu-software-center-downloads/releases/download/v0.8.7/SHA256SUMS-0.8.7.txt",
+      "sizeBytes": 212,
+      "sha256": "a92702608749486282e1585880e47bc49cb424abaa5d6f6dc0f7dd4a8e6947a7",
+      "anonymousPublicBytesVerified": true
+    }
+  ],
+  "windowsLatestVerified": "v0.8.7",
+  "checkedAt": "2026-10-11T07:05:39Z"
+}
