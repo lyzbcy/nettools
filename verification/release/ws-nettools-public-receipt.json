@@ -11,5 +11,6 @@
   "approvedSha256": "ce9970cb265f1b28b6856d57ced3e466ad91f5826a8a2345ebff52550c661ab5",
   "anonymousFullBytesVerified": true,
   "clientPublicationDate": "2026-10-11",
-  "verifiedAtUTC": "2026-10-11T15:44:46Z"
+  "verifiedAtUTC": "2026-10-11T15:44:46Z",
+  "ordinaryOriginalURLWithoutQueryExactBytesVerified": true
 }

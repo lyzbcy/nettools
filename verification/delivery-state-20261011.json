@@ -1,0 +1,154 @@
+{
+  "overallComplete": true,
+  "nettools": {
+    "version": "5.0.0",
+    "productionSource": "413a5f3d5c78adf10154907487a025ac858eba8b",
+    "platforms": [
+      "mac-arm64",
+      "mac-x64",
+      "win-x64"
+    ],
+    "actualPlatformCIRun": 38085097075,
+    "publicReceipt": "verification/release/public-receipt-5.0.0.json",
+    "sixPublicAssetsVerified": true,
+    "watchdogDefaultEnabled": false,
+    "defaultIntervalMinutes": 30,
+    "intervalRangeMinutes": [
+      1,
+      1440
+    ],
+    "repairTimeoutMinutes": 5,
+    "defaultTimeoutAction": "none",
+    "automaticRestartRequiresSeparateConfirmation": true,
+    "restartRecheckAndCancelSeconds": 60,
+    "realComputerRestartPerformed": false,
+    "realFeedbackSent": false
+  },
+  "softwareCenter": {
+    "mac": {
+      "version": "0.9.3",
+      "source": "150c6835e810a9d6e0326d5dfb8ab22d4b4b13cf",
+      "actualCIRun": 38114074313,
+      "fourPhasesBothArchitecturesPassed": true,
+      "published": true,
+      "publicReceipt": "verification/release/center-mac-public-receipt-0.9.3.json",
+      "publicAssetBytesVerified": true,
+      "privateSourceTag": "v0.9.3"
+    },
+    "windows": {
+      "published": true,
+      "actualAcceptancePassed": true,
+      "failedProductRun": 38114072703,
+      "failedDiagnosticCoreRun": 38115540621,
+      "nextEvidenceNeeded": null,
+      "nativeCrashDiagnosticRun": 38118247724,
+      "sameRunnerNodeComparisonRun": 38119064373,
+      "node22UnicodeCopyCrash": "0xC0000409",
+      "node24Version": "24.21.0",
+      "node24FourScratchCasesPassed": true,
+      "toolchainFixSource": "ccfec6ace07ad6fd73dab0774617162a1a0aae5a",
+      "toolchainFixSpecPassed": true,
+      "toolchainFixQualityApproved": true,
+      "actualAcceptanceRun": 38119522879,
+      "fourPhasesPassed": true,
+      "actualNativeWindowViewed": true,
+      "originalPackagesFrozen": true,
+      "independentAcceptancePassed": true,
+      "version": "0.8.7",
+      "publicReceipt": "verification/release/center-win-public-receipt-0.8.7.json",
+      "publicAssetBytesVerified": true,
+      "privateSourceTag": "v0.8.7",
+      "windowsLatestVerified": "v0.8.7",
+      "historicalCandidateVersion": "0.8.7"
+    }
+  },
+  "introPages": {
+    "nettools": {
+      "source": "reference/web/index.html",
+      "pageVersion": "1.0.0",
+      "finalSourceSha256": "ce9970cb265f1b28b6856d57ced3e466ad91f5826a8a2345ebff52550c661ab5",
+      "sameOriginalURLUploaded": true,
+      "realNavigationGuardPersistenceVerified": true,
+      "realNavigationGuardEvidence": "verification/intro-final/report.md#f09",
+      "publicationReceipt": "verification/release/ws-nettools-public-receipt.json",
+      "publicFullHTMLBytesVerified": true,
+      "publishedSha256": "ce9970cb265f1b28b6856d57ced3e466ad91f5826a8a2345ebff52550c661ab5",
+      "postPublicationBrowserReport": "verification/online-final/nettools-report.md"
+    },
+    "center": {
+      "pageVersion": "1.21.0",
+      "candidateSha256": "1562f8f3b441033ae9f8035efa84d02c9ffecc04afbae9a59812af9e250e21e3",
+      "originalProjectCardsPreserved": 20,
+      "candidateProjectCards": 21,
+      "originalChangelogEntriesPreserved": 36,
+      "candidateChangelogEntries": 37,
+      "independentBrowserReport": "verification/center-intro-preview/report.md",
+      "real390OverlapFixedAndRetested": true,
+      "realRemoteVersionMetadata200Verified": true,
+      "sameOriginalURLUploaded": true,
+      "publicMetadataSha256": "4ba2b0119fcfd81923e6c2fca01764c0e1c4537c0cdd730ae3b8e005f85c5250",
+      "publicMetadataCommit": "210c99e428f07232ec0d46102ba844db55201192",
+      "finalSpecPassed": true,
+      "finalQualityApproved": true,
+      "privateFinalSourceBackupCommit": "e06a7ac3b2ccf7c60cf8160761f9152f4ca49a58",
+      "privateBackupNineFilesExactBytesVerified": true,
+      "realAutomaticNavigationGuardVerified": true,
+      "finalSmallScreenDownloadDataObserved": true,
+      "finalBrowserReport": "verification/center-intro-preview/report.md",
+      "finalBrowserCasesPassed": [
+        "CF09-real200",
+        "CF10-manual-query-hash",
+        "CF11-real-navigation-guard",
+        "CF12-final390-exe",
+        "CF13-final390-zip"
+      ],
+      "realBrowserRouteProbeResult": "All three timed out in this observation; default direct route remains available, no download performed",
+      "publicationReceipt": "verification/release/ws-center-public-receipt.json",
+      "publicFullHTMLBytesVerified": true,
+      "publishedSha256": "1562f8f3b441033ae9f8035efa84d02c9ffecc04afbae9a59812af9e250e21e3",
+      "privatePublicationBackupCommit": "7190fb5918e55be9603b5bb8aa2f7f3671d79ad6",
+      "privatePublicationNineFilesExactBytesVerified": true,
+      "postPublicationBrowserReport": "verification/online-final/center-report.md"
+    },
+    "finalWSUploadApprovalRequested": true,
+    "remaining": [],
+    "approvalRequestedAt": "2026-10-11T10:23:30Z",
+    "explicitApprovalReceived": true,
+    "approvalEvidence": "Human reply: 确认确认",
+    "postPublicationBrowserChecksPassed": true
+  },
+  "boundaries": [
+    "macOS user authorization dialog on locked local computer has not been verified; native CI helper installation and real DNS cache operations are separately documented",
+    "Mac applications have ad-hoc signatures, no Developer ID or Apple notarization",
+    "Windows packages have no code-signing certificate",
+    "Old Nettools 4.x requires disabling its watchdog, exiting and manually installing 5.0.0 once",
+    "Original dirty repositories, indexes and unrelated ongoing work are preserved"
+  ],
+  "sourceBackups": {
+    "nettoolsDocsAndPublicReceiptsCommit": "79336b3",
+    "nettoolsMainPushed": true,
+    "centerWindowsDocsCommit": "6036b2e309186b7660b580e7d5c8e226fdef8433",
+    "centerWindowsBranchPushed": true,
+    "productionCenterWindowsTagSource": "ccfec6ace07ad6fd73dab0774617162a1a0aae5a",
+    "productionNettoolsSource": "413a5f3d5c78adf10154907487a025ac858eba8b",
+    "centerEntryPrivateFinalSourceCommit": "e06a7ac3b2ccf7c60cf8160761f9152f4ca49a58",
+    "ninePrivateFilesRemoteBytesVerified": true,
+    "centerEntryPrivatePublicationCommit": "7190fb5918e55be9603b5bb8aa2f7f3671d79ad6",
+    "centerMacDocsCommit": "ec068363ea1fc817aa486b2be8406c262e0201f9",
+    "centerMacBranchPushed": true
+  },
+  "readinessAudit": {
+    "decision": "READY_FOR_FINAL_WS_APPROVAL",
+    "evidence": "verification/final-readiness-audit.json",
+    "blockingFindings": [],
+    "staleMatrixMetadataCellsCorrected": true
+  },
+  "finalDocsPublicationSpecPassed": true,
+  "finalDocsPublicationQualityApproved": true,
+  "completionAudit": {
+    "decision": "COMPLETION_AUDIT_PASS",
+    "evidence": "verification/completion-audit.json",
+    "blockingFindings": [],
+    "remainingRequiredWork": []
+  }
+}
