@@ -1,0 +1,48 @@
+name: Frozen 5.0.1 Mac rollback guard observation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  restored-guard:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+            artifact: '11785810060'
+          - runner: macos-15-intel
+            arch: x64
+            artifact: '11784514845'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - name: Verify actual runner architecture
+        run: node -e "if(process.arch!=='${{ matrix.arch }}')process.exit(1)"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.16.1'
+      - name: Fixed verification dependencies without rebuilding candidate
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Retrieve immutable original Mac candidate
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ matrix.artifact }}
+          run-id: '38337392645'
+          github-token: ${{ github.token }}
+          path: frozen-artifact
+      - name: Actual update and rollback with normal restored guard observation
+        run: node scripts/ci-frozen-macos-rollback.cjs frozen-artifact
+      - name: Preserve actual screenshots and process evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nettools-frozen-501-macos-${{ matrix.arch }}-rollback-observation
+          path: verification/frozen-501/macos-${{ matrix.arch }}/
+          if-no-files-found: error
