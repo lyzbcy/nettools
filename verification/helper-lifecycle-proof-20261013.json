@@ -1,0 +1,126 @@
+{
+  "baseHead": "c9e88719ed1cfbd3bfdaf2c55123a2bd2870750b",
+  "protectedTrackedFileCount": 36,
+  "changedProtectedFiles": [],
+  "localFrozenAssetCount": 23,
+  "changedFrozenAssets": [],
+  "windowsIdentityQueryBytesUnchanged": true,
+  "windowsIdentityQuerySha256": "54ecd8f462fd2a4cb55ed94c9dfb4fe72a003529807f4215c08d008aae8a8151",
+  "frozenAssets": [
+    {
+      "file": "release/nettools-5.0.1-mac-arm64.zip",
+      "sha256": "d75d24ee9b2ce887e7bd7ddefa146c4a2f674cabc80aaef3057d6833872eee9f",
+      "size": 130557286
+    },
+    {
+      "file": "release/nettools-5.0.1-mac-arm64.dmg",
+      "sha256": "1a026f602e8c469c2e9d81ede2d77ea2dcb0182f9db5ec1b8835b8fe8138f714",
+      "size": 144372788
+    },
+    {
+      "file": "release/nettools-5.0.0-mac-arm64.dmg",
+      "sha256": "459af8c1014036e262639e6e03a01e0a488ce8ede8fa34b851772a60a470cce8",
+      "size": 144542425
+    },
+    {
+      "file": "release/nettools-5.0.0-mac-arm64.zip",
+      "sha256": "3e388562ec57e4b08a132f41f965b62d5039ba8646e90cb91e880afd8f949974",
+      "size": 130542959
+    },
+    {
+      "file": "release/.old-nettools-5.0.0-win-x64.noindex/win-unpacked/LaoyuNetTools.exe",
+      "sha256": "dffa6a038cc2b747424e35f294832c26a7431c227e5c6a47feb1d9c38b9139bf",
+      "size": 246341120
+    },
+    {
+      "file": "release/final-ac1597a/nettools-5.0.1-mac-arm64.zip",
+      "sha256": "4ee757b30722505be6c8ce7c4ff6fe8bd847b1647a2eef76d423c2743d180cce",
+      "size": 131361919
+    },
+    {
+      "file": "release/final-ac1597a/nettools-5.0.1-mac-x64.dmg",
+      "sha256": "42cf66cf900c87e48db0cae98892672878ddc69c8f48aaaf06f8c9069cb4557d",
+      "size": 152573226
+    },
+    {
+      "file": "release/final-ac1597a/nettools-5.0.1-mac-arm64.dmg",
+      "sha256": "1748cbd4aeef1c57de80bb3ab54a40c4fcd98628700ac231a13f6731c83941fa",
+      "size": 145580497
+    },
+    {
+      "file": "release/final-ac1597a/nettools-5.0.1-mac-x64.zip",
+      "sha256": "ec9be178deeeb76cc54f08f8cc42bd8e37751e03c861b7739674e00e32e185a2",
+      "size": 137053666
+    },
+    {
+      "file": "release/final-ac1597a/nettools-5.0.1-win-x64.zip",
+      "sha256": "15a37c88b11a50d50e3f4b499b8cb9b9aefc50bb502442a1caf77a53343ef25d",
+      "size": 155501826
+    },
+    {
+      "file": "release/final-ac1597a/nettools-5.0.1-win-x64-setup.exe",
+      "sha256": "49bb9360141f964346a538e02cc11c0072d9d81a4404765826a743c1b599b66a",
+      "size": 114206186
+    },
+    {
+      "file": "release/center-mac-0.9.3-150c683/laoyu-software-center-0.9.3-mac-arm64.dmg",
+      "sha256": "cea923df32c3ebe19e15ebf9d057ee0b2024bac463767158ee484e5924d8bb99",
+      "size": 116335532
+    },
+    {
+      "file": "release/center-mac-0.9.3-150c683/laoyu-software-center-0.9.3-mac-arm64.zip",
+      "sha256": "d63bf0dd6ae7281ffd95339757ca400c807ab0efb9e6f93fb8a59df515c6a35a",
+      "size": 103779725
+    },
+    {
+      "file": "release/center-mac-0.9.3-150c683/laoyu-software-center-0.9.3-mac-x64.zip",
+      "sha256": "ad8abaddd8bfe872663a76685261aed942257c5cdfa8827329541deb8bb1fc29",
+      "size": 110773733
+    },
+    {
+      "file": "release/center-mac-0.9.3-150c683/laoyu-software-center-0.9.3-mac-x64.dmg",
+      "sha256": "5ef2ac2dba0f9f2d6dd45d2b2a56a99056743340b92b76205191ae9fee182733",
+      "size": 123730618
+    },
+    {
+      "file": "release/final-413a5f3/nettools-5.0.0-win-x64.zip",
+      "sha256": "e25d2bffc8fec4fd301bb0f7464302e594bdab179af35543fe68fbd50e16f7ce",
+      "size": 155501509
+    },
+    {
+      "file": "release/final-413a5f3/nettools-5.0.0-mac-x64.dmg",
+      "sha256": "cbbd5c17a1114561a95fded841f750bfca79aa3ca31f9db21f3646779f5a6f69",
+      "size": 152337452
+    },
+    {
+      "file": "release/final-413a5f3/nettools-5.0.0-win-x64-setup.exe",
+      "sha256": "e4ea8b1320bb774d153dfe037091405f60b7a2e969246290f8a812f668512e1f",
+      "size": 114205859
+    },
+    {
+      "file": "release/final-413a5f3/nettools-5.0.0-mac-arm64.dmg",
+      "sha256": "eeaa518ec8a785c66d81cf5d48ccac34f1f93bffb0f88ff13845a158283ab76c",
+      "size": 145627907
+    },
+    {
+      "file": "release/final-413a5f3/nettools-5.0.0-mac-x64.zip",
+      "sha256": "65e6ccd1ed93d499495016224ebd3d157b31fcd7e52869052f46753b2c36e6bb",
+      "size": 137053353
+    },
+    {
+      "file": "release/final-413a5f3/nettools-5.0.0-mac-arm64.zip",
+      "sha256": "820dfc09623b69fed3613e88efae2de85b0a7c11bd7e57cc896b182af55e703b",
+      "size": 131361594
+    },
+    {
+      "file": "release/center-win-0.8.7-ccfec6a/laoyu-software-center-0.8.7-win-x64.zip",
+      "sha256": "7f5a9369c4485fb2dda388ea43f1b41931efd70a55df17e62c212ed2b0402677",
+      "size": 105828758
+    },
+    {
+      "file": "release/center-win-0.8.7-ccfec6a/laoyu-software-center-0.8.7-win-x64.exe",
+      "sha256": "1b4a486b7a2eea5ea2c87707b489c1f20a3db95cc1ce6102f722f74267552981",
+      "size": 77762148
+    }
+  ]
+}

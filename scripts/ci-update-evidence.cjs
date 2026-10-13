@@ -1,6 +1,7 @@
 'use strict';
 // Passive copies of fixed CI control files. Never write into an update attempt.
 const raw=require('../src/core/raw-fs.cjs'),fs=raw.promises,path=require('node:path'),crypto=require('node:crypto'),{setTimeout:delay}=require('node:timers/promises'),ci=require('../src/core/update-desktop-acceptance.cjs');
+const {classifyInstance,decodedCommand}=require('./ci-process-lifecycle.cjs');
 const fields={readyFile:'ready.json',commitFile:'commit.json',abortFile:'abort.json',resultFile:'result.json',confirmRequestFile:'confirm-request.json',confirmFile:'confirmed.json'};
 const limits={'payload.json':16*1024*1024,...Object.fromEntries(Object.values(fields).map(name=>[name,256*1024])),'handoff.lock':1024,'worker.log':2*1024*1024,'task.log':2*1024*1024,'worker-error.log':2*1024*1024};
 async function physicalBytes(root,file,max){
@@ -18,7 +19,7 @@ async function waitOriginalClose({application,plan,driverPid}){
  const abort=new AbortController();const polling=(async()=>{while(true){const failure=await readActorFailure({plan,driverPid});if(failure)throw failure;await delay(100,undefined,{signal:abort.signal});}})();polling.catch(()=>{});
  try{const closed=await Promise.race([application.closed,polling]);const failure=await readActorFailure({plan,driverPid});if(failure)throw failure;return closed;}catch(error){const failure=await readActorFailure({plan,driverPid});if(failure)throw failure;throw error;}finally{abort.abort();await polling.catch(()=>{});}
 }
-async function exportUpdateEvidence({env=process.env,plan,driver,reportDir,phase,snapshot,queryProcess=async()=>({queryUnavailable:true}),expectedProcesses={}}){
+async function exportUpdateEvidence({env=process.env,plan,driver,reportDir,phase,snapshot,queryProcess=async()=>({queryUnavailable:true}),expectedProcesses={},lifecycleSamples=[]}){
  if(env.CI!=='true'||!path.isAbsolute(env.RUNNER_TEMP||'')||!/^[a-f0-9]{64}$/.test(plan.nonce||'')||plan.platform!==process.platform||plan.arch!==process.arch||!['success','rollback'].includes(plan.scenario)||!['before-cleanup','after-process-exit'].includes(snapshot))throw Error('仅允许真实私有 CI 证据');
  const runner=await fs.realpath(env.RUNNER_TEMP),suite=ci.privatePath(runner,plan.suiteRoot,{kind:'directory'}),data=ci.privatePath(suite,plan.dataDir,{kind:'directory'});ci.privatePath(suite,plan.caseRoot,{kind:'directory'});ci.privatePath(suite,plan.installPath,{kind:'directory',missing:true});const overlap=(a,b)=>a===b||ci.inside(a,b)||ci.inside(b,a);if(overlap(plan.caseRoot,data)||overlap(plan.caseRoot,plan.installPath)||overlap(data,plan.installPath))throw Error('CI 安装、数据与证据目录重叠');
  if(driver?.nonce!==plan.nonce||driver.role!=='drive'||driver.ok!==true||!Number.isInteger(driver.pid)||driver.pid<2||!/^[a-f0-9]{64}$/.test(driver.ready?.token||'')||driver.ready.version!==plan.targetVersion)throw Error('CI driver 准备身份不匹配');
@@ -33,7 +34,10 @@ async function exportUpdateEvidence({env=process.env,plan,driver,reportDir,phase
  }
  const pids=[['original',driver.pid]],bound=record=>record?.token===payload.token&&record.version===payload.version;
  if(bound(parsed['ready.json']))pids.push(['helper-ready',parsed['ready.json'].pid]);if(bound(parsed['result.json'])){pids.push(['updated',parsed['result.json'].newPid],['reopened',parsed['result.json'].reopenPid]);}if(bound(parsed['confirmed.json']))pids.push(['confirmed',parsed['confirmed.json'].pid]);
- for(const [role,pid] of pids){if(!Number.isInteger(pid)||pid<2||pid>2147483647)continue;const expected=expectedProcesses[role]||null,entry={role,pid,expected,observed:null,relation:'unknown',queryError:null};try{entry.observed=await queryProcess(pid);entry.relation=entry.observed.exists===false?'not-running':expected?.created&&entry.observed.created===expected.created?'same-instance':expected?.created&&entry.observed.created?'replaced':'unbound';}catch(error){entry.queryError=error.message;}report.processes.push(entry);}
+ const options=role=>role==='helper-ready'?{commandIncludes:attempt}:{};
+ for(const [role,pid] of pids){if(!Number.isInteger(pid)||pid<2||pid>2147483647)continue;const expected=expectedProcesses[role]||null,entry={role,pid,expected,observed:null,relation:'unknown',queryError:null};try{entry.observed=await queryProcess(pid);}catch(error){entry.queryError=error.message;}entry.relation=expected?classifyInstance(expected,entry.observed,{...options(role),queryError:entry.queryError}):entry.queryError||entry.observed?.queryUnavailable?'query-failed':entry.observed?.exists===false?'not-running':'unbound';report.processes.push(entry);}
+ report.lifecycleSamples=[];
+ for(const sample of lifecycleSamples){const expected=expectedProcesses[sample.role];if(!pids.some(([role,pid])=>role===sample.role&&pid===sample.pid)||!expected||sample.expected?.created!==expected.created||sample.expected?.command!==expected.command||sample.role==='helper-ready'&&!decodedCommand(expected).includes(attempt))throw Error('CI 生命周期样本源身份不匹配');const relation=classifyInstance(expected,sample.observed,{...options(sample.role),queryError:sample.queryError});report.lifecycleSamples.push({...sample,expected,relation});}
  await ci.atomic(path.join(destination,'evidence-manifest.json'),report);return report;
 }
 module.exports={physicalBytes,readActorFailure,waitOriginalClose,exportUpdateEvidence};
