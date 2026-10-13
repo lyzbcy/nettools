@@ -16,5 +16,5 @@ OUT="$ROOT_DIR/build/native"
 /usr/bin/codesign --verify --strict "$OUT/NetRepair"
 HELPER_HASH=$(/usr/bin/shasum -a 256 "$OUT/netrepair-helper" | /usr/bin/cut -d ' ' -f 1)
 ENGINE_HASH=$(/usr/bin/shasum -a 256 "$OUT/NetRepair" | /usr/bin/cut -d ' ' -f 1)
-/usr/bin/printf '{"version":"5.0.0","helperHash":"%s","engineHash":"%s"}\n' "$HELPER_HASH" "$ENGINE_HASH" > "$OUT/native-manifest.json"
+/usr/bin/printf '{"version":"5.0.1","helperHash":"%s","engineHash":"%s"}\n' "$HELPER_HASH" "$ENGINE_HASH" > "$OUT/native-manifest.json"
 print "原生执行层构建完成：$OUT ($ARCH)"

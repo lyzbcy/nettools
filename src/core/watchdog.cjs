@@ -1,6 +1,7 @@
 'use strict';
 const { performance } = require('node:perf_hooks');
 const { validateSettings } = require('./settings.cjs');
+const { normalizeIssue } = require('./log.cjs');
 
 const REPAIR_WINDOW_MS = 5 * 60000;
 const RETRY_MS = 15000;
@@ -57,7 +58,7 @@ class Watchdog {
   _log(action, extra = {}) {
     try { this.onLog?.(copy({ action, time: this.clock.now(), ...extra })); } catch { /* observer isolation */ }
   }
-  _error(error, action) { this.status.lastError = errorInfo(error); this._log(action, { error: this.status.lastError }); this._publish(); }
+  _error(error, action) { this.status.lastError = errorInfo(error); this._log(action, { ok: false, error: this.status.lastError }); this._publish(); }
   _active() { return this.running && !this.suspended && this.settings.enabled; }
   _valid(session) { return this._active() && this.session === session && session.generation === this.generation && !session.controller.signal.aborted; }
   _clearPeriodic() {
@@ -195,7 +196,7 @@ class Watchdog {
     });
     session.busy = false;
     const successful = outcome.completed && (action === 'reboot-guard' ? outcome.value !== false && outcome.value?.ok !== false : outcome.value?.ok === true);
-    if (this._valid(session)) this._log(action, { durationMs: this.clock.now() - start, ok: successful, ...(outcome.completed ? {} : { error: outcome.error }) });
+    if (this._valid(session)) this._log(action, { durationMs: this.clock.now() - start, ok: successful, ...(outcome.completed ? (action === 'network-check' ? { issue: normalizeIssue(outcome.value.issue) } : {}) : { error: outcome.error }) });
     return outcome;
   }
   async _check(session) {

@@ -5,7 +5,7 @@ $ProgressPreference = 'SilentlyContinue'
 [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = [Console]::OutputEncoding
-$NetToolsVersion = '5.0.0'
+$NetToolsVersion = '5.0.1'
 $PrivilegedActions = @('flush-dns','set-dns','restore-dns','clear-proxy','restore-proxy','renew-dhcp','vpn-coexist','vpn-coexist-reset')
 
 function Fail([string]$Code,[string]$Message) { $e = New-Object System.Exception($Message); $e.Data['code']=$Code; throw $e }
@@ -118,7 +118,7 @@ function Test-Dns {
 }
 function Test-Web {
     foreach($url in @('https://www.baidu.com/','https://www.qq.com/')) {
-        $response=$null;$request=[Net.HttpWebRequest]::Create($url);$request.Timeout=3500;$request.ReadWriteTimeout=3500;$request.UserAgent='LaoyuNetTools/5.0.0';$request.Proxy=[Net.WebRequest]::GetSystemWebProxy()
+        $response=$null;$request=[Net.HttpWebRequest]::Create($url);$request.Timeout=3500;$request.ReadWriteTimeout=3500;$request.UserAgent='LaoyuNetTools/5.0.1';$request.Proxy=[Net.WebRequest]::GetSystemWebProxy()
         try { $response=$request.GetResponse(); if([int]$response.StatusCode -ne 407){return $true} } catch [Net.WebException] { if ($_.Exception.Response) { $code=[int]$_.Exception.Response.StatusCode;$_.Exception.Response.Close();if($code -ne 407){return $true} } } finally { if($response){$response.Close()};$request.Abort() }
     }
     return $false

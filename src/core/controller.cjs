@@ -2,6 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{performance}=require('node:perf_hooks');
 const {Watchdog}=require('./watchdog.cjs'),{loadSettings,saveSettings,validateSettings}=require('./settings.cjs');
 const {validateRequest,WRITE_ACTIONS}=require('../platform/common.cjs');
+const {normalizeIssue}=require('./log.cjs');
 const LINKS=Object.freeze({release:'https://github.com/lyzbcy/nettools/releases',source:'https://github.com/lyzbcy/nettools',author:'https://lyzbcy.github.io/',stickers:'https://lyzbcy.github.io/weshoto-study/'});
 function validateSender(sender,expected){if(!sender||sender.senderId!==expected.senderId||sender.url!==expected.url||sender.isMainFrame!==true)throw Error('拒绝非本地应用页面请求');return true;}
 function validateLink(key){if(typeof key!=='string'||!Object.hasOwn(LINKS,key))throw Error('链接不受信任');return LINKS[key];}
@@ -10,6 +11,11 @@ function unwrap(result){
  return result;
 }
 function plainFile(file){try{const st=fs.lstatSync(file);if(!st.isFile()||st.isSymbolicLink())throw Error('状态文件不是普通文件');return st;}catch(e){if(e.code==='ENOENT')return null;throw e;}}
+function resultLogMeta(action,result){
+ if(action==='network-check')return {ok:result?.ok===true,issue:normalizeIssue(result?.issue)};
+ if(action==='diagnose'){const issue=normalizeIssue(result?.issue);return {ok:issue==='ok',issue};}
+ return {ok:true};
+}
 class Controller{
  constructor({dataDir,platform,version,name='捞鱼的网络工具',onState,log,clock,confirmRestart=async()=>false,applyLoginStartup,readLoginStartup}){
   if(!path.isAbsolute(dataDir)||!platform||typeof platform.invoke!=='function')throw TypeError('控制器配置无效');
@@ -46,10 +52,11 @@ class Controller{
     if(!authorization.installed)return {ok:false,error:{code:'PERMISSION_REQUIRED',message:'修复授权未就绪，自动重启已阻止'}};
     return {ok:true};
    },
-   onState:snapshot=>{if(snapshot.resultVersion>this.guardResultVersion){this.guardResultVersion=snapshot.resultVersion;this.network=snapshot.lastResult;}this._publish();},onLog:event=>this._log(event.ok===false?'warn':'info',event.action,{ok:event.ok,durationMs:event.durationMs,code:event.error?.code,message:event.error?.message})});
+   onState:snapshot=>{if(snapshot.resultVersion>this.guardResultVersion){this.guardResultVersion=snapshot.resultVersion;this.network=snapshot.lastResult;}this._publish();},onLog:event=>this._log(event.ok===false?'warn':'info',event.action,{ok:event.ok,durationMs:event.durationMs,code:event.error?.code,message:event.error?.message,...(Object.hasOwn(event,'issue')?{issue:normalizeIssue(event.issue)}:{})})});
   for(const action of ['get-status','helper-status','network-check']){
-   try{const value=await this._call(action);if(action==='get-status')this.status=value;else if(action==='helper-status')this.authorization=value;else this.network=value;}
-   catch(error){this.lastError={code:error.code||'INITIAL_CHECK',message:error.message};this._log('warn',action,this.lastError);}
+   const startedAt=performance.now();
+   try{const value=await this._call(action);if(action==='get-status')this.status=value;else if(action==='helper-status')this.authorization=value;else{this.network=value;const meta=resultLogMeta(action,value);this._log(meta.ok?'info':'warn',action,{...meta,durationMs:performance.now()-startedAt});}}
+   catch(error){this.lastError={code:error.code||'INITIAL_CHECK',message:error.message};this._log('warn',action,{...this.lastError,ok:false});}
    this._publish();
   }
   if(!this.shuttingDown)void this.guard.start().catch(error=>{this.lastError={code:error.code||'GUARD_START',message:error.message};this._publish();});return this.snapshot();
@@ -97,8 +104,8 @@ class Controller{
    const result=await this._call(action,normalized);
    if(action==='network-check')this.network=result;if(action==='get-status')this.status=result;
    if(['install-helper','uninstall-helper','helper-status'].includes(action))this.authorization=await this._call('helper-status');
-   this._log('info',action,{ok:true,durationMs:performance.now()-this.operation.startedAt});return result;
-  }catch(error){if(action==='network-check')this.network=null;this.lastError={code:error.code||'ACTION_FAILED',message:error.message};this._log('error',action,this.lastError);throw error;}
+   const meta=resultLogMeta(action,result);this._log(meta.ok?'info':'warn',action,{...meta,durationMs:performance.now()-this.operation.startedAt});return result;
+  }catch(error){if(action==='network-check')this.network=null;this.lastError={code:error.code||'ACTION_FAILED',message:error.message};this._log('error',action,{...this.lastError,ok:false});throw error;}
   finally{this.operation=null;this.manualBusy=false;if(write&&!this.shuttingDown)void this.guard.resume().catch(error=>{this.lastError={code:error.code||'RESUME_FAILED',message:error.message};this._publish();});this._publish();}
  }
 }

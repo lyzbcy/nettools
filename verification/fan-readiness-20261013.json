@@ -1,0 +1,265 @@
+{
+  "schemaVersion": 1,
+  "auditDate": "2026-10-13",
+  "product": "nettools",
+  "status": "READ_ONLY_PRODUCTION_PROBES_PASS_WITH_OPEN_LOGGING_AND_FIRST_USE_GAPS",
+  "scope": "Independent read-only current-source and accepted release audit. Does not assert all fan-use scenarios or local authorization were completed.",
+  "identity": {
+    "currentHead": "b836887f1811b0a02257e8aab780038a8e840e6c",
+    "releaseSource": "413a5f3d5c78adf10154907487a025ac858eba8b",
+    "releaseVersion": "5.0.0",
+    "currentRuntimeSourceDiffFromRelease": [],
+    "acceptedArm64ZipSha256": "820dfc09623b69fed3613e88efae2de85b0a7c11bd7e57cc896b182af55e703b",
+    "acceptedZipFullHashMatched": true,
+    "archiveEntriesBoundToExecutedLocalApp": 8,
+    "packagedCurrentSourceFilesCompared": 36,
+    "allPackagedCurrentSourceFilesMatch": false,
+    "adHocDeepSignatureVerified": true,
+    "nativeArchitecture": "arm64",
+    "nativeManifestHashMatches": true,
+    "developerId": false,
+    "appleNotarization": false,
+    "windowsCodeSigning": false,
+    "allRuntimeSourceFilesMatch": true,
+    "runtimeSourceFilesCompared": 35,
+    "expectedPackagingMetadataDifference": {
+      "file": "package.json",
+      "keysRemoved": [
+        "scripts",
+        "devDependencies"
+      ],
+      "productIdentitySame": true,
+      "explanation": "Production packager removes development script/dependency metadata. All 35 runtime source/UI/update-script files are byte-identical; version/main/name and remaining product metadata match."
+    }
+  },
+  "actualReadOnly": [
+    {
+      "action": "get-status",
+      "kind": "actual-read-only",
+      "durationMs": 4415,
+      "exitCode": 0,
+      "rpcOk": true,
+      "linkAvailable": true,
+      "ipPresent": true,
+      "gatewayPresent": true,
+      "addressMethod": "DHCP",
+      "nativeVersion": "5.0.0"
+    },
+    {
+      "action": "network-check",
+      "kind": "actual-read-only",
+      "durationMs": 5196,
+      "exitCode": 0,
+      "rpcOk": true,
+      "networkOk": true,
+      "issue": "ok",
+      "dnsOk": true,
+      "httpOk": true,
+      "httpCode": 200,
+      "directHttpOk": true,
+      "rawOk": false,
+      "proxyPath": "system"
+    },
+    {
+      "action": "diagnose",
+      "kind": "actual-read-only",
+      "durationMs": 5216,
+      "exitCode": 0,
+      "rpcOk": true,
+      "issue": "ok",
+      "items": [
+        {
+          "name": "本机网络",
+          "status": "ok"
+        },
+        {
+          "name": "默认路由",
+          "status": "ok"
+        },
+        {
+          "name": "公网 IP 连通",
+          "status": "warn"
+        },
+        {
+          "name": "DNS 解析",
+          "status": "ok"
+        },
+        {
+          "name": "HTTPS",
+          "status": "ok"
+        },
+        {
+          "name": "系统代理",
+          "status": "ok"
+        },
+        {
+          "name": "hosts 文件",
+          "status": "ok"
+        },
+        {
+          "name": "防火墙",
+          "status": "info"
+        }
+      ]
+    },
+    {
+      "action": "ping-test",
+      "kind": "actual-read-only",
+      "durationMs": 5233,
+      "exitCode": 0,
+      "rpcOk": true,
+      "targets": [
+        {
+          "publicTargetNumber": 1,
+          "ok": true
+        },
+        {
+          "publicTargetNumber": 2,
+          "ok": false
+        },
+        {
+          "publicTargetNumber": 3,
+          "ok": true
+        }
+      ]
+    },
+    {
+      "action": "helper-status",
+      "kind": "actual-read-only",
+      "durationMs": 11,
+      "exitCode": 0,
+      "rpcOk": true,
+      "installed": false,
+      "privileged": false,
+      "nativeVersion": "5.0.0",
+      "authorizationErrorCode": "PERMISSION_REQUIRED"
+    }
+  ],
+  "readOnlyPostconditions": {
+    "userProfilesUnchanged": true,
+    "unusedConfigDirNotCreated": true,
+    "helperStillAbsent": true,
+    "executedEngineHashUnchanged": true,
+    "productionTrackedFilesModifiedByAudit": false
+  },
+  "findings": [
+    {
+      "id": "NFR-01",
+      "priority": "P2",
+      "type": "missing-implementation",
+      "file": "src/core/controller.cjs",
+      "line": 100,
+      "title": "Manual network-check logs RPC completion as healthy success",
+      "evidence": "Original Controller.invoke fixture returned business ok:false / issue:dns but emitted info network-check ok:true without issue; guard business ok is correct but reason is discarded.",
+      "reproductionKind": "fixture",
+      "fixtureEvidence": ".local-tools/fan-readiness/private/fixture-manual-failure-log.json",
+      "fixture": {
+        "businessOk": false,
+        "issue": "dns",
+        "successRowDespiteBusinessFailure": true,
+        "issueLogged": false
+      },
+      "minimalFixFiles": [
+        "src/core/controller.cjs",
+        "src/core/watchdog.cjs"
+      ],
+      "suggestedFix": "Use network-check result.ok for manual info/warn and persist validated issue only; retain watchdog issue through _operation and Controller.onLog. Never log raw addresses or config.",
+      "suggestedRegression": "Original Controller.invoke plus production platform envelope: healthy, dns/http/stale-proxy business failure, and RPC error remain distinct. Guard check business failure logs ok:false plus reason. Verify export and feedback preview contain reason but no private network fields."
+    },
+    {
+      "id": "NFR-02",
+      "priority": "P2",
+      "type": "missing-validation",
+      "files": [
+        "src/NetRepair.swift:57",
+        "scripts/ci-macos-native.cjs:19",
+        "reference/web/index.html"
+      ],
+      "title": "Fresh-user system security and actual authorization dialogs are not established",
+      "evidence": "Mac CI explicitly installs helper with sudo bootstrap; local helper absent. Public page warns unsigned packages may require confirmation but has no verified end-user walkthrough.",
+      "requiredEvidence": "Downloaded quarantined Mac app opening on supported OS, actual install-helper consent including cancellation, and Windows first-run security/UAC path in disposable clean desktop. Do not treat sudo or package signatures as dialog acceptance."
+    },
+    {
+      "id": "NFR-03",
+      "priority": "P3",
+      "type": "documentation-drift",
+      "files": [
+        "SKILL.md",
+        "docs/agent.md:3",
+        "docs/release.md:3",
+        "docs/roadmap.md"
+      ],
+      "title": "Navigation/release status still says center and page delivery pending while roadmap says delivered",
+      "suggestedFix": "Reconcile current status and explicit acceptance boundaries without promoting untested local authorization."
+    },
+    {
+      "id": "NFR-04",
+      "priority": "P3",
+      "type": "product-limit",
+      "file": "src/NetRepairHelper.swift",
+      "line": 363,
+      "title": "Mac health depends on one HTTPS origin",
+      "evidence": "DNS/system/direct probes use the same public site; direct raw endpoint is supplementary. One site or regional filtering can report http while other sites work.",
+      "suggestedFix": "Consider independent HTTPS origins and state which checks failed; current diagnostics do not promise all-site connectivity."
+    }
+  ],
+  "existingEvidence": [
+    {
+      "kind": "existingCI",
+      "run": 38085097075,
+      "platforms": [
+        "mac-arm64",
+        "mac-x64",
+        "windows-x64"
+      ],
+      "references": [
+        "verification/ci-38085097075/mac-arm64/macos-arm64/native-report.json",
+        "verification/ci-38085097075/mac-x64/macos-x64/native-report.json",
+        "verification/ci-38085097075/windows-evidence/native-report.json"
+      ],
+      "nativeWriteScope": "Fixed grant install/removal and DNS-cache flush only. No real adapter reconfiguration or reboot."
+    },
+    {
+      "kind": "existingCI+fixture-transport",
+      "run": 38085097075,
+      "scope": "Actual packaged Electron install/update/rollback/windows-uninstall. Update versions 4.99.0 and 5.0.1 and transport fixture.local are private acceptance fixtures, not historical/public upgrades."
+    },
+    {
+      "kind": "existing-public-byte-receipt",
+      "reference": "verification/release/public-receipt-5.0.0.json",
+      "scope": "Retained anonymous original byte verification for six release assets; not redownloaded in this audit."
+    },
+    {
+      "kind": "existingCI",
+      "runs": [
+        38114074313,
+        38119522879
+      ],
+      "scope": "Software-center client real install/download/open/cache handling evidence retained, not rerun here."
+    }
+  ],
+  "notExecuted": [
+    "GUI startup or changes to user profile",
+    "get-config/export-config/vpn-status because legacy config migration may write new config",
+    "wifi-info and speedtest (outside requested actual probe scope; no hardware/bandwidth claim)",
+    "install-helper/uninstall-helper or actual authorization consent",
+    "network repair or adapter/proxy/DNS/VPN setting writes",
+    "automatic repair/guard/reboot",
+    "feedback sending",
+    "updates/install/uninstall/deployment",
+    "current Windows/Intel hardware execution",
+    "forced real network failure"
+  ],
+  "privacy": "Only sanitized booleans, categories, public package identity, durations and relative source/evidence paths appear here. Raw IP, interface, proxy, hostnames and config remain in ignored .local-tools/fan-readiness/private.",
+  "finishedAt": "2026-10-13T01:55:30.005Z",
+  "independentPreservedRecordCrosscheck": {
+    "date": "2026-10-13",
+    "scope": "Implementation agent independently compared preserved private records to this historical pre-fix summary; no native calls rerun.",
+    "readOnlyRPCsMatched": 5,
+    "runtimeBindingsMatched": 35,
+    "archiveBindingsMatched": 8,
+    "acceptedZipHashAndNativeManifestHashesMatched": true,
+    "correction": "network-check and diagnose durations aligned to raw record (5196 ms and 5216 ms), correcting 1 ms summary drift.",
+    "privacy": "No raw private addresses, interface, hostnames, proxy or config copied into this report."
+  }
+}

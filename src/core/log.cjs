@@ -2,6 +2,8 @@
 const fs=require('node:fs'),path=require('node:path');
 const {isIP}=require('node:net');
 const ALLOWED_META=new Set(['message','code','durationMs','ok','phase','issue']);
+const NETWORK_ISSUES=new Set(['ok','dns','http','stale-proxy','no-link','no-route','unknown','invalid']);
+function normalizeIssue(value){return typeof value==='string'?(NETWORK_ISSUES.has(value)?value:'unknown'):'invalid';}
 function hideIPv6(token){
  if(!token.includes(':'))return token;
  let prefix='',candidate=token;
@@ -35,7 +37,7 @@ class OperationLog{
   for(let n=3;n>=0;n--){const p=n?this.file.replace(/\.jsonl$/,`.${n}.jsonl`):this.file,s=regularFile(p);if(s&&s.size<=maxBytes)for(const line of fs.readFileSync(p,'utf8').split('\n')){try{const row=JSON.parse(line);if(typeof row.action==='string'&&typeof row.time==='string')this.rows.push(this._clean(row));}catch{}}}
   this.rows=this.rows.slice(-maxEntries);
  }
- _clean(row){const out={time:row.time,level:['info','warn','error'].includes(row.level)?row.level:'info',action:redact(row.action).slice(0,80)};for(const [k,v]of Object.entries(row))if(ALLOWED_META.has(k)&&['string','number','boolean'].includes(typeof v))out[k]=typeof v==='string'?redact(v).slice(0,1000):v;return out;}
+ _clean(row){const out={time:row.time,level:['info','warn','error'].includes(row.level)?row.level:'info',action:redact(row.action).slice(0,80)};for(const [k,v]of Object.entries(row)){if(k==='issue')out.issue=normalizeIssue(v);else if(ALLOWED_META.has(k)&&['string','number','boolean'].includes(typeof v))out[k]=typeof v==='string'?redact(v).slice(0,1000):v;}return out;}
  add(level,action,meta={}){
   const row=this._clean({...meta,time:new Date().toISOString(),level,action});
   const line=JSON.stringify(row)+'\n';const s=regularFile(this.file);
@@ -49,4 +51,4 @@ class OperationLog{
  export(){return this.rows.map(r=>`${r.time} [${r.level}] ${r.action} ${JSON.stringify(Object.fromEntries(Object.entries(r).filter(([k])=>ALLOWED_META.has(k))))}`).join('\n');}
  clear(){for(let n=0;n<=3;n++){const p=n?this.file.replace(/\.jsonl$/,`.${n}.jsonl`):this.file;regularFile(p);fs.rmSync(p,{force:true});}this.rows=[];}
 }
-module.exports={redact,OperationLog};
+module.exports={redact,OperationLog,normalizeIssue};

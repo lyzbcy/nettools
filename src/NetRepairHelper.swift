@@ -3,7 +3,7 @@ import CryptoKit
 import CFNetwork
 import Darwin
 
-let nativeVersion = "5.0.0"
+let nativeVersion = "5.0.1"
 let installedHelper = "/Library/PrivilegedHelperTools/com.laoyu.nettools.helper"
 let privilegedState = "/Library/Application Support/com.laoyu.nettools"
 let grantFile = privilegedState + "/grant.json"

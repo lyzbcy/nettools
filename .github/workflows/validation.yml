@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '24.21.0'
       - name: Verify native runner CPU
         run: node -e "if(process.arch!=='${{ matrix.arch }}')process.exit(1)"
       - name: Core and isolated native security regressions
@@ -73,7 +73,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '24.21.0'
       - name: Core and production PowerShell fixture tests
         shell: pwsh
         run: node --test test/*.test.cjs
