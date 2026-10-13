@@ -135,7 +135,9 @@ async function run(){
   const expectedUrl=pathToFileURL(path.join(install,'resources/app/ui/index.html')).href;
   const target=await waitFor(async()=>{const pages=await debuggingJson(port,'/json/list');const matches=pages.filter(item=>item.type==='page'&&item.url.toLowerCase()===expectedUrl.toLowerCase());if(matches.length>1)throw Error('Ambiguous frozen installed UI target');return matches[0];},30000);
   if(new URL(target.webSocketDebuggerUrl).port!==String(port))throw Error('CDP page port mismatch');cdp=await Cdp.connect(target.webSocketDebuggerUrl);report.renderer={targetId:target.id,fileUrl:target.url,expectedFileUrl:expectedUrl};await cdp.send('Page.enable');await cdp.send('Runtime.enable');
-  await waitFor(async()=>{const state=await uiState(cdp);return !state.snapshot.initializing&&!state.ui.busyBanner&&!state.ui.rendererBusy&&state;});
+  // The shipped main process permits snapshot during startup, but intentionally
+  // rejects log/action IPC until native initialization is complete.
+  await waitFor(async()=>{const snapshot=await cdp.evaluate('window.nettools.snapshot()');if(snapshot.initializing)return false;const state=await uiState(cdp);return !state.ui.busyBanner&&!state.ui.rendererBusy&&state;});
   report.window=await visibleWindow(report.pid);if(!report.window.visible||report.window.handle==='0')throw Error('Original normal installed app window is not visible');
   await navigate(cdp,'guard');const initial=await evidenceState(cdp,evidence,'01-normal-guard-before');if(initial.ui.url.toLowerCase()!==expectedUrl.toLowerCase())throw Error('Public snapshot renderer URL is not installed UI');if(initial.snapshot.authorization.installed||initial.ui.auth!=='未授权')throw Error('Existing runner authorization');grantRemoved=true;
   grantMayExist=true;grantRemoved=false;
