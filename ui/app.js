@@ -75,6 +75,7 @@ $('preview-feedback').addEventListener('click',()=>{
 });
 $('send-feedback').addEventListener('click',()=>{
  if(feedbackSending||!feedbackPreview)return;
+ if(busy){toast('上一项操作还在进行，请稍候');return;}
  if(JSON.stringify(payload())!==JSON.stringify({category:feedbackPreview.category,message:feedbackPreview.message,includeLogs:feedbackPreview.includeLogs})){invalidateFeedback(true);return;}
  const request=feedbackPreview,revision=feedbackRevision;feedbackPreview=null;feedbackSending=true;$('send-feedback').disabled=true;
  void perform(()=>api.feedback.send(request)).then(result=>{if(result){toast(result.message);if(revision===feedbackRevision){try{show('feedback-modal',false);$('feedback-message').value='';}catch{/* Delivery is confirmed; auxiliary UI cleanup cannot change that outcome. */}}}},()=>{if(revision===feedbackRevision){invalidateFeedback();toast('发送未完成，请重新预览后重试；留言已保留');}}).finally(()=>{feedbackSending=false;});

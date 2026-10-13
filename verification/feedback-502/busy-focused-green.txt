@@ -1,0 +1,26 @@
+✔ production DOM feedback handlers revoke edits, close, Escape, late preview and unmount (1303.9655ms)
+✔ actual main sends the exact preview despite newly appended or cleared logs (22.722458ms)
+✔ actual main rejects missing, changed, replaced, cancelled and replayed previews before config or HTTP (2.358708ms)
+✔ actual IPC rejects extra renderer authority and nonlocal/subframe cancel requests (2.16425ms)
+✔ actual main consumes authorization synchronously and has a single in-flight send (3.296666ms)
+✔ host session expires authorization, bounds capture and consumes it before credential await (16.168833ms)
+✔ late cancellation cannot revoke a newer preview and failed sends require re-preview without retry (0.380125ms)
+✔ actual main confirmed feedback is independent of auxiliary usage and settings writes (3.491084ms)
+✔ logs redact private network addresses, domains, paths and credentials (0.738583ms)
+✔ persistent operation log is bounded, survives reopening, and clears all rotations (5.283291ms)
+✔ nested sensitive metadata is excluded before persistence and exports (0.582459ms)
+✔ feedback preview includes name/version, bounded note, and only optional redacted logs (0.16125ms)
+✔ feedback sends only on explicit call, propagates transport rejection, and has no retry (0.266208ms)
+✔ feedback cannot be redirected to an arbitrary endpoint or report server rejection as success (0.101875ms)
+✔ redacting and feedback re-redacting preserve ISO timestamps and ordinary time values (4.359791ms)
+✔ all genuine complete IPv6 forms redact once, including loopback, scoped and IPv4-mapped addresses (0.155583ms)
+✔ malformed or word-attached IPv6 candidates remain whole rather than redacting a valid substring (0.055042ms)
+✔ IPv6 redaction accepts explicit non-IP labels and preserves sentence-ending colon punctuation (0.098291ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1343.970458

@@ -76,6 +76,14 @@ Compared against frozen ac1597a. Eight of the 36 packaged source/UI/update-scrip
 | `ui/assets/img/sticker/warn.png` | Identical |
 | `ui/index.html` | Identical |
 
+## QUALITY follow-up: unrelated operation busy (same unissued 5.0.2)
+
+At ef347407 the feedback click consumed local preview state before `perform` checked the unrelated global busy flag. During a pending speedtest, Send was skipped but the UI remained disabled while the host authority stayed valid. The production change is one guard in `ui/app.js`: check busy and show the existing wait notice before consuming the local preview. This does not alter the host gate, TTL, sender validation, credentials, transport, version or other operations.
+
+The actual pinned Electron DOM/preload regression first failed at `busy click must preserve usable local preview`; see [busy-red.txt](feedback-502/busy-red.txt). It drives the production WiFi navigation/speedtest handler through an explicitly pending fixture IPC response, then opens feedback and previews. Busy Send invokes no feedback IPC and posts nothing, preserves the host token, local preview, user message and wait notice. After completing the operation and changing the fixture logs, an explicit user click sends exactly the reviewed text; a repeated click creates no duplicate. No automatic send occurs.
+
+Fresh focused regressions pass 18/18 and full bundled Node v24.19.0 regressions pass 259/259, with no failures/cancellations/skips. Evidence: [busy-focused-green.txt](feedback-502/busy-focused-green.txt), [busy-full-green.txt](feedback-502/busy-full-green.txt). The candidate remains unissued 5.0.2 with no packages built, pushed or released. QUALITY recheck remains pending.
+
 ## Remaining delivery gates
 
 Independent SPEC then QUALITY review, new 5.0.2 Mac arm64/x64 and Windows x64 six-asset packaging, install/update/rollback verification and first-use/security/real Mac authorization acceptance remain pending. This implementation did not push, build, publish, alter frozen/public packages or take over cleanup Task 4. Existing untracked evidence, including fan-readiness-current-audit-20261013.md, is preserved.
