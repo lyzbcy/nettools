@@ -28,3 +28,27 @@ test('actual process-query and identity-bound cleanup commands parse as PowerShe
  assert.throws(()=>terminationScript({pid:1,created:'638000000000000000'}),/identity/);
  assert.throws(()=>terminationScript({pid:124,created:"'; exit 0; '"}),/identity/);
 });
+
+const {expandPortable,cleanupInstallation}=require('../scripts/ci-frozen-windows-native.cjs');
+const fsp=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
+test('actual ZIP extraction remains bounded with many files and quoted Unicode paths',async t=>{
+ const fs=require('node:fs'),{runProcess}=require('../src/platform/common.cjs');
+ const exe=process.platform==='win32'?path.win32.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'):path.join(__dirname,'../.local-tools/powershell/pwsh');
+ if(!fs.existsSync(exe)){t.skip('Actual PowerShell unavailable here; Windows workflow exercises WinPS');return;}
+ assert.equal(typeof expandPortable,'function','harness must expose its actual ZIP extraction operation');
+ const root=await fsp.mkdtemp(path.join(os.tmpdir(),"frozen-zip-中文-'"));t.after(()=>fsp.rm(root,{recursive:true,force:true}));
+ const input=path.join(root,'input'),archive=path.join(root,"原件 ' archive.zip"),output=path.join(root,'output');await fsp.mkdir(input);
+ const payload=crypto.randomBytes(128).toString('hex');for(let i=0;i<600;i++)await fsp.writeFile(path.join(input,'file-'+i+'.txt'),payload+':'+i);
+ const quote=value=>"'"+value.replaceAll("'","''")+"'",script=`$ErrorActionPreference='Stop';Add-Type -AssemblyName System.IO.Compression.FileSystem;[IO.Compression.ZipFile]::CreateFromDirectory(${quote(input)},${quote(archive)})`;
+ await runProcess(exe,['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{timeoutMs:30000,maxOutput:32768});
+ const result=await expandPortable(archive,output,{executable:exe});assert.ok(Buffer.byteLength(result.stdout)+Buffer.byteLength(result.stderr)<32768);assert.equal((await fsp.readdir(output)).length,600);for(let i=0;i<600;i++)assert.equal(await fsp.readFile(path.join(output,'file-'+i+'.txt'),'utf8'),payload+':'+i);
+});
+async function cleanupFixture(t,changes={}){
+ const install=await fsp.mkdtemp(path.join(os.tmpdir(),'frozen-cleanup-'));t.after(()=>fsp.rm(install,{recursive:true,force:true}));const data=install+'-data';await fsp.mkdir(data);t.after(()=>fsp.rm(data,{recursive:true,force:true}));await fsp.writeFile(path.join(install,'installed.txt'),'installed');await fsp.writeFile(path.join(data,'settings.json'),'preserve');
+ const report={appHandleClosed:true,beforeCleanupProcesses:[]},original={displayVersion:'5.0.1'},state={platform:undefined,grantMayExist:false,grantRemoved:false,uninstalled:false,original,report,install,data,...changes};
+ const operations={metadata:async directory=>{assert.equal(directory,install);return original;},uninstall:async(directory,dataDir,metadata,version)=>{assert.equal(directory,install);assert.equal(dataDir,data);assert.equal(metadata,original);assert.equal(version,'5.0.1');await fsp.rm(directory,{recursive:true});return {uninstalled:true};}};
+ return {install,data,state,operations};
+}
+test('failure before bridge load actually uninstalls original installation and preserves data',async t=>{assert.equal(typeof cleanupInstallation,'function','harness must expose its actual failure-uninstall flow');const fixture=await cleanupFixture(t);const result=await cleanupInstallation(fixture.state,fixture.operations);assert.equal(result.grantRemoved,true);assert.equal(result.uninstalled,true);assert.equal(fixture.state.report.failureUninstall.uninstalled,true);await assert.rejects(()=>fsp.stat(fixture.install),{code:'ENOENT'});assert.equal(await fsp.readFile(path.join(fixture.data,'settings.json'),'utf8'),'preserve');});
+test('failed authorization cleanup cannot be overwritten by no-authorization fallback',async t=>{assert.equal(typeof cleanupInstallation,'function');const fixture=await cleanupFixture(t,{platform:{},grantMayExist:false,grantRemoved:false});fixture.state.report.cleanupAuthorizerTimedOut=true;const result=await cleanupInstallation(fixture.state,fixture.operations);assert.equal(result.grantRemoved,false);assert.equal(result.uninstalled,false);assert.equal(await fsp.readFile(path.join(fixture.install,'installed.txt'),'utf8'),'installed');});
+test('failure uninstall retains fixture until original handle and all owned processes close',async t=>{assert.equal(typeof cleanupInstallation,'function');for(const blocked of [{appHandleClosed:false,beforeCleanupProcesses:[]},{appHandleClosed:true,beforeCleanupProcesses:[{pid:123}]}]){const fixture=await cleanupFixture(t);fixture.state.report=blocked;const result=await cleanupInstallation(fixture.state,fixture.operations);assert.equal(result.uninstalled,false);assert.equal(await fsp.readFile(path.join(fixture.install,'installed.txt'),'utf8'),'installed');}});
