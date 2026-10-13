@@ -1,7 +1,7 @@
 'use strict';
 // Passive copies of fixed CI control files. Never write into an update attempt.
 const raw=require('../src/core/raw-fs.cjs'),fs=raw.promises,path=require('node:path'),crypto=require('node:crypto'),{setTimeout:delay}=require('node:timers/promises'),ci=require('../src/core/update-desktop-acceptance.cjs');
-const {classifyInstance,decodedCommand}=require('./ci-process-lifecycle.cjs');
+const {classifyInstance,decodedCommand,bindReadyIdentity}=require('./ci-process-lifecycle.cjs');
 const fields={readyFile:'ready.json',commitFile:'commit.json',abortFile:'abort.json',resultFile:'result.json',confirmRequestFile:'confirm-request.json',confirmFile:'confirmed.json'};
 const limits={'payload.json':16*1024*1024,...Object.fromEntries(Object.values(fields).map(name=>[name,256*1024])),'handoff.lock':1024,'worker.log':2*1024*1024,'task.log':2*1024*1024,'worker-error.log':2*1024*1024};
 async function physicalBytes(root,file,max){
@@ -18,6 +18,28 @@ async function readActorFailure({plan,driverPid}){
 async function waitOriginalClose({application,plan,driverPid}){
  const abort=new AbortController();const polling=(async()=>{while(true){const failure=await readActorFailure({plan,driverPid});if(failure)throw failure;await delay(100,undefined,{signal:abort.signal});}})();polling.catch(()=>{});
  try{const closed=await Promise.race([application.closed,polling]);const failure=await readActorFailure({plan,driverPid});if(failure)throw failure;return closed;}catch(error){const failure=await readActorFailure({plan,driverPid});if(failure)throw failure;throw error;}finally{abort.abort();await polling.catch(()=>{});}
+}
+async function waitHelperReady({plan,driver,queryProcess,timeout=120000,now=Date.now,pause=delay,onSample=()=>{}}){
+ if(driver?.nonce!==plan.nonce||driver.role!=='drive'||driver.ok!==true||!Number.isInteger(driver.pid)||driver.pid<2||!/^[a-f0-9]{64}$/.test(driver.ready?.token||'')||driver.ready.version!==plan.targetVersion)throw Error('CI driver 准备身份不匹配');
+ const attempt=ci.privatePath(plan.dataDir,driver.ready.attempt,{kind:'directory'});
+ if(path.dirname(attempt)!==path.join(plan.dataDir,'updates')||!/^install-[a-z0-9]+$/i.test(path.basename(attempt))||driver.ready.payloadFile!==path.join(attempt,'payload.json'))throw Error('CI 更新尝试路径不匹配');
+ async function payload(){const value=json(await physicalBytes(attempt,driver.ready.payloadFile,limits['payload.json']));if(value.protocol!==1||value.token!==driver.ready.token||value.attempt!==attempt||value.dataDir!==plan.dataDir||value.target!==plan.installPath||value.platform!==plan.platform||value.arch!==plan.arch||value.version!==plan.targetVersion||value.oldVersion!==plan.driveVersion||Object.entries(fields).some(([field,name])=>value[field]!==path.join(attempt,name)))throw Error('CI payload 身份或固定路径不匹配');return value;}
+ // driver.json describes preparation; oldPid and ready.json arrive only after handoff starts.
+ const prepared=await payload(),end=now()+timeout;
+ while(true){
+  const failure=await readActorFailure({plan,driverPid:driver.pid});if(failure)throw failure;
+  let ready,readyPresent=false;try{ready=json(await physicalBytes(attempt,prepared.readyFile,limits['ready.json']));readyPresent=true;}catch(error){if(error.code!=='ENOENT')throw error;}
+  if(readyPresent){
+   if(!ready||ready.token!==prepared.token||ready.version!==prepared.version||ready.status!=='ready'||!Number.isInteger(ready.pid)||ready.pid<2||ready.pid>2147483647)throw Object.assign(Error('CI 助手就绪握手身份不匹配'),{code:'CI_HELPER_READY_IDENTITY'});
+   const handed=await payload();if(handed.oldPid!==driver.pid)throw Object.assign(Error('CI 助手交接旧PID不匹配'),{code:'CI_HELPER_READY_IDENTITY'});
+   const actorFailure=await readActorFailure({plan,driverPid:driver.pid});if(actorFailure)throw actorFailure;
+   let identity;try{identity=await queryProcess(ready.pid);}catch(error){identity={queryError:error.message};}
+   const sample={pid:ready.pid,expected:identity,observed:identity,relation:classifyInstance(identity,identity,{commandIncludes:attempt}),queryError:identity?.queryError||null,captureAt:new Date().toISOString()};
+   await onSample(sample);bindReadyIdentity(identity,attempt);return {payload:handed,ready,identity};
+  }
+  if(now()>=end)throw Object.assign(Error('CI 助手就绪握手等待超时'),{code:'CI_HELPER_READY_TIMEOUT'});
+  await pause(100);
+ }
 }
 async function exportUpdateEvidence({env=process.env,plan,driver,reportDir,phase,snapshot,queryProcess=async()=>({queryUnavailable:true}),expectedProcesses={},lifecycleSamples=[]}){
  if(env.CI!=='true'||!path.isAbsolute(env.RUNNER_TEMP||'')||!/^[a-f0-9]{64}$/.test(plan.nonce||'')||plan.platform!==process.platform||plan.arch!==process.arch||!['success','rollback'].includes(plan.scenario)||!['before-cleanup','after-process-exit'].includes(snapshot))throw Error('仅允许真实私有 CI 证据');
@@ -40,4 +62,4 @@ async function exportUpdateEvidence({env=process.env,plan,driver,reportDir,phase
  for(const sample of lifecycleSamples){const expected=expectedProcesses[sample.role];if(!pids.some(([role,pid])=>role===sample.role&&pid===sample.pid)||!expected||sample.expected?.created!==expected.created||sample.expected?.command!==expected.command||sample.role==='helper-ready'&&!decodedCommand(expected).includes(attempt))throw Error('CI 生命周期样本源身份不匹配');const relation=classifyInstance(expected,sample.observed,{...options(sample.role),queryError:sample.queryError});report.lifecycleSamples.push({...sample,expected,relation});}
  await ci.atomic(path.join(destination,'evidence-manifest.json'),report);return report;
 }
-module.exports={physicalBytes,readActorFailure,waitOriginalClose,exportUpdateEvidence};
+module.exports={physicalBytes,readActorFailure,waitOriginalClose,waitHelperReady,exportUpdateEvidence};

@@ -5,7 +5,7 @@
   "localFrozenAssetCount": 23,
   "changedFrozenAssets": [],
   "windowsIdentityQueryBytesUnchanged": true,
-  "windowsIdentityQuerySha256": "54ecd8f462fd2a4cb55ed94c9dfb4fe72a003529807f4215c08d008aae8a8151",
+  "windowsIdentityQuerySha256": "05082f4f82a08cacc58fdff71535d5f43aca5b2ed7c87c75b14b5a4173e5a1c2",
   "frozenAssets": [
     {
       "file": "release/nettools-5.0.1-mac-arm64.zip",
@@ -122,5 +122,17 @@
       "sha256": "1b4a486b7a2eea5ea2c87707b489c1f20a3db95cc1ce6102f722f74267552981",
       "size": 77762148
     }
-  ]
+  ],
+  "windowsIdentityQueryHashConvention": {
+    "encoding": "UTF-8",
+    "input": "Complete unexpanded source template body from $instance=$null; through finally{$instance.Dispose()}",
+    "pid": "Literal ${pid}; no substitution",
+    "header": "Excluded",
+    "transportEncoding": "No UTF-16LE or base64 encoding",
+    "delimiters": "JavaScript backticks excluded"
+  },
+  "windowsIdentityQueryEvaluatedPid2185Sha256": "41b5874eee4df0c68b30b8f072e0cc89982dbf7a90448ab212338971994bbf72",
+  "windowsIdentityQueryEvaluatedHashConvention": "UTF-8 of processIdentity(2185) psQuery argument; template interpolation evaluated; no ps() header or transport encoding",
+  "legacyWindowsIdentityQuerySubstringSha256": "54ecd8f462fd2a4cb55ed94c9dfb4fe72a003529807f4215c08d008aae8a8151",
+  "legacyWindowsIdentityQuerySubstringConvention": "UTF-8 of unexpanded template body with leading $instance=$null; excluded; no header or transport encoding"
 }

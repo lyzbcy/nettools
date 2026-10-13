@@ -10,7 +10,7 @@
 
 ## 验证实现
 
-- 驱动报告产生后，先读取真实 payload/ready、核对旧 PID/token，再绑定 ready 助手的操作系统创建身份和本次 attempt 命令；绑定成功后等待旧客户端关闭。
+- 驱动报告产生后，等待真实助手 ready 握手；核对 token/版本/状态/PID，并重新读取已经交接的 payload 核对旧 PID，之后绑定助手的操作系统创建身份和本次 attempt 命令；绑定成功后等待旧客户端关闭。等待期间继续监视绑定 actor 失败。
 - Mac 保留原完整 24 字符 `lstart`，增加 `state` 和完整 `command`；Windows 原查询脚本保持逐字节不变，仍使用 UTC StartTime ticks、MainModule 和 CIM CommandLine。
 - 退出等待始终比较 ready 阶段的绑定身份。消失、同创建身份的 Z 状态、完整不同创建身份的替代 PID 表示原实例不再运行。替代进程的无关命令不使原实例等待；生命周期模块没有任何发信号或终止 PID 的操作。
 - 同一实例的正确命令仍运行时继续等待；预期或当前创建身份缺失、同实例命令错误、查询失败和超时均失败。ready 绑定也拒绝缺失或空 attempt。
@@ -30,6 +30,14 @@
 
 ## 不变证明与后续
 
-`helper-lifecycle-proof-20261013.json` 记录 36 个受保护跟踪文件和 23 个本地冻结 ZIP/DMG/EXE 的比对：产品源码、界面、原生代码、package 文件没有变化，全部本地冻结资产大小与 SHA-256 相同。Windows 进程查询脚本 SHA-256 为 `54ecd8f462fd2a4cb55ed94c9dfb4fe72a003529807f4215c08d008aae8a8151`，基底与修改后原字节相同。
+`helper-lifecycle-proof-20261013.json` 记录 36 个受保护跟踪文件和 23 个本地冻结 ZIP/DMG/EXE 的比对：产品源码、界面、原生代码、package 文件没有变化，全部本地冻结资产大小与 SHA-256 相同。Windows 进程查询完整未插值模板的 UTF-8 SHA-256 为 `05082f4f82a08cacc58fdff71535d5f43aca5b2ed7c87c75b14b5a4173e5a1c2`，基底与修改后原字节相同。模板包括 `$instance=$null;` 至 finally Dispose，保留字面的 `${pid}`，不含 JavaScript 反引号、ps() header 或传输编码。以 PID 2185 调用 processIdentity 所捕获的 psQuery 参数（完成插值，仍为 UTF-8、不含 header/UTF-16LE/base64）哈希为 `41b5874eee4df0c68b30b8f072e0cc89982dbf7a90448ab212338971994bbf72`。此前 `54ecd8f462fd2a4cb55ed94c9dfb4fe72a003529807f4215c08d008aae8a8151` 是误遗漏开头 `$instance=$null;` 的源模板子串 UTF-8 哈希，现明确标为 legacy substring，不能用它代表完整脚本。
 
 未修改、清理或提交既有未跟踪证据，包括 `fan-readiness-current-audit-20261013.md`；未推送、触发工作流或改动冻结工作树。本次新共享模块 `scripts/ci-process-lifecycle.cjs` 必须与两个验证入口一起同步。后续候选真实平台作业需独立验证，此修正不能代替发行候选的生产功能验收。
+
+## SPEC 复查修正
+
+初次提交 `24fe3024542735f9cceb41648c0892a2be24125f` 的独立复查发现正常时序缺口：actor 在 `src/core/update-desktop-acceptance.cjs:87` 先写 driver.json，再点击安装；`handoffUpdate` 才将 oldPid 原子写回 payload 并启动助手。初次脚本直接读取 readyFile/旧 PID 仍会使正常的迟到握手过早失败。
+
+新增 `waitHelperReady` 只读取真实私有文件：先校验 prepared payload 的固定源路径及身份，ready 尚未存在时继续观察绑定 actor 错误并等待；实际 ready 出现后严格核对握手身份，再重新读取 handoff payload 验证 oldPid。完成这些步骤后才查询、保留并绑定 helper 创建身份。等待上限为 120 秒。没有将准备元数据当成助手 ACK，也不写入现场握手文件。
+
+本轮 RED 为证据测试 26 项中 9 项失败（缺少实际握手等待功能）；随后增加畸形握手/查询回归，30 项中 2 项失败（null 握手误作未到、null 查询丢失分类样本）。修正后定向 45/45、完整 251/251 通过，0 失败、0 跳过。覆盖 prepared payload 缺 oldPid、两轮等待后原子交接 payload/ready、错误 token/PID/类型/版本/状态、迟到 actor 错误、无握手超时、查询失败及样本、null 握手/查询、真实握手后的旧 PID 验证。本轮重新核对全部受保护产品文件及 23 个本地冻结资产，无变化。
