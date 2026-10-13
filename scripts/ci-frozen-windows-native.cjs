@@ -33,7 +33,20 @@ class Cdp{
 }
 async function freePort(){const server=net.createServer();await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});const port=server.address().port;await new Promise(resolve=>server.close(resolve));return port;}
 async function debuggingJson(port,route){const response=await fetch('http://127.0.0.1:'+port+route,{signal:AbortSignal.timeout(2000),redirect:'error'});if(!response.ok)throw Error('CDP discovery failed');return response.json();}
-async function ps(script){const executable=path.win32.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');return runProcess(executable,['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from("$ErrorActionPreference='Stop';$env:PSModulePath=(Join-Path $PSHOME 'Modules')+';'+[Environment]::GetEnvironmentVariable('PSModulePath','Machine');[Console]::OutputEncoding=New-Object Text.UTF8Encoding($false);"+script,'utf16le').toString('base64')],{timeoutMs:30000,maxOutput:65536});}
+const POWERSHELL_HEADER="$ErrorActionPreference='Stop';$env:PSModulePath=(Join-Path $PSHOME 'Modules')+';'+[Environment]::GetEnvironmentVariable('PSModulePath','Machine');[Console]::OutputEncoding=New-Object Text.UTF8Encoding($false);";
+async function ps(script){const executable=path.win32.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');return runProcess(executable,['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(POWERSHELL_HEADER+script,'utf16le').toString('base64')],{timeoutMs:30000,maxOutput:65536});}
+async function expandPortable(archive,destination,{executable=path.win32.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe')}={}){
+ const quote=value=>"'"+value.replaceAll("'","''")+"'",script=POWERSHELL_HEADER+"$ProgressPreference='SilentlyContinue';"+`Expand-Archive -LiteralPath ${quote(archive)} -DestinationPath ${quote(destination)}`;
+ return runProcess(executable,['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{timeoutMs:180000,maxOutput:32768});
+}
+async function cleanupInstallation({platform,grantMayExist,grantRemoved,uninstalled,original,report,install,data},{metadata=installationMetadata,uninstall=uninstallCiApplication}={}){
+ // Before the bridge is loaded, this suite has never started authorization.
+ // A loaded or timed-out authorizer must retain its separately verified state.
+ if(!platform&&!grantMayExist)grantRemoved=true;
+ if(!uninstalled&&original&&grantRemoved&&report.appHandleClosed&&report.beforeCleanupProcesses?.length===0){try{report.failureUninstall=await uninstall(install,data,original,'5.0.1');uninstalled=true;}catch(error){report.uninstallError=error.message;}}
+ if(!original&&!uninstalled){try{original=await metadata(install);if(original.displayVersion==='5.0.1'&&report.appHandleClosed&&grantRemoved&&report.beforeCleanupProcesses?.length===0){report.failureUninstall=await uninstall(install,data,original,'5.0.1');uninstalled=true;}}catch(error){report.partialInstallCleanupError=error.message;}}
+ return {grantRemoved,uninstalled,original};
+}
 function suiteProcessScript(roots){
  const quoted=roots.map(root=>"'"+root.replaceAll("'","''")+"'").join(',');
  return `$roots=@(${quoted});$all=@(Get-CimInstance Win32_Process);$owned=@{};foreach($item in $all){if($item.ProcessId -eq $PID -or $item.ProcessId -eq ${process.pid}){continue};$command=[string]$item.CommandLine;$match=[regex]::Match($command,'(?i)-EncodedCommand\\s+([a-z0-9+/=]+)');if($match.Success){$command=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($match.Groups[1].Value))};foreach($root in $roots){if($command.Contains($root)){$owned[[int]$item.ProcessId]=$item;break}}};do{$changed=$false;foreach($item in $all){if($item.ProcessId -eq $PID -or $item.ProcessId -eq ${process.pid}){continue};if(!$owned.ContainsKey([int]$item.ProcessId) -and $owned.ContainsKey([int]$item.ParentProcessId)){$owned[[int]$item.ProcessId]=$item;$changed=$true}}}while($changed);$rows=@();foreach($item in $owned.Values){$handle=$null;try{$handle=[Diagnostics.Process]::GetProcessById([int]$item.ProcessId);if(!$handle.HasExited){$rows+=@{pid=[int]$item.ProcessId;parentPid=[int]$item.ParentProcessId;command=[string]$item.CommandLine;created=$handle.StartTime.ToUniversalTime().Ticks.ToString()}}}catch{$cause=$_.Exception;while($cause.InnerException){$cause=$cause.InnerException};if($cause -isnot [ArgumentException]){throw}}finally{if($handle){$handle.Dispose()}}};[Console]::Out.WriteLine((@{rows=$rows}|ConvertTo-Json -Compress))`;
@@ -103,14 +116,14 @@ async function run(){
   process.env.NETTOOLS_INSTALLER_ACCEPTANCE_ROOT=install;try{await step('actual-visible-frozen-installer',()=>runProcess(files['nettools-5.0.1-win-x64-setup.exe'],[],{timeoutMs:240000,maxOutput:1048576}));}finally{delete process.env.NETTOOLS_INSTALLER_ACCEPTANCE_ROOT;}
   const installerEvidence=path.join(runner,'nettools-installer-evidence');await fs.cp(installerEvidence,path.join(evidence,'installer'),{recursive:true});const ui=JSON.parse(await fs.readFile(path.join(installerEvidence,'installer-report.json'),'utf8'));if(!ui.ok||!ui.visible||ui.desktopSelected!==false||ui.version!=='5.0.1'||path.resolve(ui.installRoot).toLowerCase()!==install.toLowerCase())throw Error('Actual visible installer identity failed');report.installer=ui;
   original=await installationMetadata(install);if(original.displayVersion!=='5.0.1')throw Error('Installed registration version mismatch');
-  const ps=path.win32.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'),quote=v=>"'"+v.replaceAll("'","''")+"'";
-  await runProcess(ps,['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(`Expand-Archive -LiteralPath ${quote(files['nettools-5.0.1-win-x64.zip'])} -DestinationPath ${quote(portable)}`,'utf16le').toString('base64')],{timeoutMs:180000,maxOutput:32768});
-  report.installedFilesMatchedFrozenPortable=await compare(portable,install);
+  await step('expand-frozen-portable-archive',()=>expandPortable(files['nettools-5.0.1-win-x64.zip'],portable));
+  report.installedFilesMatchedFrozenPortable=await step('compare-frozen-portable-installation',()=>compare(portable,install),count=>({ok:true,filesMatched:count}));
   const platformDir=path.join(install,'resources/app/src/platform');
   const pkg=JSON.parse(await fs.readFile(path.join(install,'resources/app/package.json'),'utf8'));if(pkg.version!=='5.0.1')throw Error('Actual installed package version mismatch');
   platform=require(path.join(platformDir,'windows.cjs')).createWindowsPlatform({configDir:path.join(data,'netconfig'),resourcesDir:platformDir});
   report.nativeFiles={};for(const name of ['windows.cjs','windows-network.ps1','windows-authorization.ps1'])report.nativeFiles[name]=await digest(path.join(platformDir,name));
   beforeGrant=await step('installed-authorization-before',()=>platform.invoke('helper-status'),v=>{if(v.installed)throw Error('Runner has an existing grant');return {ok:true,installed:false};});grantRemoved=true;processRoots.push(path.dirname(beforeGrant.resultFiles['flush-dns']));report.processScopeRoots=processRoots;
+  report.currentStep='normal-installed-exe-launch';
   const executable=path.join(install,'LaoyuNetTools.exe'),port=await freePort(),config=launchConfig(data,port,process.env);
   report.launch={executable,args:config.args,visibleRequested:true,acceptanceMode:false,debuggingScope:'127.0.0.1 isolated GitHub Windows runner only'};
   app=normalApp(executable,config,path.join(evidence,'normal-process.log'));report.appHandleClosed=false;
@@ -169,9 +182,7 @@ async function run(){
     const status=await platform.invoke('helper-status');grantRemoved=!status.installed;if(grantRemoved&&beforeGrant){const residue=await grantResidue(beforeGrant);report.failureGrantResidue=residue;grantRemoved=residue.removed;}report.failureGrantCleanup=grantRemoved;
    }catch(error){grantRemoved=false;report.failureGrantCleanup=false;report.cleanupError=error.code||error.message;}
   }
-  if(!uninstalled&&original&&grantRemoved&&report.appHandleClosed&&report.beforeCleanupProcesses?.length===0){try{report.failureUninstall=await uninstallCiApplication(install,data,original,'5.0.1');uninstalled=true;}catch(error){report.uninstallError=error.message;}}
-  if(!platform&&!grantMayExist)grantRemoved=true;
-  if(!original&&!uninstalled){try{original=await installationMetadata(install);if(original.displayVersion==='5.0.1'&&report.appHandleClosed&&grantRemoved&&report.beforeCleanupProcesses?.length===0){report.failureUninstall=await uninstallCiApplication(install,data,original,'5.0.1');uninstalled=true;}}catch(error){report.partialInstallCleanupError=error.message;}}
+  ({grantRemoved,uninstalled,original}=await cleanupInstallation({platform,grantMayExist,grantRemoved,uninstalled,original,report,install,data}));
   try{report.remainingProcesses=await owned();report.processQuerySucceeded=true;}catch(error){report.processQuerySucceeded=false;report.finalProcessQueryError=error.message;}
   report.uninstalled=uninstalled;report.grantRemoved=grantRemoved;report.finishedAt=new Date().toISOString();report.cleanupConfirmed=cleanupConfirmed(report);report.ok=report.ok&&report.cleanupConfirmed;
   if(report.cleanupConfirmed){try{await fs.rm(suite,{recursive:true,force:true});report.privateFixtureRemoved=true;}catch(error){report.privateFixtureRemoved=false;report.fixtureRemovalError=error.message;report.ok=false;}}else report.privateFixtureRemoved=false;
@@ -183,5 +194,5 @@ async function run(){
   if(!report.ok)process.exitCode=1;
  }
 }
-module.exports={Cdp,launchConfig,cleanupConfirmed,suiteProcessScript,terminationScript};
+module.exports={Cdp,launchConfig,cleanupConfirmed,suiteProcessScript,terminationScript,expandPortable,cleanupInstallation};
 if(require.main===module)run().catch(error=>{console.error(error.stack||error.message);process.exitCode=1;});
