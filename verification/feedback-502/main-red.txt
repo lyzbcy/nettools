@@ -1,0 +1,115 @@
+✖ actual main sends the exact preview despite newly appended or cleared logs (21.300542ms)
+✖ actual main rejects missing, changed, replaced, cancelled and replayed previews before config or HTTP (1.553041ms)
+✖ actual IPC rejects extra renderer authority and nonlocal/subframe cancel requests (1.70125ms)
+✖ actual main consumes authorization synchronously and has a single in-flight send (2.574584ms)
+✖ host session expires authorization, bounds capture and consumes it before credential await (0.338791ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 0
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 63.182917
+
+✖ failing tests:
+
+test at test/feedback-session.test.cjs:17:1
+✖ actual main sends the exact preview despite newly appended or cleared logs (21.300542ms)
+  AssertionError [ERR_ASSERTION]: HTTP body must equal what the user previewed
+  + actual - expected
+
+    '捞鱼的网络工具 5.0.1\n' +
+      '问题反馈\n' +
+      '请检查连接\n' +
+      '\n' +
+      '脱敏操作日志：\n' +
+      '2026-10-13T10:05:42.635Z [info] network-check {"ok":true,"issue":"ok","durationMs":0.022709000000006085}\n' +
+  +   '2026-10-13T10:05:42.636Z [info] scanfiles1 {"ok":true}\n' +
+  +   '2026-10-13T10:05:42.638Z [info] cleaningfiles2 {"ok":true}'
+  -   '2026-10-13T10:05:42.636Z [info] scanfiles1 {"ok":true}'
+
+      at TestContext.<anonymous> (/Users/zeen/Documents/共享/创业/网络工具/test/feedback-session.test.cjs:19:148)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '捞鱼的网络工具 5.0.1\n问题反馈\n请检查连接\n\n脱敏操作日志：\n2026-10-13T10:05:42.635Z [info] network-check {"ok":true,"issue":"ok","durationMs":0.022709000000006085}\n2026-10-13T10:05:42.636Z [info] scanfiles1 {"ok":true}\n2026-10-13T10:05:42.638Z [info] cleaningfiles2 {"ok":true}',
+    expected: '捞鱼的网络工具 5.0.1\n问题反馈\n请检查连接\n\n脱敏操作日志：\n2026-10-13T10:05:42.635Z [info] network-check {"ok":true,"issue":"ok","durationMs":0.022709000000006085}\n2026-10-13T10:05:42.636Z [info] scanfiles1 {"ok":true}',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/feedback-session.test.cjs:22:1
+✖ actual main rejects missing, changed, replaced, cancelled and replayed previews before config or HTTP (1.553041ms)
+  AssertionError [ERR_ASSERTION]: no preview must reject
+
+  true !== false
+
+      at TestContext.<anonymous> (/Users/zeen/Documents/共享/创业/网络工具/test/feedback-session.test.cjs:23:38)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/feedback-session.test.cjs:29:1
+✖ actual IPC rejects extra renderer authority and nonlocal/subframe cancel requests (1.70125ms)
+  AssertionError [ERR_ASSERTION]: logs
+
+  true !== false
+
+      at TestContext.<anonymous> (/Users/zeen/Documents/共享/创业/网络工具/test/feedback-session.test.cjs:30:91)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/feedback-session.test.cjs:34:1
+✖ actual main consumes authorization synchronously and has a single in-flight send (2.574584ms)
+  AssertionError [ERR_ASSERTION]: duplicate must reject before private config read
+
+  2 !== 1
+
+      at TestContext.<anonymous> (/Users/zeen/Documents/共享/创业/网络工具/test/feedback-session.test.cjs:36:86)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/feedback-session.test.cjs:38:1
+✖ host session expires authorization, bounds capture and consumes it before credential await (0.338791ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'undefined'
+  - 'function'
+
+      at TestContext.<anonymous> (/Users/zeen/Documents/共享/创业/网络工具/test/feedback-session.test.cjs:39:69)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'undefined',
+    expected: 'function',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

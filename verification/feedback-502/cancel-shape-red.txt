@@ -1,0 +1,34 @@
+✔ actual main sends the exact preview despite newly appended or cleared logs (19.315917ms)
+✔ actual main rejects missing, changed, replaced, cancelled and replayed previews before config or HTTP (1.584917ms)
+✖ actual IPC rejects extra renderer authority and nonlocal/subframe cancel requests (1.521ms)
+✔ actual main consumes authorization synchronously and has a single in-flight send (1.51425ms)
+✔ host session expires authorization, bounds capture and consumes it before credential await (14.152208ms)
+✔ late cancellation cannot revoke a newer preview and failed sends require re-preview without retry (0.189583ms)
+✔ actual main confirmed feedback is independent of auxiliary usage and settings writes (1.254166ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 6
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 71.490917
+
+✖ failing tests:
+
+test at test/feedback-session.test.cjs:29:1
+✖ actual IPC rejects extra renderer authority and nonlocal/subframe cancel requests (1.521ms)
+  AssertionError [ERR_ASSERTION]: cancel requires a plain record
+
+  true !== false
+
+      at TestContext.<anonymous> (/Users/zeen/Documents/共享/创业/网络工具/test/feedback-session.test.cjs:32:66)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

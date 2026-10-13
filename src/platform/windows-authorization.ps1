@@ -4,7 +4,7 @@ $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 [Console]::OutputEncoding=New-Object Text.UTF8Encoding($false)
 $OutputEncoding=[Console]::OutputEncoding
-$Version='5.0.1'
+$Version='5.0.2'
 $Actions=@('flush-dns','set-dns','restore-dns','clear-proxy','restore-proxy','renew-dhcp','vpn-coexist','vpn-coexist-reset')
 
 function Reject([string]$Code,[string]$Message){$e=New-Object Exception($Message);$e.Data['code']=$Code;throw $e}

@@ -14,7 +14,7 @@ function createWindowsPlatform({configDir,resourcesDir,runner=runProcess,stateIO
  const script=path.join(resourcesDir,'windows-network.ps1'),authorization=path.join(resourcesDir,'windows-authorization.ps1');
  let active=null,cleanupBlocked=false;
  async function rpc(action,args={},signal){
-  const request={action,args,configDir,version:'5.0.1'};
+  const request={action,args,configDir,version:'5.0.2'};
   try{const result=await runner(powershell,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',script],{input:JSON.stringify(request),signal,timeoutMs:action==='speedtest'?90000:30000,maxOutput:512*1024});return nativeResult(result.stdout);}
   catch(error){if(error.code==='PROCESS_EXIT'&&error.stdout)return nativeResult(error.stdout);throw error;}
  }
@@ -66,7 +66,7 @@ function createWindowsPlatform({configDir,resourcesDir,runner=runProcess,stateIO
   if(signal?.aborted)throw Object.assign(Error('操作已取消，未启动后台任务'),{code:'ABORT_ERR'});
   const nonce=crypto.randomUUID();
   if(action==='vpn-coexist'){const configuration=await rpc('get-config',{},signal);args={config:configuration.config};}
-  const request={action,args,nonce,version:'5.0.1',requestedAt:new Date().toISOString()};
+  const request={action,args,nonce,version:'5.0.2',requestedAt:new Date().toISOString()};
   await stateIO.writeFile(status.requestFile+'.tmp',JSON.stringify(request),{mode:0o600});await stateIO.rename(status.requestFile+'.tmp',status.requestFile);
   if(signal?.aborted)throw Object.assign(Error('操作已取消，未启动后台任务'),{code:'ABORT_ERR'});
   const name=`\\LaoyuNetTools\\${status.sid}\\${action}`;

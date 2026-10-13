@@ -1,6 +1,6 @@
 {
   "name": "laoyu-nettools",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "private": true,
   "description": "捞鱼的网络工具 · Mac / Windows 网络诊断、修复与保活",
   "main": "src/main.cjs",

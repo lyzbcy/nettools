@@ -2,12 +2,13 @@
 const {app,BrowserWindow,ipcMain,Tray,Menu,Notification,dialog,clipboard,shell,powerMonitor,net,nativeImage}=require('electron');
 const path=require('node:path'),fs=require('node:fs'),{pathToFileURL}=require('node:url');
 const {Controller,validateSender,validateLink}=require('./core/controller.cjs'),{OperationLog}=require('./core/log.cjs');
-const {Updater}=require('./core/updater.cjs'),{jsonRequest,download}=require('./core/http.cjs'),{previewFeedback,sendFeedback}=require('./core/feedback.cjs');
+const {Updater}=require('./core/updater.cjs'),{jsonRequest,download}=require('./core/http.cjs'),{FeedbackSession}=require('./core/feedback.cjs');
 const {createDarwinPlatform}=require('./platform/darwin.cjs'),{createWindowsPlatform}=require('./platform/windows.cjs');
 const pkg=require('../package.json');
 const {Engagement}=require('./core/engagement.cjs');
 const ciAcceptance=require('./core/update-desktop-acceptance.cjs');
 let window,tray,controller,logger,updater,engagement,quitting=false,quitAllowed=false,quitPromise=null,readyUpdate=null,installingUpdate=false,initializing=true,lastRestartNotice=null,updateRecovery=null;
+const feedbackSession=new FeedbackSession();
 const root=path.resolve(__dirname,'..'),uiFile=path.join(root,'ui/index.html'),uiUrl=pathToFileURL(uiFile).href,smoke=process.argv.includes('--nettools-smoke');
 const privateFeedbackFile=app.isPackaged?path.join(process.resourcesPath,'private/feedback-channel.json'):path.join(root,'.local-tools/feedback-channel.json');
 const dataOverride=process.argv.find(a=>a.startsWith('--nettools-data=')),selectedDataDir=dataOverride?path.resolve(dataOverride.slice('--nettools-data='.length)):app.getPath('userData');
@@ -43,7 +44,7 @@ async function setup(){
  handle('nettools:check',async()=>{await controller.checkNow();return state();});handle('nettools:cancel-restart',()=>{controller.cancelRestart();return state();});
  handle('nettools:logs',()=>({entries:logger.entries(),text:logger.export()}));handle('nettools:copy-logs',()=>{clipboard.writeText(logger.export());return {message:'已复制脱敏日志'};});handle('nettools:clear-logs',()=>{logger.clear();return {message:'日志已清空'};});
  handle('nettools:open',key=>shell.openExternal(validateLink(key)));handle('nettools:window',action=>{if(action==='minimize')window.minimize();else if(action==='maximize')window.isMaximized()?window.unmaximize():window.maximize();else if(action==='close')window.close();else throw Error('窗口操作无效');});handle('nettools:quit',requestQuit);
- const feedbackContext=()=>({name:'捞鱼的网络工具',version:pkg.version,logs:logger.export()});handle('nettools:feedback-preview',payload=>({text:previewFeedback(payload,feedbackContext())}));handle('nettools:feedback-send',payload=>{if(smoke)throw Error('验收模式不发送外部消息');return sendFeedback(payload,feedbackContext(),{endpoint:feedbackConfig(),post:(url,body)=>jsonRequest(net.fetch,url,{body})});});
+ const feedbackContext=()=>({name:'捞鱼的网络工具',version:pkg.version,logs:logger.export()});handle('nettools:feedback-preview',(...args)=>{if(args.length!==1)throw Error('反馈参数无效');return feedbackSession.preview(args[0],feedbackContext());});handle('nettools:feedback-cancel',(...args)=>feedbackSession.cancel(...args));handle('nettools:feedback-send',(...args)=>{if(args.length!==1)throw Error('反馈参数无效');if(smoke)throw Error('验收模式不发送外部消息');return feedbackSession.send(args[0],{getEndpoint:feedbackConfig,post:(url,body)=>jsonRequest(net.fetch,url,{body})});});
  handle('nettools:update-check',()=>updater.check({manual:true}));handle('nettools:update-stage',async()=>{if(smoke||!app.isPackaged)throw Error('请在正式安装包中执行更新；开发模式不会替换应用');if(installingUpdate)throw Error('正在交接安装，请稍候');readyUpdate=await updater.stage();return readyUpdate;});
  handle('nettools:update-cancel',async()=>{if(installingUpdate)throw Error('已经开始交接安装，请等待结果');updater.cancel();const previous=readyUpdate;readyUpdate=null;if(previous)await require('./core/update-install.cjs').abortUpdate(previous);return state();});
  handle('nettools:update-install',async()=>{if(installingUpdate||!readyUpdate?.ready)throw Error('更新尚未准备就绪或已经交接');updater.beginInstall();installingUpdate=true;const prepared=readyUpdate;readyUpdate=null;try{await controller.shutdown();await require('./core/update-install.cjs').handoffUpdate(prepared,{oldPid:process.pid});quitting=true;quitAllowed=true;app.quit();}catch(error){updater.failInstall(error);void controller.reopenAfterShutdown().catch(e=>logger.add('warn','update-resume',{message:e.message}));throw error;}finally{installingUpdate=false;}});
@@ -54,7 +55,8 @@ async function setup(){
 if(gotInstanceLock)app.whenReady().then(async()=>{
  window=new BrowserWindow({width:1120,height:780,minWidth:900,minHeight:620,frame:false,title:'捞鱼的网络工具',backgroundColor:'#f8f5ec',icon:path.join(root,'ui/assets/icon.png'),webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',event=>event.preventDefault());
- window.on('close',event=>{if(quitAllowed)return;event.preventDefault();if(!quitting&&controller?.snapshot().settings?.enabled)window.hide();else quitFromMenu();});
+ window.webContents.on('render-process-gone',()=>feedbackSession.cancel({}));window.webContents.on('did-start-navigation',()=>feedbackSession.cancel({}));
+ window.on('close',event=>{feedbackSession.cancel({});if(quitAllowed)return;event.preventDefault();if(!quitting&&controller?.snapshot().settings?.enabled)window.hide();else quitFromMenu();});
  const image=nativeImage.createFromPath(path.join(root,'ui/assets/icon.png')).resize({width:22,height:22});tray=new Tray(image);tray.setToolTip('捞鱼的网络工具');tray.setContextMenu(Menu.buildFromTemplate([{label:'打开网络工具',click:()=>{window.show();window.focus();}},{label:'退出并停止保活',click:quitFromMenu}]));tray.on('click',()=>{window.show();window.focus();});
  const setupPromise=setup();await window.loadFile(uiFile);await setupPromise;
  await require('./core/update-install.cjs').confirmUpdateStartup({version:pkg.version,appPath:process.platform==='darwin'?path.resolve(process.execPath,'../../..'):path.dirname(process.execPath),dataDir:app.getPath('userData'),visible:window.isVisible()&&controller.status!==null});

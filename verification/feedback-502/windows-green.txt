@@ -1,0 +1,1 @@
+{"failed":0,"scope":"PowerShell production functions with isolated OS fixtures; no real network writes","passed":29}

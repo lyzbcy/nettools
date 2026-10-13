@@ -1,6 +1,6 @@
 ---
 name: laoyu-nettools-dev
-version: 5.0.1
+version: 5.0.2
 description: Use when developing, repairing, packaging or releasing the 捞鱼的网络工具 macOS and Windows desktop application.
 ---
 
@@ -8,7 +8,7 @@ description: Use when developing, repairing, packaging or releasing the 捞鱼�
 
 面向 Mac / Windows 用户的本地网络诊断、修复和可选无人值守保活工具。
 
-技术：Electron 本地界面与主进程、Node CommonJS；Mac Swift 原生执行层，Windows 固定动作 PowerShell。版本源为 `package.json.version`。正式 5.0.0 已公开发布且包保持不可变；本次 5.0.1 为日志修复候选，待正式包与首次使用验收。软件中心 Mac 0.9.3 / Windows 0.8.7 及两个原网址已完成对 5.0.0 的同步。
+技术：Electron 本地界面与主进程、Node CommonJS；Mac Swift 原生执行层，Windows 固定动作 PowerShell。版本源为 `package.json.version`。正式 5.0.0 与冻结 5.0.1 包保持不可变；本次 5.0.2 为日志与反馈预览修复候选，待重新打包与首次使用验收。软件中心 Mac 0.9.3 / Windows 0.8.7 及两个原网址已完成对 5.0.0 的同步。
 
 ## 目录与入口
 
@@ -37,8 +37,9 @@ description: Use when developing, repairing, packaging or releasing the 捞鱼�
 - 不将静态 IP 改成 DHCP，不关闭正常代理。备份写成功后才能修改，真正恢复后才显示成功。
 - 特权操作只有固定 action 和经过校验的参数；禁止任意命令、任意路径和未引用的 shell 拼接。
 - 更新校验原始包 SHA-256、保持设置与原安装位置，升级成功前保留旧版本；错误哈希不得执行。
-- 原生授权绑定版本和二进制哈希；5.0.0→5.0.1升级保留设置，但旧helper/grant可能需用户在新版重新点击“安装网络授权”。不自动提权，不用同候选原生版本的隔离4.99.0副本测试证明旧授权迁移。
+- 反馈必须匹配主进程最近五分钟内生成的有界预览快照；编辑表单、关闭或移除反馈窗口使预览失效。发送一次性消费授权且正文不重新采样日志；失败保留留言，重新预览后才能重试，没有自动重发。
+- 原生授权绑定版本和二进制哈希；5.0.0→5.0.2升级保留设置，但旧helper/grant可能需用户在新版重新点击“安装网络授权”。不自动提权，不用同候选原生版本的隔离4.99.0副本测试证明旧授权迁移。
 
 ## 状态与验收
 
-5.0.0 在 CI 38085097075 的 Mac 双芯片和 Windows 实际安装、可见升级、故障回滚及数据保留通过，Windows 实际卸载通过。六个正式资产已匿名回读原字节；报告见 `verification/release/public-receipt-5.0.0.json`。核心测试入口 `node --test test/*.test.cjs`；安装锁定依赖后运行包与实际 Electron 回归。上述软件中心版本已完成真实下载、缓存查新、系统打开和客户端发行，两个原网址已公开全文核验与备份。本次 5.0.1 候选尚未打包发行或同步中心/原页；首次下载安全提示及真实 Mac 授权同意/取消仍待验收。未执行真实电脑重启，不将 CI sudo 等同本机授权对话框。
+5.0.0 在 CI 38085097075 的 Mac 双芯片和 Windows 实际安装、可见升级、故障回滚及数据保留通过，Windows 实际卸载通过。六个正式资产已匿名回读原字节；报告见 `verification/release/public-receipt-5.0.0.json`。核心测试入口 `node --test test/*.test.cjs`；安装锁定依赖后运行包与实际 Electron 回归。上述软件中心版本已完成真实下载、缓存查新、系统打开和客户端发行，两个原网址已公开全文核验与备份。本次 5.0.2 候选尚未打包发行或同步中心/原页；首次下载安全提示及真实 Mac 授权同意/取消仍待验收。未执行真实电脑重启，不将 CI sudo 等同本机授权对话框。
