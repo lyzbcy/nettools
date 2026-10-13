@@ -1,127 +1,48 @@
-name: Network tools delivery validation
+name: Frozen 5.0.1 Mac rollback guard observation
 on:
-  push:
-    branches: [codex/nettools-cross-platform-delivery]
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: nettools-validation-${{ github.ref }}
-  cancel-in-progress: false
+  actions: read
 jobs:
-  macos:
+  restored-guard:
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: macos-15
             arch: arm64
+            artifact: '11785810060'
           - runner: macos-15-intel
             arch: x64
+            artifact: '11784514845'
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 35
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24.21.0'
-      - name: Verify native runner CPU
+      - name: Verify actual runner architecture
         run: node -e "if(process.arch!=='${{ matrix.arch }}')process.exit(1)"
-      - name: Core and isolated native security regressions
-        run: node --test test/*.test.cjs
       - uses: pnpm/action-setup@v4
         with:
           version: '10.16.1'
-      - uses: actions/setup-python@v5
+      - name: Fixed verification dependencies without rebuilding candidate
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Retrieve immutable original Mac candidate
+        uses: actions/download-artifact@v4
         with:
-          python-version: '3.12'
-      - name: Fixed packaging dependencies
-        run: |
-          pnpm install --frozen-lockfile --ignore-scripts
-          python -m pip install Pillow==11.3.0
-      - name: Actual fixed builder configuration regression
-        run: node --test test/package.test.cjs
-      - name: Build complete Mac ZIP and DMG
-        env:
-          NETTOOLS_PYTHON: python
-          NETTOOLS_FEEDBACK_WEBHOOK: ${{ secrets.NETTOOLS_FEEDBACK_WEBHOOK }}
-        run: node scripts/package.cjs darwin ${{ matrix.arch }}
-      # The unmodified pinned runtime is available only after the package build.
-      - name: Actual Electron raw ASAR update regression
-        env:
-          NETTOOLS_RAW_FS_REQUIRE_ELECTRON: 'true'
-        run: node --test test/update-raw-fs.test.cjs test/electron-update-ui.test.cjs
-      - name: Actual packaged native helper and cleanup
-        run: node scripts/ci-macos-native.cjs
-      - name: Actual installed desktop and persisted preferences
-        run: node scripts/ci-macos-desktop.cjs
-      - name: Preserve Mac evidence and candidate packages
+          artifact-ids: ${{ matrix.artifact }}
+          run-id: '38337392645'
+          github-token: ${{ github.token }}
+          path: frozen-artifact
+      - name: Actual update and rollback with normal restored guard observation
+        run: node scripts/ci-frozen-macos-rollback.cjs frozen-artifact
+      - name: Preserve actual screenshots and process evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nettools-mac-${{ matrix.arch }}-candidate
-          path: |
-            release/*.zip
-            release/*.dmg
-            verification/macos-${{ matrix.arch }}/
-            verification/packages/
-          if-no-files-found: warn
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24.21.0'
-      - name: Core and production PowerShell fixture tests
-        shell: pwsh
-        run: node --test test/*.test.cjs
-      - name: Actual Windows native and authorization acceptance
-        shell: pwsh
-        run: node scripts/ci-windows-native.cjs
-      - uses: pnpm/action-setup@v4
-        with:
-          version: '10.16.1'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Fixed packaging dependencies
-        shell: pwsh
-        run: |
-          pnpm install --frozen-lockfile --ignore-scripts
-          python -m pip install Pillow==11.3.0
-      - name: Actual fixed builder configuration regression
-        shell: pwsh
-        run: node --test test/package.test.cjs
-      - name: Build complete Windows ZIP and themed installer
-        shell: pwsh
-        env:
-          NETTOOLS_FEEDBACK_WEBHOOK: ${{ secrets.NETTOOLS_FEEDBACK_WEBHOOK }}
-        run: node scripts/package.cjs win32 x64
-      - name: Actual Electron raw ASAR update regression
-        shell: pwsh
-        env:
-          NETTOOLS_RAW_FS_REQUIRE_ELECTRON: 'true'
-        run: node --test test/update-raw-fs.test.cjs test/electron-update-ui.test.cjs
-      - name: Actual installed desktop and persisted preferences
-        shell: pwsh
-        run: node scripts/ci-windows-desktop.cjs
-      - name: Preserve actual acceptance evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-native-evidence
-          path: verification/windows/
-          if-no-files-found: warn
-      - name: Preserve candidate packages and integrity report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nettools-windows-candidate
-          path: |
-            release/*.zip
-            release/.work-*.noindex/*-setup.exe
-            verification/packages/
-          include-hidden-files: true
-          if-no-files-found: warn
+          name: nettools-frozen-501-macos-${{ matrix.arch }}-rollback-observation
+          path: verification/frozen-501/macos-${{ matrix.arch }}/
+          if-no-files-found: error
