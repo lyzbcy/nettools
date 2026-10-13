@@ -1,0 +1,122 @@
+{
+  "schema": 1,
+  "reportStatus": "complete-with-limited-scope",
+  "scope": "最终 CI 5.0.1 macOS arm64 原包在本机普通模式的有限 UI 验收；不是此前 local-built 候选；不代表全量交付完成",
+  "observer": "independent native CUA observer",
+  "applicationIdentity": {
+    "version": "5.0.1",
+    "selection": ".local-tools/final-501-mac-arm64.noindex/捞鱼的网络工具.app",
+    "sourceHead": "ac1597a5956386c4f7f5dd101ed9fd247085c4bb",
+    "runId": 38337392645,
+    "frozenZipSha256": "4ee757b30722505be6c8ce7c4ff6fe8bd847b1647a2eef76d423c2743d180cce",
+    "provenanceBasis": "根操作者给定来源及 verification/nettools-501-package-audit.json；本观察员独立核对运行路径、进程参数与 AX 资源位置，未重新执行包完整性审计",
+    "axResourceLocationConfirmed": true,
+    "initialMainPid": 41594,
+    "privateDataSelection": ".local-tools/final-501-ui/data",
+    "ordinaryMode": true,
+    "smokeOrCiCliFlags": false,
+    "oldAppTouched": false
+  },
+  "privacy": "仅保存脱敏观察摘要；截图和原始 AX 未写入验收文件；报告剥离地址、接口名、服务名、内网配置与凭据；未读取或截取认证界面",
+  "observerActions": "独立读进程、设置与操作日志，并通过 CUA 读取 AX 和截图。未点击、输入、导航、授权、发送反馈、修改设置或退出软件。退出后一次既有绑定 AX 读取发生工具自动启动副作用，单独记载于 observerToolSideEffect，不宣称全程无副作用。",
+  "steps": [
+    {
+      "id": "FUI-01",
+      "expected": "最终包版本 5.0.1；真实网络概览；默认保活关闭",
+      "actual": "精确最终包资源 URL；顶部 5.0.1；真实本机连接与地址可见；公网已连通、DNS/网页/代理均已完成检查；保活未开启；默认不会自动修复或重启",
+      "result": "pass",
+      "evidence": "独立进程读取、原生完整 AX、直接视觉查看截图；保存脱敏摘要",
+      "actor": "root 启动指定私有数据目录的普通应用；observer 读取"
+    },
+    {
+      "id": "FUI-02",
+      "expected": "立即检查产生实际结果，日志保留业务 issue 与耗时且隐藏敏感内容",
+      "actual": "操作日志可见初始化 network-check 为 info/ok:true/issue:ok；此次检查 started 后返回 info/ok:true/issue:ok/durationMs:5248.145082999996；可见日志无地址、路径或凭据；面板提示反馈前可预览并取消附日志",
+      "result": "pass",
+      "evidence": "独立原生完整 AX 与截图；退出后独立读回私有 operations.jsonl，共 3 条 network-check",
+      "actor": "root 点击立即检查并打开操作日志；observer 读取",
+      "limitation": "本机健康网络路径；没有制造真实网络故障，不据此宣称所有故障的业务健康标记已覆盖"
+    },
+    {
+      "id": "FUI-03",
+      "expected": "默认每 30 分钟；5 分钟修复超时默认停止本轮；保活/重启/登录启动关闭；未授权",
+      "actual": "dropdown 每 30 分钟；启用保活/允许自动重启/开机运行均为 0；本轮未开启、下次检查与用时为空占位；超时动作无动作；文本明确超过 5 分钟停止本轮、保留下次定期检查；AX 为未授权",
+      "result": "pass",
+      "evidence": "独立原生完整 AX 与截图；授权卡当时在截图视口下方，由 AX 核对",
+      "actor": "root 打开网络保活页；observer 读取"
+    },
+    {
+      "id": "FUI-04",
+      "expected": "正常 UI 保存自定义 17 分钟；其他安全默认值保持关闭",
+      "actual": "dropdown 每 17 分钟、输入值 17；三个开关均 0、未开启、超时无动作、未授权；独立私有 settings.json 读回 intervalMinutes:17，enabled/restartOnTimeout/launchAtLogin 均 false",
+      "result": "pass",
+      "evidence": "独立原生完整 AX、截图与只读 settings.json",
+      "actor": "root 正常 UI 输入并保存；observer 读取保存结果",
+      "rootReportedProcessNote": "第一次输入追加成 3017，root 未保存该值，清空后重新输入 17 并保存；observer 未亲见该输入异常过程，不把它归为产品已保存无效值"
+    },
+    {
+      "id": "FUI-05",
+      "expected": "恢复每 30 分钟并保留关闭状态",
+      "actual": "反馈弹窗后的 guard AX 每 30 分钟；自定义输入已隐藏；独立私有 settings.json 读回 intervalMinutes:30，其他三字段 false",
+      "result": "pass",
+      "evidence": "独立完整 AX 与私有 settings.json；反馈截图遮挡后台 guard，未冒称截图全幅可见恢复状态",
+      "actor": "root 通过 dropdown 恢复 30 分钟；observer 读取"
+    },
+    {
+      "id": "FUI-06a",
+      "expected": "反馈默认附日志；先预览，未发送",
+      "actual": "附加脱敏日志 checkbox 为 1；预览包含 5.0.1、问题反馈、测试文字及脱敏日志；AX 全文有 network-check 的 ok/issue/duration；截图可见预览上部和日志开头；面板说明点击发送后才提交，无提交成功状态",
+      "result": "pass",
+      "evidence": "独立完整 AX 与截图",
+      "actor": "root 填写测试文字并仅点击预览；observer 读取",
+      "limitation": "没有验收真实反馈发送或服务端入库"
+    },
+    {
+      "id": "FUI-06b",
+      "expected": "取消附日志后预览不带日志块",
+      "actual": "checkbox 为 0；预览仅包含 5.0.1、问题反馈和测试文字，完整可见无日志块；取消与发送按钮仍可见，无提交成功状态",
+      "result": "pass",
+      "evidence": "独立完整 AX 与截图；退出后私有操作日志没有反馈 action",
+      "actor": "root 取消勾选并重新预览；observer 读取",
+      "limitation": "未点击发送"
+    },
+    {
+      "id": "FUI-07",
+      "expected": "正常退出并停止保活，私有默认设置恢复",
+      "actual": "root 报告已清空测试文字、恢复附日志勾选并关闭反馈，随后点击 footer 退出并停止保活；root 原执行会话 exit 0。observer 独立读进程确认精确最终包无人运行、私有 settings 为 30 和三个 false、私有日志仅 3 条 network-check，无反馈 action。随后观察工具意外重新启动，root 已再次正常关闭，observer 再以精确程序前缀过滤核证无人运行",
+      "result": "pass-with-observer-tool-side-effect",
+      "evidence": "原隔离会话 exit 0 为 root 提供；两次退出后无人运行及私有文件状态由 observer 独立读取",
+      "actor": "root 两次普通 UI 退出；observer 进程与文件核证",
+      "limitation": "清空文字和恢复附日志勾选的过程由 root 提供；observer 未在首次退出前独立观察该清理过程"
+    }
+  ],
+  "observerToolSideEffect": {
+    "status": "contained-and-closed",
+    "trigger": "原隔离应用退出后，observer 对既有完整路径绑定调用 getAXState；虽未再次 getApp，CUA 仍自动重新启动应用",
+    "newMainPid": 42250,
+    "mode": "同一最终包，无 --nettools-data，使用默认数据目录；未并入原隔离会话验收",
+    "actualObserverActionsAfterDetection": "立即停止所有 CUA；仅只读核对进程并向 root 报告",
+    "cleanup": "root 通过已有绑定读取 fresh AX 并点击 footer 正常退出；observer 后续纯进程读取确认精确最终包及 helpers 无进程",
+    "defaultDataPreserved": true,
+    "limitations": "自动启动可能产生初始化检查和默认目录日志；未主动清理或改动既有资料。无人工配置动作、授权、发送或网络修复动作。以后应用退出后只用进程核证，不再调用 CUA 绑定方法。"
+  },
+  "notExecuted": [
+    "首次互联网下载 quarantine/Gatekeeper 普通用户路径",
+    "本机安装授权的用户取消负路径",
+    "本机授权安装成功、失败/错密码及撤销正负路径",
+    "真实有权限修复、网络配置改写、自动重启与登录启动",
+    "真实反馈发送",
+    "其他平台本机 UI 与公共发布下载/更新"
+  ],
+  "localAuthorizationStatus": "pending-user-response；root 在触发授权前等待用户答复；本轮未执行 negative 或 positive grant",
+  "cleanup": {
+    "privateSettings": {"enabled": false, "intervalMinutes": 30, "restartOnTimeout": false, "launchAtLogin": false},
+    "privateLogCount": 3,
+    "privateLogActions": ["network-check", "network-check", "network-check"],
+    "feedbackActionFound": false,
+    "exactFinalApplicationProcessesRemaining": 0,
+    "oldApplicationProcessPreserved": true,
+    "rawScreenshotsOrAxSaved": false
+  },
+  "conclusion": "FINAL_CI_ORDINARY_UI_LIMITED_PASS：精确最终 CI macOS arm64 包的普通 UI、健康网络检查日志、默认值、自定义17保存/恢复30、反馈仅预览及普通退出具备独立证据。退出观察触发过工具自动重启并由root关闭，已披露。quarantine与本机授权正负路径仍未验收，不能宣称整体交付完成。"
+}

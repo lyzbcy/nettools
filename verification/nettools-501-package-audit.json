@@ -1,0 +1,2281 @@
+{
+  "schema": 1,
+  "timestampUtc": "2026-10-13T04:19:16.163879+00:00",
+  "sourceHead": "ac1597a5956386c4f7f5dd101ed9fd247085c4bb",
+  "runId": 38337392645,
+  "overallDeliveryComplete": false,
+  "assets": [
+    {
+      "name": "nettools-5.0.1-win-x64.zip",
+      "size": 155501826,
+      "sha256": "15a37c88b11a50d50e3f4b499b8cb9b9aefc50bb502442a1caf77a53343ef25d",
+      "manifestMatch": true,
+      "frozenMatch": true,
+      "hardlinkSameInode": true,
+      "originalFile": "verification/ci-38337392645/nettools-windows-candidate/release/nettools-5.0.1-win-x64.zip"
+    },
+    {
+      "name": "nettools-5.0.1-win-x64-setup.exe",
+      "size": 114206186,
+      "sha256": "49bb9360141f964346a538e02cc11c0072d9d81a4404765826a743c1b599b66a",
+      "manifestMatch": true,
+      "frozenMatch": true,
+      "hardlinkSameInode": true,
+      "originalFile": "verification/ci-38337392645/nettools-windows-candidate/release/.work-nettools-5.0.1-win-x64.noindex/nettools-5.0.1-win-x64-setup.exe"
+    },
+    {
+      "name": "nettools-5.0.1-mac-arm64.zip",
+      "size": 131361919,
+      "sha256": "4ee757b30722505be6c8ce7c4ff6fe8bd847b1647a2eef76d423c2743d180cce",
+      "manifestMatch": true,
+      "frozenMatch": true,
+      "hardlinkSameInode": true,
+      "originalFile": "verification/ci-38337392645/nettools-mac-arm64-candidate/release/nettools-5.0.1-mac-arm64.zip"
+    },
+    {
+      "name": "nettools-5.0.1-mac-arm64.dmg",
+      "size": 145580497,
+      "sha256": "1748cbd4aeef1c57de80bb3ab54a40c4fcd98628700ac231a13f6731c83941fa",
+      "manifestMatch": true,
+      "frozenMatch": true,
+      "hardlinkSameInode": true,
+      "originalFile": "verification/ci-38337392645/nettools-mac-arm64-candidate/release/nettools-5.0.1-mac-arm64.dmg"
+    },
+    {
+      "name": "nettools-5.0.1-mac-x64.zip",
+      "size": 137053666,
+      "sha256": "ec9be178deeeb76cc54f08f8cc42bd8e37751e03c861b7739674e00e32e185a2",
+      "manifestMatch": true,
+      "frozenMatch": true,
+      "hardlinkSameInode": true,
+      "originalFile": "verification/ci-38337392645/nettools-mac-x64-candidate/release/nettools-5.0.1-mac-x64.zip"
+    },
+    {
+      "name": "nettools-5.0.1-mac-x64.dmg",
+      "size": 152573226,
+      "sha256": "42cf66cf900c87e48db0cae98892672878ddc69c8f48aaaf06f8c9069cb4557d",
+      "manifestMatch": true,
+      "frozenMatch": true,
+      "hardlinkSameInode": true,
+      "originalFile": "verification/ci-38337392645/nettools-mac-x64-candidate/release/nettools-5.0.1-mac-x64.dmg"
+    }
+  ],
+  "archives": [
+    {
+      "name": "nettools-5.0.1-win-x64.zip",
+      "crcAllFilesMatch": true,
+      "entries": 123,
+      "layout": "root LaoyuNetTools.exe and resources/app",
+      "packagedVersion": "5.0.1",
+      "packageMain": "src/main.cjs",
+      "runtimeSourceFileCount": 36,
+      "runtimeSourceAllMatch": false,
+      "runtimeSourceFiles": [
+        {
+          "file": "src/preload.cjs",
+          "sha256": "1c9aa4f0e40b8eb38720a99047e0e69050f80f00536a9ef851920af4c6215af2",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/main.cjs",
+          "sha256": "b362e470992ab0b359336c741d8d8cba6b8ca614427b43e7e63a75b237cdde36",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/watchdog.cjs",
+          "sha256": "5c458bf78bdcecfbac3792f6b30adb2b16b304884df003861623803511857556",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/update-desktop-acceptance.cjs",
+          "sha256": "140c935a35c976e36482be1157ce171683c6c37a80f5054d569fecfba49a875a",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/updater.cjs",
+          "sha256": "4415fc05c0b738a087df5060339b9358e9aba832a28b223c089fbbdbfcec84be",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/log.cjs",
+          "sha256": "717ac926dcff8c8b40922ab86d4d34a964168fb0e8c460f1cece12c305d76788",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/raw-fs.cjs",
+          "sha256": "f834d00869b61a97517563b0c03883a326d684f0517dda38a276ad892bd1136c",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/desktop-acceptance.cjs",
+          "sha256": "de19c8c9f5853b8e4d7357de8d9a83f01c770965a407089f25a37da27706df07",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/feedback.cjs",
+          "sha256": "3c8ccdbf30adaa59d45e3b1b12f35eddc38073a43c8012183c3ec07ea7548aec",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/update-install.cjs",
+          "sha256": "ea3c1560ccf66c2850d31be4df7de4f7c7355addbafeb078c724120faef40fb4",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/controller.cjs",
+          "sha256": "9d65dbd6a56b0463718632bb48f7f5cae7a23b6937e9a914a391034918227dd8",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/settings.cjs",
+          "sha256": "642a71cd60bd735fdc407008d65eb3b027fa298c9d7f5efcb3a92833e2e5109c",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/engagement.cjs",
+          "sha256": "78d139d5c553a943110321f5a6924a26f05f9623277e5692663cdc6b057004bb",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/core/http.cjs",
+          "sha256": "9067201f2653dbd5830691dcc2db9328cb50dacc751403591257b9fa41a5db4a",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/platform/windows-authorization.ps1",
+          "sha256": "4334c77aa93bfda05332dd47d571a356a461430e8a03921bd577ffcadb9eed69",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/platform/windows.cjs",
+          "sha256": "2918a4148163493c142db6baf77421c0ba6113aaf0df18bd4915e04f96579e40",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/platform/common.cjs",
+          "sha256": "5264df87d15f519f2fd491a07194e675729a531b182525ec5a4d9e541f9a6257",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/platform/darwin.cjs",
+          "sha256": "f5b1fefaef4ffdaa685d8205007af1b09d7b306f2f403cc56b47d4808c063c94",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "src/platform/windows-network.ps1",
+          "sha256": "4b64301a0a4f20378069f9a688ea7d6761e9550ccb015e89abc29e3dae980f34",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/index.html",
+          "sha256": "46f4b7c8a6fd297fc77893b4862ba9240e140c29fcbf56725ea136a5ff87771c",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/app.css",
+          "sha256": "5715490354e987ded904cf3694c06af84b2aecef24e3355b35cc7377398f4b4a",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/app.js",
+          "sha256": "8db9d6f03673fef3169b34b58b7edbedb1a19afd375565e9348358b5de486ecf",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/assets/icon.png",
+          "sha256": "b531952032a37cf7ab17a62395ed7d1ca485890ceba2a37266701588d1ba57c6",
+          "matchesSource": true,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/assets/icon.icns",
+          "sha256": "bcdbc23f328bd3d933cee5ee42f4abb768d30e15a73826dc0421dbfc9fe7c613",
+          "matchesSource": true,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/assets/img/qq-group.jpg",
+          "sha256": "bc6bf48bae2b25899066eb8607ea4778c51a0e7e2ca11425699a630a332ade49",
+          "matchesSource": true,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/assets/img/avatar.png",
+          "sha256": "e7dbcc42595fa0b351aad2d6457182b6b649c3598bd817bc3187124a0394de81",
+          "matchesSource": true,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/assets/img/reward-qr.jpg",
+          "sha256": "7b520b949301ed19e8d7e49d1896686fbe809438920c70277e62b3fdfe85dfc3",
+          "matchesSource": true,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/assets/img/sticker-qr.png",
+          "sha256": "26b2008ca259af8f90961982696ee0fd2cad376696d2904e7b7844d63a720624",
+          "matchesSource": true,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/assets/img/sticker/final.png",
+          "sha256": "41632ca15b8a1f244332b6ce5fc76594e38a873ecddf1315bc78806c0be46435",
+          "matchesSource": true,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/assets/img/sticker/ok.png",
+          "sha256": "e5c386e10b9365182747db35fe612af1011de5f8d7f0a18fba53f52dff5a004f",
+          "matchesSource": true,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/assets/img/sticker/no.png",
+          "sha256": "1c17dbcfe939f18605d88ac7f124bfd7c5d1f76b020ac6cf819f592896ec088e",
+          "matchesSource": true,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/assets/img/sticker/mascot.png",
+          "sha256": "ff1002fa670363e25cf3fb8190bb7cac23aa19fed4d3d1b6857920e8ce92ed79",
+          "matchesSource": true,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "ui/assets/img/sticker/warn.png",
+          "sha256": "61c6727012f24b1ca82f484a069c0c313462c38e33465eb0f359be9024aad3bf",
+          "matchesSource": true,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "scripts/update-mac.sh",
+          "sha256": "001bae5069d0de95bd0c923b119b2552c10d66b5251a2374cb3f1a587df65fe8",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "scripts/update-win.ps1",
+          "sha256": "e8d4c3d9a08089eb8291385cf900a85820c6f4c98fc2b561736524f2dfbfa4f3",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        },
+        {
+          "file": "LICENSE",
+          "sha256": "471d62a2a305abae9be044522012053bf2edd5acd7542bc82088c5ea9d0f6eca",
+          "matchesSource": false,
+          "matchesSourceAfterCRLFNormalization": true
+        }
+      ],
+      "packageMetadataScope": "builder removes scripts/devDependencies; runtime files compared byte-for-byte",
+      "unsafeArchiveEntries": false,
+      "pe": {
+        "mz": true,
+        "peSignature": true,
+        "machine": "0x8664",
+        "sha256": "03a097ad449bf2b5531ab4629ea809698e901bb392351a2cc40a817fdfa81692"
+      },
+      "runtimeSourceAllMatchAfterCRLFNormalization": true,
+      "runtimeTextCheckoutDifference": "25 text files CRLF from Windows checkout; 11 binary files exact bytes; all content matches after CRLF normalization",
+      "runtimeFilesExcludingLicense": 35,
+      "logicalZipDirectoryFingerprint": "0557066c35cf27c50eca55471c874ebbbc7aeeabe7ce6cd30d61056ee0a92c47",
+      "logicalZipDirectoryFingerprintMatchesCi": false,
+      "fingerprintUsesNativePathSeparators": true,
+      "zipPlusPostNsisElevateManifestFingerprint": {
+        "sha256": "56341c0b63660cfbdf3045f23d752c13707feee929493f56fd8513eb64d5b1b3",
+        "matchesCiDirectory": true,
+        "extraManifestFile": "resources/elevate.exe",
+        "extraManifestSize": 107520,
+        "extraManifestSha256": "9b1fbf0c11c520ae714af8aa9af12cfd48503eedecd7398d8992ee94d1b4dc37",
+        "scope": "ZIP stream plus retained CI failure-source manifest for NSIS elevate helper; no fresh elevate binary stream available",
+        "builderOrder": "Windows ZIP created before NSIS copies resources/elevate.exe into verifiedDirectory"
+      }
+    },
+    {
+      "name": "nettools-5.0.1-mac-arm64.zip",
+      "crcAllFilesMatch": true,
+      "entries": 595,
+      "layout": "single named app bundle",
+      "packagedVersion": "5.0.1",
+      "packageMain": "src/main.cjs",
+      "runtimeSourceFileCount": 36,
+      "runtimeSourceAllMatch": true,
+      "runtimeSourceFiles": [
+        {
+          "file": "src/preload.cjs",
+          "sha256": "a29ac67554a37d8ef875e0d54312906d803e00063d2b51df9f24c4bdbb6efb72",
+          "matchesSource": true
+        },
+        {
+          "file": "src/main.cjs",
+          "sha256": "3773823fde4a5c051d1b86b4ccd726264d43ce76c25a4282d953a389b430ad2e",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/watchdog.cjs",
+          "sha256": "1dc8ad8717e328431de53b91bc3853dbab7dd053bad130bef8f425c9a9d0c8e3",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/update-desktop-acceptance.cjs",
+          "sha256": "c1139005d300e4b3f5ec326c54d07ba5a4f3032754d733572c99b940b6bca887",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/updater.cjs",
+          "sha256": "ca596ec1927a9359007e2331a7feb3f23cc1879100be94c746a76581dfc92d48",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/log.cjs",
+          "sha256": "ee638f516e763dec86b1bd23687e345240d8777e338d67283b9fd25fa5edf002",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/raw-fs.cjs",
+          "sha256": "637e9983cf7a662e292c60b59a74e1e073043c8a72a22f3f99353c50596d853a",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/desktop-acceptance.cjs",
+          "sha256": "5384fc307d8c726e92de3a67bea9998c97a8b3358d21094a568498b1db68eaa8",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/feedback.cjs",
+          "sha256": "e95bd648d8cf97dcbec6c06df4b269bff921366229eef4a94d5106c1c3b3bcd2",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/update-install.cjs",
+          "sha256": "16ed20e4328e3f3bbbd6fd774ed87590760e7041f4c3314175e4d1d3a8356bba",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/controller.cjs",
+          "sha256": "7ba64642165a37c7fd9e82e534c61a77016163a255a3884967e79591b8d1cf15",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/settings.cjs",
+          "sha256": "a3bae82d25f1370211e3b7783d169e87f56915059fce804f2abd8b46b57f7723",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/engagement.cjs",
+          "sha256": "4b0282329a65f2cc5c20bafdf60005f8795feccc5f564ceb2a274791eb1ac3e1",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/http.cjs",
+          "sha256": "f73abf359269457c9135973a50845b2e4537f8e269bfea7bf0044305b5b84ecc",
+          "matchesSource": true
+        },
+        {
+          "file": "src/platform/windows-authorization.ps1",
+          "sha256": "04ea36fb64f55beaf3c3700a34642c5308f72ad132320b04bcf5df5bdf324179",
+          "matchesSource": true
+        },
+        {
+          "file": "src/platform/windows.cjs",
+          "sha256": "2f1af85b54e8f56ff78199218bf7c8ab0cb968f063fdddd260dfd8fa45bbb775",
+          "matchesSource": true
+        },
+        {
+          "file": "src/platform/common.cjs",
+          "sha256": "a6d5286c99d3f8a3b90824f02f00682d00e77941e41774b6a5763d8225498752",
+          "matchesSource": true
+        },
+        {
+          "file": "src/platform/darwin.cjs",
+          "sha256": "3576a9b22047231d3838bd2669ce49d3dd3bfcd61403290962764a73af398826",
+          "matchesSource": true
+        },
+        {
+          "file": "src/platform/windows-network.ps1",
+          "sha256": "7d915c98df1b98f9460c938e918f1a17e8cac160fdf76c6386fac17d3bd92ca6",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/index.html",
+          "sha256": "7df247bff22f177e2e73952109407067cc90f0d921452920c9752a097dc9c83d",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/app.css",
+          "sha256": "411285e8d07208f544a387a507a3372bbff6d981d7790c233951475354825ad0",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/app.js",
+          "sha256": "bf29fb1a7d72f08f925357d302db43f4596147248def671ee9d48258e520bcb1",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/icon.png",
+          "sha256": "b531952032a37cf7ab17a62395ed7d1ca485890ceba2a37266701588d1ba57c6",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/icon.icns",
+          "sha256": "bcdbc23f328bd3d933cee5ee42f4abb768d30e15a73826dc0421dbfc9fe7c613",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/qq-group.jpg",
+          "sha256": "bc6bf48bae2b25899066eb8607ea4778c51a0e7e2ca11425699a630a332ade49",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/avatar.png",
+          "sha256": "e7dbcc42595fa0b351aad2d6457182b6b649c3598bd817bc3187124a0394de81",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/reward-qr.jpg",
+          "sha256": "7b520b949301ed19e8d7e49d1896686fbe809438920c70277e62b3fdfe85dfc3",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker-qr.png",
+          "sha256": "26b2008ca259af8f90961982696ee0fd2cad376696d2904e7b7844d63a720624",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker/final.png",
+          "sha256": "41632ca15b8a1f244332b6ce5fc76594e38a873ecddf1315bc78806c0be46435",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker/ok.png",
+          "sha256": "e5c386e10b9365182747db35fe612af1011de5f8d7f0a18fba53f52dff5a004f",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker/no.png",
+          "sha256": "1c17dbcfe939f18605d88ac7f124bfd7c5d1f76b020ac6cf819f592896ec088e",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker/mascot.png",
+          "sha256": "ff1002fa670363e25cf3fb8190bb7cac23aa19fed4d3d1b6857920e8ce92ed79",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker/warn.png",
+          "sha256": "61c6727012f24b1ca82f484a069c0c313462c38e33465eb0f359be9024aad3bf",
+          "matchesSource": true
+        },
+        {
+          "file": "scripts/update-mac.sh",
+          "sha256": "427ab0dacc209a8879e7bbf97c019ea328d051aeb55f55a77b85b6ac4e1bc8a8",
+          "matchesSource": true
+        },
+        {
+          "file": "scripts/update-win.ps1",
+          "sha256": "fbf0d9df4be39a86fc7dad3ab888fcb91061168488de3cf6be532a008e35a6b8",
+          "matchesSource": true
+        },
+        {
+          "file": "LICENSE",
+          "sha256": "ab5c2bcb7ab5f3d06b0c62b552fab5fde4d10418349bafad7c74ababef0bcb74",
+          "matchesSource": true
+        }
+      ],
+      "packageMetadataScope": "builder removes scripts/devDependencies; runtime files compared byte-for-byte",
+      "unsafeArchiveEntries": false,
+      "bundle": {
+        "CFBundleDisplayName": "捞鱼的网络工具",
+        "CFBundleName": "捞鱼的网络工具",
+        "CFBundleIdentifier": "com.laoyu.nettools",
+        "CFBundleExecutable": "LaoyuNetTools",
+        "CFBundleShortVersionString": "5.0.1",
+        "CFBundleVersion": "5.0.1",
+        "CFBundleIconFile": "icon.icns",
+        "LSMinimumSystemVersion": "13.0"
+      },
+      "macho": {
+        "MacOS/LaoyuNetTools": {
+          "cpuType": "0x100000c",
+          "magic": "cffaedfe",
+          "sha256": "b3d01631c0ac09ec8e06277d4ae8f3e81625fd329af6d159dbcdce71d1d92e69"
+        },
+        "Resources/native/NetRepair": {
+          "cpuType": "0x100000c",
+          "magic": "cffaedfe",
+          "sha256": "2e688bb5535b4a653fb7c5ec806c5784c5fa3426f9bd3c919c47fdccc1e5dd4c"
+        },
+        "Resources/native/netrepair-helper": {
+          "cpuType": "0x100000c",
+          "magic": "cffaedfe",
+          "sha256": "d761e69fb38d060a09b4bf0860b9dccccbb343dc0449743b04a358669b36667d"
+        }
+      },
+      "nativeManifest": {
+        "version": "5.0.1",
+        "engineHashMatch": true,
+        "helperHashMatch": true
+      },
+      "bundleIconSourceMatch": true,
+      "localExtractedAllEntriesMatch": {
+        "filesAndSymlinks": 320,
+        "match": true,
+        "differences": []
+      },
+      "runtimeFilesExcludingLicense": 35,
+      "logicalZipDirectoryFingerprint": "9f5028a4e89f9db80b31c4c9063f2affd1e94976fcabaa383cbcf1bfa35100b1",
+      "logicalZipDirectoryFingerprintMatchesCi": true
+    },
+    {
+      "name": "nettools-5.0.1-mac-x64.zip",
+      "crcAllFilesMatch": true,
+      "entries": 595,
+      "layout": "single named app bundle",
+      "packagedVersion": "5.0.1",
+      "packageMain": "src/main.cjs",
+      "runtimeSourceFileCount": 36,
+      "runtimeSourceAllMatch": true,
+      "runtimeSourceFiles": [
+        {
+          "file": "src/preload.cjs",
+          "sha256": "a29ac67554a37d8ef875e0d54312906d803e00063d2b51df9f24c4bdbb6efb72",
+          "matchesSource": true
+        },
+        {
+          "file": "src/main.cjs",
+          "sha256": "3773823fde4a5c051d1b86b4ccd726264d43ce76c25a4282d953a389b430ad2e",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/watchdog.cjs",
+          "sha256": "1dc8ad8717e328431de53b91bc3853dbab7dd053bad130bef8f425c9a9d0c8e3",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/update-desktop-acceptance.cjs",
+          "sha256": "c1139005d300e4b3f5ec326c54d07ba5a4f3032754d733572c99b940b6bca887",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/updater.cjs",
+          "sha256": "ca596ec1927a9359007e2331a7feb3f23cc1879100be94c746a76581dfc92d48",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/log.cjs",
+          "sha256": "ee638f516e763dec86b1bd23687e345240d8777e338d67283b9fd25fa5edf002",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/raw-fs.cjs",
+          "sha256": "637e9983cf7a662e292c60b59a74e1e073043c8a72a22f3f99353c50596d853a",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/desktop-acceptance.cjs",
+          "sha256": "5384fc307d8c726e92de3a67bea9998c97a8b3358d21094a568498b1db68eaa8",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/feedback.cjs",
+          "sha256": "e95bd648d8cf97dcbec6c06df4b269bff921366229eef4a94d5106c1c3b3bcd2",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/update-install.cjs",
+          "sha256": "16ed20e4328e3f3bbbd6fd774ed87590760e7041f4c3314175e4d1d3a8356bba",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/controller.cjs",
+          "sha256": "7ba64642165a37c7fd9e82e534c61a77016163a255a3884967e79591b8d1cf15",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/settings.cjs",
+          "sha256": "a3bae82d25f1370211e3b7783d169e87f56915059fce804f2abd8b46b57f7723",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/engagement.cjs",
+          "sha256": "4b0282329a65f2cc5c20bafdf60005f8795feccc5f564ceb2a274791eb1ac3e1",
+          "matchesSource": true
+        },
+        {
+          "file": "src/core/http.cjs",
+          "sha256": "f73abf359269457c9135973a50845b2e4537f8e269bfea7bf0044305b5b84ecc",
+          "matchesSource": true
+        },
+        {
+          "file": "src/platform/windows-authorization.ps1",
+          "sha256": "04ea36fb64f55beaf3c3700a34642c5308f72ad132320b04bcf5df5bdf324179",
+          "matchesSource": true
+        },
+        {
+          "file": "src/platform/windows.cjs",
+          "sha256": "2f1af85b54e8f56ff78199218bf7c8ab0cb968f063fdddd260dfd8fa45bbb775",
+          "matchesSource": true
+        },
+        {
+          "file": "src/platform/common.cjs",
+          "sha256": "a6d5286c99d3f8a3b90824f02f00682d00e77941e41774b6a5763d8225498752",
+          "matchesSource": true
+        },
+        {
+          "file": "src/platform/darwin.cjs",
+          "sha256": "3576a9b22047231d3838bd2669ce49d3dd3bfcd61403290962764a73af398826",
+          "matchesSource": true
+        },
+        {
+          "file": "src/platform/windows-network.ps1",
+          "sha256": "7d915c98df1b98f9460c938e918f1a17e8cac160fdf76c6386fac17d3bd92ca6",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/index.html",
+          "sha256": "7df247bff22f177e2e73952109407067cc90f0d921452920c9752a097dc9c83d",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/app.css",
+          "sha256": "411285e8d07208f544a387a507a3372bbff6d981d7790c233951475354825ad0",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/app.js",
+          "sha256": "bf29fb1a7d72f08f925357d302db43f4596147248def671ee9d48258e520bcb1",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/icon.png",
+          "sha256": "b531952032a37cf7ab17a62395ed7d1ca485890ceba2a37266701588d1ba57c6",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/icon.icns",
+          "sha256": "bcdbc23f328bd3d933cee5ee42f4abb768d30e15a73826dc0421dbfc9fe7c613",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/qq-group.jpg",
+          "sha256": "bc6bf48bae2b25899066eb8607ea4778c51a0e7e2ca11425699a630a332ade49",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/avatar.png",
+          "sha256": "e7dbcc42595fa0b351aad2d6457182b6b649c3598bd817bc3187124a0394de81",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/reward-qr.jpg",
+          "sha256": "7b520b949301ed19e8d7e49d1896686fbe809438920c70277e62b3fdfe85dfc3",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker-qr.png",
+          "sha256": "26b2008ca259af8f90961982696ee0fd2cad376696d2904e7b7844d63a720624",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker/final.png",
+          "sha256": "41632ca15b8a1f244332b6ce5fc76594e38a873ecddf1315bc78806c0be46435",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker/ok.png",
+          "sha256": "e5c386e10b9365182747db35fe612af1011de5f8d7f0a18fba53f52dff5a004f",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker/no.png",
+          "sha256": "1c17dbcfe939f18605d88ac7f124bfd7c5d1f76b020ac6cf819f592896ec088e",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker/mascot.png",
+          "sha256": "ff1002fa670363e25cf3fb8190bb7cac23aa19fed4d3d1b6857920e8ce92ed79",
+          "matchesSource": true
+        },
+        {
+          "file": "ui/assets/img/sticker/warn.png",
+          "sha256": "61c6727012f24b1ca82f484a069c0c313462c38e33465eb0f359be9024aad3bf",
+          "matchesSource": true
+        },
+        {
+          "file": "scripts/update-mac.sh",
+          "sha256": "427ab0dacc209a8879e7bbf97c019ea328d051aeb55f55a77b85b6ac4e1bc8a8",
+          "matchesSource": true
+        },
+        {
+          "file": "scripts/update-win.ps1",
+          "sha256": "fbf0d9df4be39a86fc7dad3ab888fcb91061168488de3cf6be532a008e35a6b8",
+          "matchesSource": true
+        },
+        {
+          "file": "LICENSE",
+          "sha256": "ab5c2bcb7ab5f3d06b0c62b552fab5fde4d10418349bafad7c74ababef0bcb74",
+          "matchesSource": true
+        }
+      ],
+      "packageMetadataScope": "builder removes scripts/devDependencies; runtime files compared byte-for-byte",
+      "unsafeArchiveEntries": false,
+      "bundle": {
+        "CFBundleDisplayName": "捞鱼的网络工具",
+        "CFBundleName": "捞鱼的网络工具",
+        "CFBundleIdentifier": "com.laoyu.nettools",
+        "CFBundleExecutable": "LaoyuNetTools",
+        "CFBundleShortVersionString": "5.0.1",
+        "CFBundleVersion": "5.0.1",
+        "CFBundleIconFile": "icon.icns",
+        "LSMinimumSystemVersion": "13.0"
+      },
+      "macho": {
+        "MacOS/LaoyuNetTools": {
+          "cpuType": "0x1000007",
+          "magic": "cffaedfe",
+          "sha256": "a13792940a7c5454142eda96b76c9ba3c08677eab4170582170ee3a3433adc80"
+        },
+        "Resources/native/NetRepair": {
+          "cpuType": "0x1000007",
+          "magic": "cffaedfe",
+          "sha256": "9139353fcc3b74a66e98b08837a7fe368c4e6d23d53106b38905da6aed9af7a4"
+        },
+        "Resources/native/netrepair-helper": {
+          "cpuType": "0x1000007",
+          "magic": "cffaedfe",
+          "sha256": "351dbd67fdd0751b25b98454d489acfafb4a076ea5f3a35c2a18abb53b3374a6"
+        }
+      },
+      "nativeManifest": {
+        "version": "5.0.1",
+        "engineHashMatch": true,
+        "helperHashMatch": true
+      },
+      "bundleIconSourceMatch": true,
+      "runtimeFilesExcludingLicense": 35,
+      "logicalZipDirectoryFingerprint": "af1b2e6e705cf3cd57fe50c0165dd09f3527de80bb7ceca911c8f017839646b2",
+      "logicalZipDirectoryFingerprintMatchesCi": true
+    }
+  ],
+  "ciEvidence": [
+    {
+      "platform": "darwin",
+      "arch": "arm64",
+      "nativeScope": "Actual packaged engine and setuid helper; fixed CI sudo bootstrap, not production macOS authorization consent UI; DNS cache only, no adapter reconfiguration or reboot",
+      "nativeActualImplementation": "candidate app native engine/helper",
+      "nativeSteps": [
+        {
+          "name": "packaged-get-status",
+          "ok": true
+        },
+        {
+          "name": "packaged-network-check",
+          "ok": true
+        },
+        {
+          "name": "actual-eight-checks",
+          "ok": true
+        },
+        {
+          "name": "actual-root-helper-authentication",
+          "ok": true
+        },
+        {
+          "name": "actual-dns-cache-flush",
+          "ok": true
+        }
+      ],
+      "nativeOk": true,
+      "nativeCleanup": true,
+      "desktop": {
+        "version": "5.0.1",
+        "packaged": true,
+        "visible": true,
+        "native": {
+          "healthy": true,
+          "diagnosticError": null,
+          "authorizationInstalled": false
+        },
+        "settingsPreserved": true,
+        "ok": true
+      },
+      "desktopStepCount": 20,
+      "screenshots": 22,
+      "desktopScreenshotsReferencedExist": true,
+      "minimumSidebarAllPagesVisibleClickable": true,
+      "updateFixture": {
+        "fixture": true,
+        "published": false,
+        "historicalPublishedVersion": false,
+        "transport": "fixture.local"
+      },
+      "candidateBeforeAfterEqual": true,
+      "candidateArchiveMatchesFrozen": true,
+      "cases": [
+        {
+          "scenario": "success",
+          "driverVersion": "4.99.0",
+          "probeVersion": "5.0.1",
+          "driverAndProbeSnapshotVerified": true,
+          "driverAndProbePidsMatchCases": true,
+          "snapshots": [
+            {
+              "phase": "before-cleanup",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "updated",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "confirmed",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            },
+            {
+              "phase": "after-process-exit",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "updated",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "confirmed",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            }
+          ],
+          "preservationHashSummary": {
+            "settingsSha256": "920d680a1b9cd1b1085f06eee36329ff5991b479e0871a762ab30e9e0485ed97",
+            "configSha256": "7fbb0e4772f873a9cb7395d718af22ea7ae6da92dbac46648179c90ac8374b12",
+            "sentinelSha256": "2de7b0a7e4dc70d52f434bb1bd8818bf621e68131fdb05eaa13be548e146d874"
+          }
+        },
+        {
+          "scenario": "rollback",
+          "driverVersion": "5.0.1",
+          "probeVersion": "5.0.1",
+          "driverAndProbeSnapshotVerified": true,
+          "driverAndProbePidsMatchCases": true,
+          "snapshots": [
+            {
+              "phase": "before-cleanup",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "reopened",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            },
+            {
+              "phase": "after-process-exit",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "reopened",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            }
+          ],
+          "preservationHashSummary": {
+            "settingsSha256": "920d680a1b9cd1b1085f06eee36329ff5991b479e0871a762ab30e9e0485ed97",
+            "configSha256": "7fbb0e4772f873a9cb7395d718af22ea7ae6da92dbac46648179c90ac8374b12",
+            "sentinelSha256": "2de7b0a7e4dc70d52f434bb1bd8818bf621e68131fdb05eaa13be548e146d874"
+          }
+        }
+      ],
+      "cleanupConfirmed": true,
+      "remainingProcessCount": 0,
+      "uninstall": null,
+      "reportFiles": {
+        "native": "verification/ci-38337392645/nettools-mac-arm64-candidate/verification/macos-arm64/native-report.json",
+        "desktop": "verification/ci-38337392645/nettools-mac-arm64-candidate/verification/macos-arm64/desktop/desktop-report.json",
+        "update": "verification/ci-38337392645/nettools-mac-arm64-candidate/verification/macos-arm64/update/update-report.json"
+      }
+    },
+    {
+      "platform": "darwin",
+      "arch": "x64",
+      "nativeScope": "Actual packaged engine and setuid helper; fixed CI sudo bootstrap, not production macOS authorization consent UI; DNS cache only, no adapter reconfiguration or reboot",
+      "nativeActualImplementation": "candidate app native engine/helper",
+      "nativeSteps": [
+        {
+          "name": "packaged-get-status",
+          "ok": true
+        },
+        {
+          "name": "packaged-network-check",
+          "ok": true
+        },
+        {
+          "name": "actual-eight-checks",
+          "ok": true
+        },
+        {
+          "name": "actual-root-helper-authentication",
+          "ok": true
+        },
+        {
+          "name": "actual-dns-cache-flush",
+          "ok": true
+        }
+      ],
+      "nativeOk": true,
+      "nativeCleanup": true,
+      "desktop": {
+        "version": "5.0.1",
+        "packaged": true,
+        "visible": true,
+        "native": {
+          "healthy": true,
+          "diagnosticError": null,
+          "authorizationInstalled": false
+        },
+        "settingsPreserved": true,
+        "ok": true
+      },
+      "desktopStepCount": 20,
+      "screenshots": 22,
+      "desktopScreenshotsReferencedExist": true,
+      "minimumSidebarAllPagesVisibleClickable": true,
+      "updateFixture": {
+        "fixture": true,
+        "published": false,
+        "historicalPublishedVersion": false,
+        "transport": "fixture.local"
+      },
+      "candidateBeforeAfterEqual": true,
+      "candidateArchiveMatchesFrozen": true,
+      "cases": [
+        {
+          "scenario": "success",
+          "driverVersion": "4.99.0",
+          "probeVersion": "5.0.1",
+          "driverAndProbeSnapshotVerified": true,
+          "driverAndProbePidsMatchCases": true,
+          "snapshots": [
+            {
+              "phase": "before-cleanup",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "updated",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "confirmed",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            },
+            {
+              "phase": "after-process-exit",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "updated",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "confirmed",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            }
+          ],
+          "preservationHashSummary": {
+            "settingsSha256": "920d680a1b9cd1b1085f06eee36329ff5991b479e0871a762ab30e9e0485ed97",
+            "configSha256": "7fbb0e4772f873a9cb7395d718af22ea7ae6da92dbac46648179c90ac8374b12",
+            "sentinelSha256": "87045da01def25ea2abe98895d2a63d66455cea764b883598ebbd81e47d10d53"
+          }
+        },
+        {
+          "scenario": "rollback",
+          "driverVersion": "5.0.1",
+          "probeVersion": "5.0.1",
+          "driverAndProbeSnapshotVerified": true,
+          "driverAndProbePidsMatchCases": true,
+          "snapshots": [
+            {
+              "phase": "before-cleanup",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "reopened",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            },
+            {
+              "phase": "after-process-exit",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "reopened",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            }
+          ],
+          "preservationHashSummary": {
+            "settingsSha256": "920d680a1b9cd1b1085f06eee36329ff5991b479e0871a762ab30e9e0485ed97",
+            "configSha256": "7fbb0e4772f873a9cb7395d718af22ea7ae6da92dbac46648179c90ac8374b12",
+            "sentinelSha256": "87045da01def25ea2abe98895d2a63d66455cea764b883598ebbd81e47d10d53"
+          }
+        }
+      ],
+      "cleanupConfirmed": true,
+      "remainingProcessCount": 0,
+      "uninstall": null,
+      "reportFiles": {
+        "native": "verification/ci-38337392645/nettools-mac-x64-candidate/verification/macos-x64/native-report.json",
+        "desktop": "verification/ci-38337392645/nettools-mac-x64-candidate/verification/macos-x64/desktop/desktop-report.json",
+        "update": "verification/ci-38337392645/nettools-mac-x64-candidate/verification/macos-x64/update/update-report.json"
+      }
+    },
+    {
+      "platform": "win32",
+      "arch": "x64",
+      "nativeScope": "Actual Windows native RPC, private config round trip, SYSTEM grant install, DNS cache flush and grant removal; no reboot or adapter reconfiguration",
+      "nativeActualImplementation": "source src/platform before packaging",
+      "nativeSteps": [
+        {
+          "name": "actual-windows-settings-acl",
+          "durationMs": 425,
+          "ownerTrusted": true,
+          "ok": true,
+          "otherReaders": 0
+        },
+        {
+          "name": "get-status",
+          "durationMs": 3315,
+          "ok": true,
+          "linkAvailable": true,
+          "hasAddress": true,
+          "dhcp": true
+        },
+        {
+          "name": "network-check",
+          "durationMs": 4213,
+          "ok": true,
+          "networkHealthy": true,
+          "issue": "ok"
+        },
+        {
+          "name": "diagnose",
+          "durationMs": 6443,
+          "ok": true,
+          "count": 8
+        },
+        {
+          "name": "unicode-config-save",
+          "durationMs": 524,
+          "ok": true
+        },
+        {
+          "name": "unicode-config-load",
+          "durationMs": 461,
+          "ok": true
+        },
+        {
+          "name": "authorization-before",
+          "durationMs": 450,
+          "ok": true,
+          "installed": false
+        },
+        {
+          "name": "authorization-install",
+          "durationMs": 2989,
+          "ok": true
+        },
+        {
+          "name": "authorization-verified",
+          "durationMs": 4103,
+          "ok": true,
+          "installed": true
+        },
+        {
+          "name": "actual-system-dns-cache-flush",
+          "durationMs": 7541,
+          "ok": true
+        },
+        {
+          "name": "authorization-uninstall",
+          "durationMs": 16229,
+          "ok": true
+        },
+        {
+          "name": "authorization-removed",
+          "durationMs": 420,
+          "ok": true,
+          "installed": false
+        }
+      ],
+      "nativeOk": true,
+      "nativeCleanup": null,
+      "desktop": {
+        "version": "5.0.1",
+        "packaged": true,
+        "visible": true,
+        "native": {
+          "healthy": true,
+          "diagnosticError": null,
+          "authorizationInstalled": false
+        },
+        "settingsPreserved": true,
+        "ok": true
+      },
+      "desktopStepCount": 20,
+      "screenshots": 25,
+      "desktopScreenshotsReferencedExist": true,
+      "minimumSidebarAllPagesVisibleClickable": true,
+      "updateFixture": {
+        "fixture": true,
+        "published": false,
+        "historicalPublishedVersion": false,
+        "transport": "fixture.local"
+      },
+      "candidateBeforeAfterEqual": true,
+      "candidateArchiveMatchesFrozen": true,
+      "cases": [
+        {
+          "scenario": "success",
+          "driverVersion": "4.99.0",
+          "probeVersion": "5.0.1",
+          "driverAndProbeSnapshotVerified": true,
+          "driverAndProbePidsMatchCases": true,
+          "snapshots": [
+            {
+              "phase": "before-cleanup",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "updated",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "confirmed",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            },
+            {
+              "phase": "after-process-exit",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "updated",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "confirmed",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            }
+          ],
+          "preservationHashSummary": {
+            "settingsSha256": "920d680a1b9cd1b1085f06eee36329ff5991b479e0871a762ab30e9e0485ed97",
+            "configSha256": "7fbb0e4772f873a9cb7395d718af22ea7ae6da92dbac46648179c90ac8374b12",
+            "sentinelSha256": "ae8507ac1cf749e4aeef5088046ae4ce36524c4c23fe85dd696f00a2876eb40f"
+          }
+        },
+        {
+          "scenario": "rollback",
+          "driverVersion": "5.0.1",
+          "probeVersion": "5.0.1",
+          "driverAndProbeSnapshotVerified": true,
+          "driverAndProbePidsMatchCases": true,
+          "snapshots": [
+            {
+              "phase": "before-cleanup",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "reopened",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            },
+            {
+              "phase": "after-process-exit",
+              "bound": true,
+              "controlIdentityMatches": true,
+              "allCapturedFileHashSizeMatch": true,
+              "fileCount": 11,
+              "processes": [
+                {
+                  "role": "original",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "helper-ready",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                },
+                {
+                  "role": "reopened",
+                  "relation": "not-running",
+                  "observedExists": false,
+                  "queryError": null
+                }
+              ],
+              "allProcessesNotRunning": true
+            }
+          ],
+          "preservationHashSummary": {
+            "settingsSha256": "920d680a1b9cd1b1085f06eee36329ff5991b479e0871a762ab30e9e0485ed97",
+            "configSha256": "7fbb0e4772f873a9cb7395d718af22ea7ae6da92dbac46648179c90ac8374b12",
+            "sentinelSha256": "ae8507ac1cf749e4aeef5088046ae4ce36524c4c23fe85dd696f00a2876eb40f"
+          }
+        }
+      ],
+      "cleanupConfirmed": true,
+      "remainingProcessCount": 0,
+      "uninstall": {
+        "uninstalled": true,
+        "registrationRemoved": true,
+        "installRemoved": true,
+        "shortcutsRemoved": true,
+        "dataPreserved": true
+      },
+      "reportFiles": {
+        "native": "verification/ci-38337392645/windows-native-evidence/native-report.json",
+        "desktop": "verification/ci-38337392645/windows-native-evidence/desktop/desktop-report.json",
+        "update": "verification/ci-38337392645/windows-native-evidence/update/update-report.json"
+      }
+    }
+  ],
+  "evidenceErrors": [],
+  "outerArchiveEvidence": {
+    "receipt": "verification/ci-38337392645/download-receipt.json",
+    "status": "receipt-only; original four outer downloads intentionally removed; not freshly recomputed",
+    "apiDigestVerifiedCount": 4
+  },
+  "windowsPeBrand": {
+    "main": {
+      "versionResources": [
+        {
+          "fixedInfo": {
+            "fileVersionMS": 327680,
+            "fileVersionLS": 65536,
+            "productVersionMS": 327680,
+            "productVersionLS": 65536,
+            "fileFlagsMask": 63,
+            "fileFlags": 0,
+            "fileOS": 262148,
+            "fileType": 1,
+            "fileSubtype": 0,
+            "fileDateMS": 0,
+            "fileDateLS": 0
+          },
+          "strings": {
+            "CompanyName": "捞鱼工作室",
+            "FileDescription": "捞鱼的网络工具",
+            "FileVersion": "5.0.1.0",
+            "InternalName": "electron.exe",
+            "LegalCopyright": "Copyright © 2026 捞鱼工作室",
+            "OriginalFilename": "LaoyuNetTools.exe",
+            "ProductName": "捞鱼的网络工具",
+            "ProductVersion": "5.0.1.0",
+            "SquirrelAwareVersion": "1"
+          }
+        }
+      ],
+      "iconCount": 7,
+      "expectedIconCount": 7,
+      "allIconBytesMatch": false,
+      "iconHashes": [
+        "08dc04878b984a03c563de2ca0312397a4b954a418d100a82b85ecf56ed6406e",
+        "1cf07c5e8ea358bb7b69f0b2a82494b6c00956fab82ef7ac09392d20fffc6f0b",
+        "30590ec1759915d33d1d4727a8e6a105bf9b844373c00485a8d7040a86e5a2dd",
+        "33f52f405bf227900bb8c03dacc35489ba665907cf63114647fececbc6202462",
+        "49b6857d93e397fc1a6db03a37bb3939fd9986d4974c7e7680f95769d7704f57",
+        "6c1b43142879b31cd6ae03b10bfab03e236b7a0c5ee29ff1c0aed6f656589c79",
+        "bb67a7abb05377e1d4ef8355cbfa365ec04fa9e5143ca3323a76360c4b56e72f"
+      ]
+    },
+    "installer": {
+      "versionResources": [
+        {
+          "fixedInfo": {
+            "fileVersionMS": 327680,
+            "fileVersionLS": 65536,
+            "productVersionMS": 327680,
+            "productVersionLS": 65536,
+            "fileFlagsMask": 0,
+            "fileFlags": 0,
+            "fileOS": 4,
+            "fileType": 1,
+            "fileSubtype": 0,
+            "fileDateMS": 0,
+            "fileDateLS": 0
+          },
+          "languages": [
+            {
+              "lang": {
+                "lang": 1033,
+                "codepage": 1252
+              },
+              "strings": {
+                "CompanyName": "捞鱼工作室",
+                "FileDescription": "捞鱼的网络工具 · Mac / Windows 网络诊断、修复与保活",
+                "FileVersion": "5.0.1",
+                "LegalCopyright": "Copyright © 2026 捞鱼工作室",
+                "ProductName": "捞鱼的网络工具",
+                "ProductVersion": "5.0.1"
+              }
+            }
+          ]
+        }
+      ],
+      "iconCount": 7,
+      "expectedIconCount": 7,
+      "allIconBytesMatch": false,
+      "iconHashes": [
+        "08dc04878b984a03c563de2ca0312397a4b954a418d100a82b85ecf56ed6406e",
+        "1cf07c5e8ea358bb7b69f0b2a82494b6c00956fab82ef7ac09392d20fffc6f0b",
+        "30590ec1759915d33d1d4727a8e6a105bf9b844373c00485a8d7040a86e5a2dd",
+        "33f52f405bf227900bb8c03dacc35489ba665907cf63114647fececbc6202462",
+        "49b6857d93e397fc1a6db03a37bb3939fd9986d4974c7e7680f95769d7704f57",
+        "6c1b43142879b31cd6ae03b10bfab03e236b7a0c5ee29ff1c0aed6f656589c79",
+        "bb67a7abb05377e1d4ef8355cbfa365ec04fa9e5143ca3323a76360c4b56e72f"
+      ]
+    },
+    "pixelComparison": [
+      {
+        "size": [
+          256,
+          256
+        ],
+        "pixelsMatchSourceResize": true
+      },
+      {
+        "size": [
+          32,
+          32
+        ],
+        "pixelsMatchSourceResize": true
+      },
+      {
+        "size": [
+          24,
+          24
+        ],
+        "pixelsMatchSourceResize": true
+      },
+      {
+        "size": [
+          128,
+          128
+        ],
+        "pixelsMatchSourceResize": true
+      },
+      {
+        "size": [
+          64,
+          64
+        ],
+        "pixelsMatchSourceResize": true
+      },
+      {
+        "size": [
+          48,
+          48
+        ],
+        "pixelsMatchSourceResize": true
+      },
+      {
+        "size": [
+          16,
+          16
+        ],
+        "pixelsMatchSourceResize": true
+      }
+    ],
+    "iconAssessment": "main and installer RT_ICON PNG bytes identical to each other; 7 decoded RGBA sizes match source icon pixels exactly; local generated icon compressed byte comparison differs"
+  },
+  "dmgReadOnlyInspection": [
+    {
+      "arch": "arm64",
+      "readOnly": true,
+      "applicationsLink": true,
+      "appPresent": true,
+      "bundleVersion": "5.0.1",
+      "zipAppAllEntriesMatch": true,
+      "comparedEntries": 320,
+      "deepStrictCodesignExit": 0,
+      "detached": true
+    },
+    {
+      "arch": "x64",
+      "readOnly": true,
+      "applicationsLink": true,
+      "appPresent": true,
+      "bundleVersion": "5.0.1",
+      "zipAppAllEntriesMatch": true,
+      "comparedEntries": 320,
+      "deepStrictCodesignExit": 0,
+      "detached": true
+    }
+  ],
+  "macExtractedCodesign": {
+    "deepStrictVerifyExit": 0,
+    "signature": "adhoc",
+    "identifier": "com.laoyu.nettools",
+    "teamIdentifier": null,
+    "notarizationProven": false,
+    "architectures": {
+      "main": "arm64",
+      "engine": "arm64",
+      "helper": "arm64"
+    },
+    "performedWithoutLaunch": true,
+    "directoryFingerprint": "9f5028a4e89f9db80b31c4c9063f2affd1e94976fcabaa383cbcf1bfa35100b1",
+    "directoryFingerprintMatchesCi": true
+  },
+  "ciRunMetadata": {
+    "file": "verification/ci-38337392645/run-jobs-metadata.json",
+    "sha256": "2fc0031d4fd3b81c81a4a6b0fe8573d136bec36a960eaabddf77755d484b82ac",
+    "runId": 38337392645,
+    "headSha": "ac1597a5956386c4f7f5dd101ed9fd247085c4bb",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/lyzbcy/nettools/actions/runs/38337392645",
+    "jobs": [
+      {
+        "id": 115100463110,
+        "name": "macos (macos-15-intel, x64)",
+        "headSha": "ac1597a5956386c4f7f5dd101ed9fd247085c4bb",
+        "status": "completed",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/setup-node@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Verify native runner CPU",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Core and isolated native security regressions",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run pnpm/action-setup@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/setup-python@v5",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Fixed packaging dependencies",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual fixed builder configuration regression",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Build complete Mac ZIP and DMG",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual Electron raw ASAR update regression",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual packaged native helper and cleanup",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual installed desktop and persisted preferences",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Preserve Mac evidence and candidate packages",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/setup-python@v5",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run pnpm/action-setup@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/setup-node@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success",
+            "status": "completed"
+          }
+        ]
+      },
+      {
+        "id": 115100463316,
+        "name": "windows",
+        "headSha": "ac1597a5956386c4f7f5dd101ed9fd247085c4bb",
+        "status": "completed",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/setup-node@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Core and production PowerShell fixture tests",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual Windows native and authorization acceptance",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run pnpm/action-setup@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/setup-python@v5",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Fixed packaging dependencies",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual fixed builder configuration regression",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Build complete Windows ZIP and themed installer",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual Electron raw ASAR update regression",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual installed desktop and persisted preferences",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Preserve actual acceptance evidence",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Preserve candidate packages and integrity report",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/setup-python@v5",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run pnpm/action-setup@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/setup-node@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success",
+            "status": "completed"
+          }
+        ]
+      },
+      {
+        "id": 115100463380,
+        "name": "macos (macos-15, arm64)",
+        "headSha": "ac1597a5956386c4f7f5dd101ed9fd247085c4bb",
+        "status": "completed",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/setup-node@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Verify native runner CPU",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Core and isolated native security regressions",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run pnpm/action-setup@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/setup-python@v5",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Fixed packaging dependencies",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual fixed builder configuration regression",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Build complete Mac ZIP and DMG",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual Electron raw ASAR update regression",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual packaged native helper and cleanup",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Actual installed desktop and persisted preferences",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Preserve Mac evidence and candidate packages",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/setup-python@v5",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run pnpm/action-setup@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/setup-node@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success",
+            "status": "completed"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceWorkingTreeMatchesHead": {
+    "command": "git diff --exit-code ac1597a -- src ui scripts .github/workflows/validation.yml package.json",
+    "exitCode": 0
+  },
+  "visualReview": {
+    "ciScreenshotsViewed": 27,
+    "entries": [
+      {
+        "file": "verification/ci-38337392645/nettools-mac-arm64-candidate/verification/macos-arm64/desktop/06-minimum-about.png",
+        "sha256": "e21e8012b570eef5f0be7931a7f6ef6825bd225c959f521d35922b1fb583c442",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-arm64-candidate/verification/macos-arm64/desktop/02-guard-custom-interval.png",
+        "sha256": "76dac6ab05b653392c73265790b0f93625bfc8b13678025f90b061419406a364",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-arm64-candidate/verification/macos-arm64/desktop/03-actual-eight-item-diagnosis.png",
+        "sha256": "f95cedc0e64b8520cfd37ab73b39e949c52e6d26d5a1940972b0ef789117cf93",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-arm64-candidate/verification/macos-arm64/update/success/01-fixture-old-installed-window.png",
+        "sha256": "1902995cd9f1050812bf7134e3a678a48589c6422514402de03d2e806ce896e2",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-arm64-candidate/verification/macos-arm64/update/success/04-real-updated-visible-window.png",
+        "sha256": "b3c293f9090880ae15111c4aba597e9b7941945669f497ea2346fcb286243be5",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-arm64-candidate/verification/macos-arm64/update/success/06-preserved-seventeen-minute-setting.png",
+        "sha256": "8c779129e0dcdde367b76339578359ae57bb19f4cc5752753eef1bfb383cb507",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-arm64-candidate/verification/macos-arm64/update/rollback/05-real-rollback-failure-message.png",
+        "sha256": "5f9e228bd16c3ebcfca30ba33bf0398c6d78cf039c44b03adeaf8a80e1717b5e",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-arm64-candidate/verification/macos-arm64/update/rollback/06-preserved-seventeen-minute-setting.png",
+        "sha256": "bcb67614f15ce6a7550ff56a5544e12cc32cc0dacfa2629af1915c182fe41b4f",
+        "viewed": true,
+        "matchesNamedScenario": false,
+        "observation": "shows dashboard instead of guard; snapshot/state/data hashes pass separately"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-x64-candidate/verification/macos-x64/desktop/06-minimum-about.png",
+        "sha256": "f10ffd2a890dd577eea3b5744e257d3eccbfc4505eec16273a60d4fbbffdb559",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-x64-candidate/verification/macos-x64/desktop/02-guard-custom-interval.png",
+        "sha256": "e1bf19f71b742da1675c7859db9132e8571d6e1ce875c71eef94b454f11ba2a3",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-x64-candidate/verification/macos-x64/desktop/03-actual-eight-item-diagnosis.png",
+        "sha256": "25f09ee86cd7f55d4d3994b63d355d5b80a21e551afc3269bf790ff46ad0c803",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-x64-candidate/verification/macos-x64/update/success/01-fixture-old-installed-window.png",
+        "sha256": "e2b99b7c601fbc7feeb52fb3527c551adb08343629c1e8f5be9e871f61a6f3e8",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-x64-candidate/verification/macos-x64/update/success/04-real-updated-visible-window.png",
+        "sha256": "fee49fb0a8fe6021e677c941face2b0f2072abfdea5860437975edd505efe6fc",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-x64-candidate/verification/macos-x64/update/success/06-preserved-seventeen-minute-setting.png",
+        "sha256": "182ddb2cda3671a850def31f194f0678998648d1bf6d5a7ea900710c1ed976c7",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-x64-candidate/verification/macos-x64/update/rollback/05-real-rollback-failure-message.png",
+        "sha256": "bb2c7f77fd3c242b382aa4885e57205426a52518950b0f8011817d5aa025ec91",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/nettools-mac-x64-candidate/verification/macos-x64/update/rollback/06-preserved-seventeen-minute-setting.png",
+        "sha256": "fee49fb0a8fe6021e677c941face2b0f2072abfdea5860437975edd505efe6fc",
+        "viewed": true,
+        "matchesNamedScenario": false,
+        "observation": "shows dashboard instead of guard; snapshot/state/data hashes pass separately"
+      },
+      {
+        "file": "verification/ci-38337392645/windows-native-evidence/desktop/06-minimum-about.png",
+        "sha256": "efdacda4667d716468518d6d99e5790f6831778b54aadf6e6faa4d667cd1e893",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/windows-native-evidence/desktop/02-guard-custom-interval.png",
+        "sha256": "1e08a7da36cfb81b27d1f54a16a036350de3f1cbfcbffcb5c93c2ea9b7dde56b",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/windows-native-evidence/desktop/03-actual-eight-item-diagnosis.png",
+        "sha256": "f430d69a305b799a652a5658928be692756c7d6508b37dc0f3849d5a870ef2ef",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/windows-native-evidence/update/success/01-fixture-old-installed-window.png",
+        "sha256": "6c771207c3c119b42b9949ab5faf8a2bf3c91aac877f041890d797211d473278",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/windows-native-evidence/update/success/04-real-updated-visible-window.png",
+        "sha256": "c76ff9f4ab19530447f7424734a220d7ef37cb40916c3a8e629e132a37174f62",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/windows-native-evidence/update/success/06-preserved-seventeen-minute-setting.png",
+        "sha256": "e2fe6455935b133aea7c2145c26962b6591d317302d46aa88390cefea15c3d02",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/windows-native-evidence/update/rollback/05-real-rollback-failure-message.png",
+        "sha256": "69487a1beb65fe5c5e430340e92c0cb64295a5035fd0ccee0b769ca81e45e4de",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/windows-native-evidence/update/rollback/06-preserved-seventeen-minute-setting.png",
+        "sha256": "c7d0249f9d34a5de258b0087effed47291504375168167004d0c46ec94f51f49",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real version and named UI scenario; diagnosis has scrollable 8 rows verified by script"
+      },
+      {
+        "file": "verification/ci-38337392645/windows-native-evidence/installer/01-welcome.png",
+        "sha256": "e0a1c4007d1e23b1d61a8232b98af5e8297761a6bcdb240672eaa9ccd7b8d501",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real installer 5.0.1; location editable; completion recorded"
+      },
+      {
+        "file": "verification/ci-38337392645/windows-native-evidence/installer/02-location.png",
+        "sha256": "a6532b66ff1e0ba86d815abf3117f97b475119f912995f158b900175d08096b4",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real installer 5.0.1; location editable; completion recorded"
+      },
+      {
+        "file": "verification/ci-38337392645/windows-native-evidence/installer/03-finish.png",
+        "sha256": "0523f4ecba8d01050ab1c751a06a33092f397415d2bdf606bf973c76ed720883",
+        "viewed": true,
+        "matchesNamedScenario": true,
+        "observation": "visible branded real installer 5.0.1; location editable; completion recorded"
+      }
+    ],
+    "windowsIconViewed": true,
+    "privateNetworkValuesExcludedFromAuditText": true,
+    "diagnosticScreenshotScope": "8 diagnostic rows are asserted by DOM and native reports; viewport images show a scrollable subset, not all 8 at once"
+  },
+  "gaps": [
+    {
+      "id": "win-installed-write-path",
+      "status": "superseded-by-new-exact-installed-windows-evidence",
+      "scope": "Win native grant install, SYSTEM DNS flush and removal ran against source src/platform before packaging; installed-package readonly IPC and desktop evidenced separately. Source contents match package after checkout newline normalization; this does not replace installed package resources/IPC authorization proof.",
+      "safeNextStep": "Use untouched final Windows candidate in isolated actual Windows session; exercise real desktop IPC install-helper, helper-status, flush-dns, uninstall-helper; no adapter changes or reboot.",
+      "historicalStatus": "pending-supplemental-evidence",
+      "supersededGap": {
+        "runId": 38351682640,
+        "productionSourceHead": "ac1597a5956386c4f7f5dd101ed9fd247085c4bb",
+        "harnessHead": "0c4a74c0ebe644121336e1dedd1cbc398f1e4550",
+        "audit": "verification/fan-readiness-501-installed-windows-audit.json",
+        "scope": "New independent evidence verifies original installed normal visible Windows UI/preload/controller IPC on administrator runner. Original pre-packaging source evidence remains limited to its original scope. Standard-user UAC remains pending."
+      }
+    },
+    {
+      "id": "mac-rollback-settings-visual",
+      "status": "evidence-gap",
+      "scope": "Both Mac rollback/06 images show dashboard, although probe snapshots and settings/config/sentinel byte hashes prove 17 minutes and preservation; success/06 images correctly show guard17.",
+      "safeNextStep": "Use unchanged candidate in isolated fixture rollback; after observing active guard content in compositor, capture fresh native visible screenshot together with state and disk hashes."
+    },
+    {
+      "id": "first-download-quarantine",
+      "status": "pending",
+      "scope": "Ad-hoc deep signatures verify; original Internet download quarantine/Gatekeeper/notarization user launch is not proven by CI or this static audit."
+    },
+    {
+      "id": "local-authorization-consent",
+      "status": "pending",
+      "scope": "Mac CI sudo bootstrap is not actual local macOS allow/cancel/wrong-password consent; admin Windows runner is not standard-user UAC."
+    },
+    {
+      "id": "historical-500-grant-migration",
+      "status": "pending",
+      "scope": "4.99.0 baseline and faulty5.0.2 are private altered fixtures; no published prior5.0.0 binary/grant migration evidence."
+    },
+    {
+      "id": "public-release",
+      "status": "pending",
+      "scope": "Frozen CI candidate assets unpublished; public release upload, public re-download and production public update are not proven."
+    }
+  ],
+  "scopeConclusion": "CI candidate integrity/static package layout and three-platform private update/rollback behavior supported; Windows installed authorization write-path and Mac rollback settings screenshot require supplemental evidence; overall delivery remains pending.",
+  "auditFinalFrozenRecheck": {
+    "assetCount": 6,
+    "allFullStreamHashAndSizesStillMatch": true
+  },
+  "auditActions": {
+    "productionSourceEdits": false,
+    "frozenAssetEdits": false,
+    "guiLaunch": false,
+    "localHelperInstall": false,
+    "localNetworkMutation": false,
+    "localReadOnlyRpcExecuted": false,
+    "readOnlyDmgMountsDetached": true,
+    "auditReportsAndPrivateInspectionFilesOnly": true,
+    "privateAuditWorkspace": ".local-tools/501-package-audit/private",
+    "unitTestsRerunByAuditor": false,
+    "testClaimScope": "CI run/job/step success independently reconciled; 200-test count from parent is not newly asserted without logs"
+  },
+  "supplementalHarnessReview": {
+    "script": "scripts/ci-frozen-windows-native.cjs",
+    "workflow": ".github/workflows/frozen-501-native.yml",
+    "executedByAuditor": false,
+    "readOnlyReview": true,
+    "findings": [
+      {
+        "scope": "original candidate assets",
+        "assessment": "Explicit exact original artifact ID/run and pinned two asset SHA/size; shipped installed module and PS scripts paths; no rebuilt candidate."
+      },
+      {
+        "scope": "desktop IPC",
+        "assessment": "Current harness invokes installed windows.cjs via external Node. It proves installed resources path, not real Electron preload/controller IPC. Narrow report claim or add genuine app/IPC evidence."
+      },
+      {
+        "scope": "failure cleanup",
+        "assessment": "finally cleanupConfirmed is derived from uninstalled/grant flags before final ownedProcesses check. A failure may say cleanupConfirmed true while owned process remains; final process check should enter persisted cleanupConfirmed."
+      }
+    ],
+    "status": "reviewed; root notified; pending execution and evidence"
+  }
+}

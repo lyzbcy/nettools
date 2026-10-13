@@ -1,0 +1,472 @@
+{
+  "schema": 1,
+  "auditedAtUtc": "2026-10-13T05:54:31.596887+00:00",
+  "sourceProductionHead": "ac1597a5956386c4f7f5dd101ed9fd247085c4bb",
+  "harnessHead": "0c4a74c0ebe644121336e1dedd1cbc398f1e4550",
+  "supplementalRunId": 38351682640,
+  "originalRunId": 38337392645,
+  "originalArtifactId": 11784644714,
+  "version": "5.0.1",
+  "overallDeliveryComplete": false,
+  "checks": {
+    "metadataRunMatches": true,
+    "metadataJobsMatches": true,
+    "receiptBound": true,
+    "exactOriginalCandidateIdentity": true,
+    "reportAssetsMatchPreviouslyStreamAuditedOriginals": true,
+    "installedNativeHashesMatchOriginalZip": true,
+    "referenceMatchesBeforeAfterUi": true,
+    "shippedNormalIpcChainReviewed": true,
+    "actualWorkerSystemHashNonceAndCacheCodeReviewed": true,
+    "normalExePidBinding": true,
+    "normalModeVisible": true,
+    "onlyLoopbackOriginalPidDebugListener": true,
+    "rendererIsExactInstalledUi": true,
+    "allUiSnapshotBindingsAndSafety": true,
+    "allSnapshotsSamePrivateUserSid": true,
+    "exactSystemTaskIdentity": true,
+    "taskWorkerManifestBoundToExactInstalledOriginal": true,
+    "actualBusinessLogsAllStartedAndSucceeded": true,
+    "snapshotLogsMatchActualBusinessLogPrefixes": true,
+    "actionsObservedDuringRealUiBusy": true,
+    "authorizationReceiptsBoundAndDistinct": true,
+    "rawSystemFlushRequestResultBound": true,
+    "grantPhysicallyRemoved": true,
+    "originalAppExitedOrdinarily": true,
+    "allScopedProcessQueriesEmpty": true,
+    "ordinaryUninstallAndFixtureCleanup": true,
+    "cleanupPredicateIndependentlySatisfied": true,
+    "installerRawAndSummaryBound": true
+  },
+  "evidenceFiles": [
+    {
+      "file": "verification/frozen-ci-38351682640/01-normal-guard-before.json",
+      "size": 4354,
+      "sha256": "8855add22bf2c15c82ce1d8fa5c9365e121e28343bbd42f943dc45d0b14ae161",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/01-normal-guard-before.png",
+      "size": 64693,
+      "sha256": "ab4dbdd6174c364ffa7ab00a9cde10e60c56b7497dd53216054efd3be97d1c1d",
+      "imageViewed": true
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/04-before-ordinary-exit.json",
+      "size": 6348,
+      "sha256": "0d719593575af6911ee2919675f737a75cb2e82ebc06149cc0d396c2ad00031a",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/04-before-ordinary-exit.png",
+      "size": 68739,
+      "sha256": "44a8ff67d563dc31b0dd2ee58c2bedb1ccdb7f9f8496809620d2c4d09ba33457",
+      "imageViewed": true
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/actual-flush-request.json",
+      "size": 138,
+      "sha256": "d020f4e3180857c374d89ff5005878a239c5609581cbe64926eeb7a784c0f22a",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/actual-flush-result.json",
+      "size": 109,
+      "sha256": "5c55bb96e9946c1dda53c27928829cc8314805931808ecaaab9e6abb4c069c92",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/actual-operations.jsonl",
+      "size": 992,
+      "sha256": "f1600446be092898587dde1045721ea3740f70a725152d5a12b8bd08ef0fe35f",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/actual-system-task-identity.json",
+      "size": 1208,
+      "sha256": "475f02bbbb14c41c410cf3219254b70eeb5dcb6d5bf5752f764fd5146548611b",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/authorization-install.json",
+      "size": 303,
+      "sha256": "97a40497868cccd96b90ca263285c8845607861db326918619e5becea41db142",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/authorization-uninstall.json",
+      "size": 318,
+      "sha256": "bcdaef7501b598241077a39e660658f5586003ce357c5a126787f3f18fac07c4",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/download-receipt.json",
+      "size": 233,
+      "sha256": "72e9277b611a28e8cfc3ba8ef720420621e70b33a9f07570a38db152313b70db",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/flush-dns.json",
+      "size": 5672,
+      "sha256": "c0a370f2b01ae6db8155db8ea02ea390c3281879063a367e53a379df9f05f2cf",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/flush-dns.png",
+      "size": 72616,
+      "sha256": "31a2e40940ff25cf5f6dd85035235ca8ac9265b9ce02dea5e32c2b78dafecadb",
+      "imageViewed": true
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/install-helper.json",
+      "size": 5029,
+      "sha256": "ba54fa768d712ebc81ac89654d704a86635a6ba2b6453fcf7cc171ba76d52511",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/install-helper.png",
+      "size": 66617,
+      "sha256": "9f7c4b04cd4646479357f0da0665c09a61354b2f94fc3a50eba0825146409ecb",
+      "imageViewed": true
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/installer/01-welcome.png",
+      "size": 35349,
+      "sha256": "e0a1c4007d1e23b1d61a8232b98af5e8297761a6bcdb240672eaa9ccd7b8d501",
+      "imageViewed": true
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/installer/02-location.png",
+      "size": 29536,
+      "sha256": "9d6f80998c2a5a33d4715b6f8cc9e58d57355cdb4ff264e27cc1a296a3067b23",
+      "imageViewed": true
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/installer/03-finish.png",
+      "size": 34434,
+      "sha256": "9661a8719e9112d7d38ba6261e9003002498348967905b9aec0ed6fc927a4323",
+      "imageViewed": true
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/installer/installer-report.json",
+      "size": 325,
+      "sha256": "7ed2684a5200ebda508806592dac8ab1e455f5fc28ce3ba2f9f5e8c4a317e5a6",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/native-report.json",
+      "size": 29562,
+      "sha256": "e9dcbad57a5250f545df50fcbf5e01c7a48e8dc42ba9115f331ba2ba8fe11ff4",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/normal-process.log",
+      "size": 102,
+      "sha256": "c35afc51ad3fc47b43679257eb2b8bd911ceb52b69eafd6c3bcacb941a9ea823",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/uninstall-helper.json",
+      "size": 6348,
+      "sha256": "8ab2e9b0a838a9c365ff91121e9b0f84bcaae2784e383977f55c92b2d1d27dab",
+      "imageViewed": false
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/uninstall-helper.png",
+      "size": 68739,
+      "sha256": "44a8ff67d563dc31b0dd2ee58c2bedb1ccdb7f9f8496809620d2c4d09ba33457",
+      "imageViewed": true
+    }
+  ],
+  "gaps": [],
+  "metadata": {
+    "file": ".local-tools/frozen-ci-38351682640/metadata.json",
+    "sha256": "4d2937cba262c3a84a4d6e89f164808f8f074e10fc259425d7cd766b2e8b5ed2",
+    "url": "https://github.com/lyzbcy/nettools/actions/runs/38351682640",
+    "jobs": [
+      {
+        "id": 115145282586,
+        "name": "installed-windows-native",
+        "headSha": "0c4a74c0ebe644121336e1dedd1cbc398f1e4550",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "artifactReceipt": {
+    "runId": 38351682640,
+    "artifactId": 11791360977,
+    "size": 435121,
+    "sha256": "4e998881bf093cc817cffc8b32f65077c39d3be02893f11a60d59799786f0a39",
+    "apiDigestVerified": true,
+    "authorizationForwardedToSignedRedirect": false,
+    "scope": "Retained receipt of API artifact SHA/size verification. Original outer download not retained for auditor stream recomputation."
+  },
+  "originalAssets": [
+    {
+      "name": "nettools-5.0.1-win-x64-setup.exe",
+      "size": 114206186,
+      "sha256": "49bb9360141f964346a538e02cc11c0072d9d81a4404765826a743c1b599b66a",
+      "priorFullStreamEvidence": "verification/nettools-501-package-audit.json"
+    },
+    {
+      "name": "nettools-5.0.1-win-x64.zip",
+      "size": 155501826,
+      "sha256": "15a37c88b11a50d50e3f4b499b8cb9b9aefc50bb502442a1caf77a53343ef25d",
+      "priorFullStreamEvidence": "verification/nettools-501-package-audit.json"
+    }
+  ],
+  "referenceFileCountIndependentlyCounted": 111,
+  "shippedNativeFileHashes": {
+    "windows.cjs": "2918a4148163493c142db6baf77421c0ba6113aaf0df18bd4915e04f96579e40",
+    "windows-network.ps1": "4b64301a0a4f20378069f9a688ea7d6761e9550ccb015e89abc29e3dae980f34",
+    "windows-authorization.ps1": "4334c77aa93bfda05332dd47d571a356a461430e8a03921bd577ffcadb9eed69"
+  },
+  "uiStates": [
+    {
+      "file": "verification/frozen-ci-38351682640/01-normal-guard-before.json",
+      "version": "5.0.1",
+      "page": "page-guard",
+      "authorizationInstalled": false,
+      "safetyAndTerminalStateVerified": true,
+      "exactExpectedStateAndRenderer": true,
+      "intervalMinutes": 30
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/install-helper.json",
+      "version": "5.0.1",
+      "page": "page-guard",
+      "authorizationInstalled": true,
+      "safetyAndTerminalStateVerified": true,
+      "exactExpectedStateAndRenderer": true,
+      "intervalMinutes": 30
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/flush-dns.json",
+      "version": "5.0.1",
+      "page": "page-repair",
+      "authorizationInstalled": true,
+      "safetyAndTerminalStateVerified": true,
+      "exactExpectedStateAndRenderer": true,
+      "intervalMinutes": 30
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/uninstall-helper.json",
+      "version": "5.0.1",
+      "page": "page-guard",
+      "authorizationInstalled": false,
+      "safetyAndTerminalStateVerified": true,
+      "exactExpectedStateAndRenderer": true,
+      "intervalMinutes": 30
+    },
+    {
+      "file": "verification/frozen-ci-38351682640/04-before-ordinary-exit.json",
+      "version": "5.0.1",
+      "page": "page-guard",
+      "authorizationInstalled": false,
+      "safetyAndTerminalStateVerified": true,
+      "exactExpectedStateAndRenderer": true,
+      "intervalMinutes": 30
+    }
+  ],
+  "systemTask": {
+    "principal": "SYSTEM",
+    "runLevel": "Highest",
+    "logonType": "ServiceAccount",
+    "actionCount": 1,
+    "actionName": "flush-dns",
+    "finalState": "Ready",
+    "workerSha256": "4b64301a0a4f20378069f9a688ea7d6761e9550ccb015e89abc29e3dae980f34",
+    "privateSidAndPathsOmitted": true
+  },
+  "businessLogs": [
+    {
+      "action": "install-helper",
+      "startedCount": 1,
+      "successCount": 1,
+      "failedCount": 0,
+      "startedAt": "2026-10-13T05:31:03.746Z",
+      "completedAt": "2026-10-13T05:31:09.201Z",
+      "durationMs": 5455.087200000001,
+      "valid": true
+    },
+    {
+      "action": "flush-dns",
+      "startedCount": 1,
+      "successCount": 1,
+      "failedCount": 0,
+      "startedAt": "2026-10-13T05:31:12.926Z",
+      "completedAt": "2026-10-13T05:31:18.666Z",
+      "durationMs": 5740.0236,
+      "valid": true
+    },
+    {
+      "action": "uninstall-helper",
+      "startedCount": 1,
+      "successCount": 1,
+      "failedCount": 0,
+      "startedAt": "2026-10-13T05:31:19.815Z",
+      "completedAt": "2026-10-13T05:31:33.314Z",
+      "durationMs": 13498.8265,
+      "valid": true
+    }
+  ],
+  "actionBusyObservations": [
+    {
+      "action": "install-helper",
+      "count": 40,
+      "allOperationBusy": true,
+      "reportedVia": "ordinary DOM click -> shipped preload -> controller IPC",
+      "businessLogSuccess": true
+    },
+    {
+      "action": "flush-dns",
+      "count": 40,
+      "allOperationBusy": true,
+      "reportedVia": "ordinary DOM click -> shipped preload -> controller IPC",
+      "businessLogSuccess": true
+    },
+    {
+      "action": "uninstall-helper",
+      "count": 40,
+      "allOperationBusy": true,
+      "reportedVia": "ordinary DOM click -> shipped preload -> controller IPC",
+      "businessLogSuccess": true
+    }
+  ],
+  "authorizationReceipts": {
+    "install": {
+      "file": "verification/frozen-ci-38351682640/authorization-install.json",
+      "mode": "install",
+      "execution": "direct",
+      "closed": true,
+      "hashMatchesReport": true,
+      "privateSidBound": true,
+      "valid": true
+    },
+    "uninstall": {
+      "file": "verification/frozen-ci-38351682640/authorization-uninstall.json",
+      "mode": "uninstall",
+      "execution": "direct",
+      "closed": true,
+      "hashMatchesReport": true,
+      "privateSidBound": true,
+      "valid": true
+    }
+  },
+  "rawSystemFlush": {
+    "nonceValuesOmitted": true,
+    "sameNonceAcrossRequestResultAndSummary": true,
+    "requestAction": "flush-dns",
+    "requestVersion": "5.0.1",
+    "requestArgsEmpty": true,
+    "requestedAt": "2026-10-13T05:31:16.084Z",
+    "resultSha256": "5c55bb96e9946c1dda53c27928829cc8314805931808ecaaab9e6abb4c069c92",
+    "resultMessage": "DNS cache refreshed",
+    "sourceWorkerUsesClearDnsClientCache": true
+  },
+  "installerDurationMs": 24064,
+  "referenceByteComparisonScope": "Harness read and compared every original ZIP reference file against installed files before and after normal UI. Auditor independently counted 111 and recomputed shipped native script hashes from original ZIP; deleted installation bytes and per-file digest manifests are not retained for second local stream comparison. NSIS added uninstaller/elevate files are outside portable reference and handled by actual metadata/uninstall scope.",
+  "normalLaunch": {
+    "pid": 1792,
+    "visible": true,
+    "normalMode": true,
+    "debuggingIsolatedLoopback": true,
+    "rendererFileUrlBound": true,
+    "privateArgumentsAndPathsOmitted": true
+  },
+  "cleanup": {
+    "taskListEmpty": true,
+    "manifestAbsent": true,
+    "workerAbsent": true,
+    "appExitCode": 0,
+    "processQueriesEmpty": true,
+    "originalUninstaller": {
+      "uninstalled": true,
+      "registrationRemoved": true,
+      "installRemoved": true,
+      "shortcutsRemoved": true,
+      "dataPreserved": true
+    },
+    "privateFixtureRemoved": true
+  },
+  "visualReview": {
+    "allPngCount": 8,
+    "allPngViewed": true,
+    "observations": [
+      {
+        "file": "installer/01-welcome.png",
+        "finding": "Branded visible Windows x64 5.0.1 welcome"
+      },
+      {
+        "file": "installer/02-location.png",
+        "finding": "Editable private installation location and desktop shortcut unchecked"
+      },
+      {
+        "file": "installer/03-finish.png",
+        "finding": "Branded visible completion at 5.0.1"
+      },
+      {
+        "file": "01-normal-guard-before.png",
+        "finding": "Normal guard page, version5.0.1 and safety switches disabled; authorization area is below viewport, pre-state independently bound by raw snapshot"
+      },
+      {
+        "file": "install-helper.png",
+        "finding": "Visible authorized state and actual install success toast"
+      },
+      {
+        "file": "flush-dns.png",
+        "finding": "Visible repair page and DNS cache refreshed success toast"
+      },
+      {
+        "file": "uninstall-helper.png",
+        "finding": "Visible not-authorized state and removal success toast"
+      },
+      {
+        "file": "04-before-ordinary-exit.png",
+        "finding": "Visible not-authorized state before ordinary footer quit"
+      }
+    ]
+  },
+  "harnessReview": {
+    "sourceCommit": "0c4a74c0ebe644121336e1dedd1cbc398f1e4550",
+    "files": [
+      "scripts/ci-frozen-windows-native.cjs",
+      ".github/workflows/frozen-501-native.yml"
+    ],
+    "codeReadFromExactCommit": true,
+    "originalAssetsNotRebuilt": true,
+    "environmentAcceptanceFlagsStripped": true,
+    "driverClicksRealDomActionControls": true,
+    "readsOnlySnapshotsAndLogsViaShippedPreload": true,
+    "realMainIpcAndPlatformScriptChainReadFromOriginalZip": true,
+    "systemTaskPrincipalActionWorkerHashBound": true,
+    "cleanupIncludesFinalProcessQuery": true,
+    "originalUninstallerCodeReviewedInPriorAudit": true,
+    "failureExternalBridgeCleanupNotUsedForSuccess": true
+  },
+  "scopeConclusion": "PASS within exact original installed Windows 5.0.1 on administrator GitHub runner: normal visible UI/preload/controller IPC authorization install, SYSTEM DNS cache flush, revoke, ordinary app exit, original uninstaller and isolated cleanup. Previous installed write-path gap superseded by this new evidence; ordinary non-admin UAC positive path remains unproven.",
+  "remainingPending": [
+    "standard-user UAC allow/cancel/wrong-password positive or negative paths",
+    "local macOS authorization consent and fresh downloaded quarantine/Gatekeeper",
+    "historical published 5.0.0 grant migration",
+    "old Mac rollback settings screenshot gap",
+    "cleaner work",
+    "public release and public redownload/update",
+    "Pages/public delivery"
+  ],
+  "auditorActions": {
+    "readOnlyEvidenceAudit": true,
+    "productionOrFrozenEdits": false,
+    "harnessEdits": false,
+    "helperGrantOrRepairExecuted": false,
+    "guiLaunch": false,
+    "ciTriggered": false,
+    "freshApiQuery": false,
+    "committed": false,
+    "sixAssetFullHashReplay": false,
+    "privateCompanyConfigurationRead": false,
+    "privateSidNoncePathsNetworkValuesOmittedFromOutputReport": true
+  },
+  "allEvidenceChecksPassed": true,
+  "failedChecks": []
+}
