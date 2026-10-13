@@ -44,6 +44,26 @@ function terminationScript(item){
  return `$p=$null;try{$p=[Diagnostics.Process]::GetProcessById(${item.pid})}catch{$cause=$_.Exception;while($cause.InnerException){$cause=$cause.InnerException};if($cause -is [ArgumentException]){exit 0};throw};try{if(!$p.HasExited -and $p.StartTime.ToUniversalTime().Ticks.ToString() -eq '${item.created}'){$p.Kill();if(!$p.WaitForExit(10000)){throw 'Owned process handle still open'}}}finally{$p.Dispose()}`;
 }
 async function terminateOwned(item){await ps(terminationScript(item));}
+async function authorizationReceipt(status,mode,evidence){
+ const file=path.join(path.dirname(status.resultFiles['flush-dns']),'authorization-result.json'),bytes=await fs.readFile(file);if(bytes.length>32768)throw Error('Authorization receipt oversized');const result=JSON.parse(bytes),completion=result.authorization;
+ if(result.ok!==true||result.data?.mode!==mode||result.data.version!=='5.0.1'||result.data.installed!==(mode==='install')||completion?.mode!==mode||completion.CallerSid!==status.sid||completion.closed!==true||!['direct','child'].includes(completion.execution)||!/^[a-f0-9-]{36}$/.test(completion.nonce))throw Error('Actual authorization receipt not bound to this UI operation');
+ await fs.writeFile(path.join(evidence,'authorization-'+mode+'.json'),bytes);return {ok:true,mode,execution:completion.execution,closed:completion.closed,sidBound:true,sha256:await digest(file),closureProof:'receipt plus ordinary UI business success after shipped bridge awaited original authorization Process close'};
+}
+async function debugListener(port,pid){
+ const result=await ps(`$rows=@(Get-NetTCPConnection -State Listen -LocalPort ${port}|ForEach-Object{@{address=$_.LocalAddress;pid=[int]$_.OwningProcess}});[Console]::Out.WriteLine((@{rows=$rows}|ConvertTo-Json -Compress))`),rows=JSON.parse(result.stdout).rows;
+ if(!rows.length||rows.some(item=>item.pid!==pid||!['127.0.0.1','::1'].includes(item.address)))throw Error('Actual CDP listener is not bound exclusively to original PID and loopback');return rows;
+}
+async function verifySystemTask(status,installedWorkerSha256,evidence){
+ if(!/^S-1-5-(?:\d+-)*\d+$/.test(status.sid))throw Error('Invalid actual grant SID');
+ const root=path.dirname(status.resultFiles['flush-dns']),worker=path.join(root,'windows-network.ps1'),taskPath='\\LaoyuNetTools\\'+status.sid+'\\',quote=value=>"'"+value.replaceAll("'","''")+"'";
+ const query=await ps(`$tasks=@(Get-ScheduledTask -TaskPath ${quote(taskPath)} -TaskName 'flush-dns');if($tasks.Count -ne 1){throw 'Exact SYSTEM task not unique'};$t=$tasks[0];[Console]::Out.WriteLine((@{taskPath=$t.TaskPath;taskName=$t.TaskName;state=[string]$t.State;principal=@{userId=$t.Principal.UserId;logonType=[string]$t.Principal.LogonType;runLevel=[string]$t.Principal.RunLevel};actions=@($t.Actions|ForEach-Object{@{execute=$_.Execute;arguments=$_.Arguments;workingDirectory=$_.WorkingDirectory}})}|ConvertTo-Json -Depth 5 -Compress))`);
+ const task=JSON.parse(query.stdout),action=task.actions?.[0],expectedArguments='-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+worker+'" -WorkerAction flush-dns -GrantSid '+status.sid;
+ const samePath=(a,b)=>typeof a==='string'&&path.resolve(a).toLowerCase()===path.resolve(b).toLowerCase();
+ if(task.taskPath!==taskPath||task.taskName!=='flush-dns'||!['Ready','Disabled'].includes(task.state)||!['SYSTEM','S-1-5-18'].includes(task.principal?.userId)||task.principal.logonType!=='ServiceAccount'||task.principal.runLevel!=='Highest'||task.actions?.length!==1||!samePath(action.execute,path.win32.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'))||action.arguments!==expectedArguments||!samePath(action.workingDirectory,root))throw Error('Actual SYSTEM task action/principal/state does not match this installed grant');
+ const manifestBytes=await fs.readFile(path.join(root,'grant.json'));if(manifestBytes.length>32768)throw Error('Grant manifest oversized');const manifest=JSON.parse(manifestBytes),workerSha256=await digest(worker);
+ if(manifest.sid!==status.sid||manifest.version!=='5.0.1'||manifest.scriptSha256!==workerSha256||workerSha256!==installedWorkerSha256)throw Error('Actual SYSTEM worker is not the exact installed script');
+ const identity={task,manifest,workerSha256,installedWorkerSha256};await fs.writeFile(path.join(evidence,'actual-system-task-identity.json'),JSON.stringify(identity,null,2)+'\n');return identity;
+}
 async function grantResidue(status){
  if(!/^S-1-5-(?:\d+-)*\d+$/.test(status.sid))throw Error('Actual grant SID invalid');
  const quote=value=>"'"+value.replaceAll("'","''")+"'",root=path.dirname(status.resultFiles['flush-dns']),taskPath='\\LaoyuNetTools\\'+status.sid+'\\';
@@ -98,7 +118,7 @@ async function run(){
   let discovered;
   try{discovered=await waitFor(async()=>{if(app.ended)throw Error('Frozen normal app exited before CDP attachment');try{return await debuggingJson(port,'/json/version');}catch{return false;}},30000);}catch(error){throw Error('Frozen normal installed EXE did not expose loopback CDP; flags unavailable or startup failed: '+error.message);}
   if(new URL(discovered.webSocketDebuggerUrl).port!==String(port))throw Error('CDP discovery port mismatch');browser=await Cdp.connect(discovered.webSocketDebuggerUrl);
-  const info=await browser.send('SystemInfo.getProcessInfo');if(!info.processInfo.some(item=>item.type==='browser'&&Number(item.id)===report.pid))throw Error('CDP browser is not original installed EXE PID');report.browserPidBound=true;
+  const info=await browser.send('SystemInfo.getProcessInfo');if(!info.processInfo.some(item=>item.type==='browser'&&Number(item.id)===report.pid))throw Error('CDP browser is not original installed EXE PID');report.browserPidBound=true;report.debugListener=await debugListener(port,report.pid);
   const expectedUrl=pathToFileURL(path.join(install,'resources/app/ui/index.html')).href;
   const target=await waitFor(async()=>{const pages=await debuggingJson(port,'/json/list');const matches=pages.filter(item=>item.type==='page'&&item.url.toLowerCase()===expectedUrl.toLowerCase());if(matches.length>1)throw Error('Ambiguous frozen installed UI target');return matches[0];},30000);
   if(new URL(target.webSocketDebuggerUrl).port!==String(port))throw Error('CDP page port mismatch');cdp=await Cdp.connect(target.webSocketDebuggerUrl);report.renderer={targetId:target.id,fileUrl:target.url,expectedFileUrl:expectedUrl};await cdp.send('Page.enable');await cdp.send('Runtime.enable');
@@ -107,11 +127,15 @@ async function run(){
   await navigate(cdp,'guard');const initial=await evidenceState(cdp,evidence,'01-normal-guard-before');if(initial.ui.url.toLowerCase()!==expectedUrl.toLowerCase())throw Error('Public snapshot renderer URL is not installed UI');if(initial.snapshot.authorization.installed||initial.ui.auth!=='未授权')throw Error('Existing runner authorization');grantRemoved=true;
   grantMayExist=true;grantRemoved=false;
   await step('ordinary-ui-install-authorization',()=>uiAction(cdp,evidence,'install-helper',true),value=>value);
+  report.authorizationInstall=await authorizationReceipt(beforeGrant,'install',evidence);report.authorizationParentProcessesAfterInstall=(await owned()).filter(item=>item.command.includes('windows-authorization.ps1'));if(report.authorizationParentProcessesAfterInstall.length)throw Error('Original authorization parent still running after UI success');
   const authorized=await step('readonly-installed-system-grant',()=>platform.invoke('helper-status'),v=>{if(!v.installed||v.version!=='5.0.1')throw Error('Actual installed SYSTEM grant mismatch');return {ok:true,installed:true,version:v.version};});
   await navigate(cdp,'repair');await step('ordinary-ui-actual-dns-cache-flush',()=>uiAction(cdp,evidence,'flush-dns',true),value=>value);
-  const request=JSON.parse(await fs.readFile(authorized.requestFile,'utf8')),result=JSON.parse(await fs.readFile(authorized.resultFiles['flush-dns'],'utf8'));
-  if(request.action!=='flush-dns'||request.version!=='5.0.1'||!request.nonce||result.nonce!==request.nonce||result.ok!==true)throw Error('Actual SYSTEM task result does not bind ordinary UI cache flush');report.systemFlush={ok:true,nonceBound:true,requestAction:request.action,resultSha256:await digest(authorized.resultFiles['flush-dns'])};
+  const requestBytes=await fs.readFile(authorized.requestFile),resultBytes=await fs.readFile(authorized.resultFiles['flush-dns']);if(requestBytes.length>32768||resultBytes.length>32768)throw Error('Actual SYSTEM evidence oversized');const request=JSON.parse(requestBytes),result=JSON.parse(resultBytes);
+  if(request.action!=='flush-dns'||request.version!=='5.0.1'||!/^[a-f0-9-]{36}$/.test(request.nonce)||result.nonce!==request.nonce||result.ok!==true)throw Error('Actual SYSTEM task result does not bind ordinary UI cache flush');
+  await fs.writeFile(path.join(evidence,'actual-flush-request.json'),requestBytes);await fs.writeFile(path.join(evidence,'actual-flush-result.json'),resultBytes);
+  const systemIdentity=await verifySystemTask(authorized,report.nativeFiles['windows-network.ps1'],evidence);report.systemFlush={ok:true,nonceBound:true,nonce:request.nonce,requestAction:request.action,resultSha256:await digest(authorized.resultFiles['flush-dns']),finalTaskState:systemIdentity.task.state,exactTaskIdentityVerified:true};
   await navigate(cdp,'guard');await step('ordinary-ui-revoke-authorization',()=>uiAction(cdp,evidence,'uninstall-helper',false),value=>value);
+  report.authorizationUninstall=await authorizationReceipt(beforeGrant,'uninstall',evidence);report.authorizationParentProcessesAfterUninstall=(await owned()).filter(item=>item.command.includes('windows-authorization.ps1'));if(report.authorizationParentProcessesAfterUninstall.length)throw Error('Original authorization parent still running after revocation success');
   await step('readonly-installed-grant-removed',()=>platform.invoke('helper-status'),v=>{if(v.installed)throw Error('Grant remains');return {ok:true,installed:false};});grantMayExist=false;const removed=await grantResidue(beforeGrant);report.actualGrantRemoval=removed;if(!removed.removed)throw Error('Actual authorization tasks or grant worker remain');grantRemoved=true;
   await evidenceState(cdp,evidence,'04-before-ordinary-exit');await click(cdp,'#quit-app');
   const exit=await bounded(app.closed,30000,'Original app close handle did not complete');if(exit.code!==0)throw Error('Ordinary app exit was not clean');report.normalExit={...exit,originalHandleClosed:true,via:'ordinary quit-app button'};report.appHandleClosed=true;await app.save();
@@ -135,7 +159,16 @@ async function run(){
    await waitFor(async()=>!(await owned()).length,15000);report.beforeCleanupProcesses=await owned();
   }catch(error){report.processCleanupError=error.message;}
   // External bridge may revoke a failed UI attempt only after app/helper exit.
-  if(platform&&!uninstalled&&report.appHandleClosed&&report.beforeCleanupProcesses?.length===0){try{if(grantMayExist)await platform.invoke('uninstall-helper');const status=await platform.invoke('helper-status');grantRemoved=!status.installed;if(grantRemoved&&beforeGrant){const residue=await grantResidue(beforeGrant);report.failureGrantResidue=residue;grantRemoved=residue.removed;}report.failureGrantCleanup=grantRemoved;}catch(error){grantRemoved=false;report.cleanupError=error.code||error.message;}}
+  if(platform&&!uninstalled&&report.appHandleClosed&&report.beforeCleanupProcesses?.length===0){
+   try{
+    if(grantMayExist){
+     const abort=new AbortController(),pending=platform.invoke('uninstall-helper',{}, {signal:abort.signal});pending.catch(()=>{});
+     try{await bounded(pending,90000,'Failure grant revocation timed out');}
+     catch(error){abort.abort();report.cleanupAuthorizerTimedOut=error.message==='Failure grant revocation timed out';if(report.cleanupAuthorizerTimedOut){for(const item of await owned())await terminateOwned(item);try{await bounded(pending,10000,'Aborted grant operation did not settle');}catch(settle){report.cleanupAuthorizerSettleError=settle.message;}}throw error;}
+    }
+    const status=await platform.invoke('helper-status');grantRemoved=!status.installed;if(grantRemoved&&beforeGrant){const residue=await grantResidue(beforeGrant);report.failureGrantResidue=residue;grantRemoved=residue.removed;}report.failureGrantCleanup=grantRemoved;
+   }catch(error){grantRemoved=false;report.failureGrantCleanup=false;report.cleanupError=error.code||error.message;}
+  }
   if(!uninstalled&&original&&grantRemoved&&report.appHandleClosed&&report.beforeCleanupProcesses?.length===0){try{report.failureUninstall=await uninstallCiApplication(install,data,original,'5.0.1');uninstalled=true;}catch(error){report.uninstallError=error.message;}}
   if(!platform&&!grantMayExist)grantRemoved=true;
   if(!original&&!uninstalled){try{original=await installationMetadata(install);if(original.displayVersion==='5.0.1'&&report.appHandleClosed&&grantRemoved&&report.beforeCleanupProcesses?.length===0){report.failureUninstall=await uninstallCiApplication(install,data,original,'5.0.1');uninstalled=true;}}catch(error){report.partialInstallCleanupError=error.message;}}
@@ -143,6 +176,10 @@ async function run(){
   report.uninstalled=uninstalled;report.grantRemoved=grantRemoved;report.finishedAt=new Date().toISOString();report.cleanupConfirmed=cleanupConfirmed(report);report.ok=report.ok&&report.cleanupConfirmed;
   if(report.cleanupConfirmed){try{await fs.rm(suite,{recursive:true,force:true});report.privateFixtureRemoved=true;}catch(error){report.privateFixtureRemoved=false;report.fixtureRemovalError=error.message;report.ok=false;}}else report.privateFixtureRemoved=false;
   await fs.writeFile(path.join(evidence,'native-report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));
+  // A timed-out cleanup remains unconfirmed: preserve the install and fixture.
+  // Stop only this isolated driver so its completed failure report is uploaded,
+  // even if a frozen bridge lease remains pending after abort and bounded kill.
+  if(report.cleanupAuthorizerTimedOut)process.exit(1);
   if(!report.ok)process.exitCode=1;
  }
 }
