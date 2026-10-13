@@ -1,0 +1,34 @@
+name: Frozen 5.0.1 installed Windows native acceptance
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  installed-windows-native:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - name: Verify isolated driver protocol and safety checks
+        run: node --test test/frozen-windows-native.test.cjs
+      - name: Retrieve original candidate without rebuilding
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11784644714'
+          run-id: '38337392645'
+          github-token: ${{ github.token }}
+          path: frozen-artifact
+      - name: Verify frozen visible installer and normal installed UI IPC
+        shell: pwsh
+        run: node scripts/ci-frozen-windows-native.cjs frozen-artifact
+      - name: Preserve supplemental evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nettools-frozen-501-installed-windows-native
+          path: verification/frozen-501/windows-native/
+          if-no-files-found: error
