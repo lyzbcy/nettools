@@ -13,9 +13,9 @@
   "videoIds": [],
   "package": {
     "type": "portable-zip",
-    "path": "release/final-fd8a9a7/nettools-5.0.2-win-x64.zip",
+    "path": "release/final-cee61b6/nettools-5.0.2-win-x64.zip",
     "url": "https://github.com/lyzbcy/nettools/releases/download/v5.0.2/nettools-5.0.2-win-x64.zip",
-    "sha256": "b7ca32d87b82bf0d8dcdf7f4bbce84860eec50647bbc68b9daf56585ed5a5a05",
+    "sha256": "5534a8fad042d5645eb34c9ed0cf496d5f1a41755cff8a3d3bba67c817db8478",
     "sizeBytes": 155509718
   },
   "installation": {

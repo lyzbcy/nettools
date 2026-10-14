@@ -8,9 +8,9 @@ description: Use when developing, repairing, packaging or releasing the 捞鱼�
 
 面向 Mac / Windows 用户的本地网络诊断、修复和可选无人值守保活工具。
 
-技术：Electron 本地界面与主进程、Node CommonJS；Mac Swift 原生执行层，Windows 固定动作 PowerShell。版本源为 `package.json.version`。正式 5.0.0 与冻结 5.0.1 包保持不可变；本次 5.0.2 为日志、反馈预览及平台可靠性修复候选，三平台候选CI已通过，尚未公开。软件中心 Mac 0.9.3 / Windows 0.8.7 及两个原网址已完成对 5.0.0 的同步。
+技术：Electron 本地界面与主进程、Node CommonJS；Mac Swift 原生执行层，Windows 固定动作 PowerShell。版本源为 `package.json.version`。正式 5.0.0 与冻结 5.0.1 包保持不可变；5.0.2日志、反馈预览及平台可靠性修复已正式公开并完成六包匿名原字节核验。软件中心 Mac 0.9.3 / Windows 0.8.7 及两个原网址已完成对 5.0.0 的同步。
 
-后续本机真实迁移发现旧助手完整权限判定缺陷：当前修复待独立复审与新三平台CI，不能用此前 `fd8a9a7` 六包作为修复后发行包；`release/final-fd8a9a7/` 保持不可变，仍未公开。
+真实旧助手完整权限判定及暂存复验修复已进入 `cee61b6ea94c03f6453306f52cadb9d643602c35`，三平台 CI `38523318220` 成功；原六包 `release/final-fd8a9a7/` 保持不可变且不用于发行。当前六包封存于 `release/final-cee61b6/`，已逐项重算 SHA-256/大小。2026-10-14 本机生产 UI 完成授权且本人确认系统密码提示和自行输入密码，只读 RPC 验证当前 5.0.2 root/4755 身份；Mac arm64 真实浏览器首次打开及授权取消也已验收；Windows SmartScreen提示未单独观察，不能把Mac结果泛化为所有系统提示。
 
 ## 目录与入口
 
@@ -44,4 +44,4 @@ description: Use when developing, repairing, packaging or releasing the 捞鱼�
 
 ## 状态与验收
 
-5.0.0 在 CI 38085097075 的 Mac 双芯片和 Windows 实际安装、可见升级、故障回滚及数据保留通过，Windows 实际卸载通过。六个正式资产已匿名回读原字节；报告见 `verification/release/public-receipt-5.0.0.json`。核心测试入口 `node --test test/*.test.cjs`；安装锁定依赖后运行包与实际 Electron 回归。上述软件中心版本已完成真实下载、缓存查新、系统打开和客户端发行，两个原网址已公开全文核验与备份。5.0.2候选生产源 `fd8a9a701b73b40ce25ba2e88890b7e667cbb0cf` 已通过三平台CI [38515392531](https://github.com/lyzbcy/nettools/actions/runs/38515392531)（Mac arm64、Mac x64、Windows x64）；尚未公开发行或同步软件中心及两个原介绍页。首次下载系统安全提示和真实用户授权同意/取消仍未验收。未执行真实电脑重启，不将 CI sudo 等同本机授权对话框。
+5.0.0 在 CI 38085097075 的 Mac 双芯片和 Windows 实际安装、可见升级、故障回滚及数据保留通过，Windows 实际卸载通过。六个正式资产已匿名回读原字节；报告见 `verification/release/public-receipt-5.0.0.json`。核心测试入口 `node --test test/*.test.cjs`；安装锁定依赖后运行包与实际 Electron 回归。上述软件中心版本已完成真实下载、缓存查新、系统打开和客户端发行，两个原网址已公开全文核验与备份。5.0.2正式生产源 `cee61b6ea94c03f6453306f52cadb9d643602c35` 已通过三平台CI [38523318220](https://github.com/lyzbcy/nettools/actions/runs/38523318220)。六个原包已正式公开，匿名完整回读 SHA-256/大小匹配，`/latest` 为5.0.2；回执 `verification/release/public-receipt-5.0.2.json`。Mac arm64 浏览器原包下载、保留隔离标记、系统“仍要打开”入口、实际隔离运行窗口和真实授权同意/取消已验收。取消返回 `AUTH_CANCELLED`，原助手身份及原字节不变，随后只读 RPC 证明原授权仍有效。Windows SmartScreen 首次下载提示未单独观察，未签名说明保持。软件中心与两个原介绍页的5.0.2同步正在进行，产品发行不等于中心上架完成。未执行真实电脑重启，不将 CI sudo 等同本机授权对话框。

@@ -1,0 +1,27 @@
+{
+  "version": "5.0.2",
+  "source": "cee61b6ea94c03f6453306f52cadb9d643602c35",
+  "scope": "macOS arm64 actual first browser download, Gatekeeper per-application prompt and visible production app, real authorization consent and cancellation",
+  "browserDownloadedZipSha256": "53307e7eb09e93a1e1cc9621e9e93a350d4373b6be352850e3ea99e5ee8b7344",
+  "browserQuarantineRetained": true,
+  "macOSOpenAnywayEntryObserved": true,
+  "downloadedAppLaunchedUnderAppTranslocation": true,
+  "runningExecutableMatchesDownloadedOriginal": true,
+  "actualAuthorizationConsentPassed": true,
+  "actualCancellationCode": "AUTH_CANCELLED",
+  "cancellationUiDidNotReportSuccess": true,
+  "helperIdentityAndOriginalBytesUnchangedAfterCancel": true,
+  "readonlyHelperStatusAfterCancel": {
+    "installed": true,
+    "privileged": true,
+    "version": "5.0.2"
+  },
+  "agentHandledOsCredentialPrompt": false,
+  "agentReadOrEnteredCredentials": false,
+  "systemProtectionDisabled": false,
+  "quarantineRemoved": false,
+  "realNetworkChanged": false,
+  "realRebootRequested": false,
+  "windowsSmartScreenSeparatelyObserved": false,
+  "remaining": "software center final ordinary product chain and original pages publication"
+}

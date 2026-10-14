@@ -1,8 +1,8 @@
 # 打包与软件中心交付
 
-现状：正式 5.0.0 六包与冻结5.0.1包均保持不可变；软件中心 Mac 0.9.3 / Windows 0.8.7 及两个原网址已完成旧版本同步。5.0.2候选生产源 `fd8a9a701b73b40ce25ba2e88890b7e667cbb0cf` 已通过三平台CI [38515392531](https://github.com/lyzbcy/nettools/actions/runs/38515392531)（Mac arm64、Mac x64、Windows x64）；尚未公开发行或同步软件中心及两个原介绍页。首次下载系统安全提示和真实用户授权同意/取消仍未验收。负责人：捞鱼工作室。更新时间：2026-10-14。
+现状：正式 5.0.0 六包与冻结5.0.1包均保持不可变；软件中心 Mac 0.9.3 / Windows 0.8.7 及两个原网址已完成旧版本同步。5.0.2正式生产源 `cee61b6ea94c03f6453306f52cadb9d643602c35` 已通过三平台CI [38523318220](https://github.com/lyzbcy/nettools/actions/runs/38523318220)。六个原包已正式公开，匿名完整回读 SHA-256/大小匹配，`/latest` 为5.0.2；回执 `verification/release/public-receipt-5.0.2.json`。Mac arm64 浏览器原包下载、保留隔离标记、系统“仍要打开”入口、实际隔离运行窗口和真实授权同意/取消已验收。取消返回 `AUTH_CANCELLED`，原助手身份及原字节不变，随后只读 RPC 证明原授权仍有效。Windows SmartScreen 首次下载提示未单独观察，未签名说明保持。软件中心与两个原介绍页的5.0.2同步正在进行，产品发行不等于中心上架完成。负责人：捞鱼工作室。更新时间：2026-10-14。
 
-后续本机真实迁移发现旧助手完整权限判定缺陷：当前修复待独立复审与新三平台CI，不能用此前 `fd8a9a7` 六包作为修复后发行包；`release/final-fd8a9a7/` 保持不可变，仍未公开。
+真实旧助手完整权限判定及暂存复验修复已进入 `cee61b6ea94c03f6453306f52cadb9d643602c35`，三平台 CI `38523318220` 成功；原六包 `release/final-fd8a9a7/` 保持不可变且不用于发行。当前六包封存于 `release/final-cee61b6/`，已逐项重算 SHA-256/大小。2026-10-14 本机生产 UI 完成授权且本人确认系统密码提示和自行输入密码，只读 RPC 验证当前 5.0.2 root/4755 身份；Mac arm64 真实浏览器首次打开及授权取消也已验收；Windows SmartScreen提示未单独观察，不能把Mac结果泛化为所有系统提示。
 
 Mac 输出 arm64 / x64 独立 ZIP、DMG；ZIP 包含完整 .app。Windows 输出 x64 ZIP 与安装器，ZIP 根目录固定 LaoyuNetTools.exe，依赖与许可证完整。安装器以主题一致的图形界面选择位置，优先非系统盘，可自定义，快捷方式由用户决定。
 
@@ -10,15 +10,15 @@ Mac 输出 arm64 / x64 独立 ZIP、DMG；ZIP 包含完整 .app。Windows 输出
 
 稳定产品 ID nettools，发布仓库 lyzbcy/nettools。软件中心目录、图标、平台资源、安装识别及准备规则同步登记；新增识别必须随客户端发布。launcher-adapter.json 记录实际最终包 SHA，运行共享适配脚本严格自查。Mac 接入与 Windows 接入分别验收。
 
-5.0.2三平台六资产由上述候选CI独立生成，不复用冻结5.0.1的包、哈希或manifest。原生检查、实际安装版、夹具升级/回滚与数据保留已通过；公开发行、中心及原页同步、首次使用边界仍待验收。本地已逐一核对六个原包SHA-256与大小，匹配 `release/final-fd8a9a7/source-and-assets.json` 和候选CI；封存目录同时保留 `SHA256SUMS-5.0.2.txt`。Windows ZIP为155509718字节，SHA-256为 `b7ca32d87b82bf0d8dcdf7f4bbce84860eec50647bbc68b9daf56585ed5a5a05`。
+5.0.2三平台六资产由上述候选CI独立生成，不复用冻结5.0.1的包、哈希或manifest。原生检查、实际安装版、夹具升级/回滚与数据保留已通过；六包已公开且匿名原字节回读通过；Mac arm64首次浏览器下载启动和授权同意/取消已验收，中心及原页同步仍待完成。本地已逐一核对六个原包SHA-256与大小，匹配 `release/final-cee61b6/source-and-assets.json` 和候选CI；封存目录同时保留 `SHA256SUMS-5.0.2.txt`。Windows ZIP为155509718字节，SHA-256为 `5534a8fad042d5645eb34c9ed0cf496d5f1a41755cff8a3d3bba67c817db8478`。
 
-`launcher-adapter.json` 指向本次Windows ZIP；其中 `https://github.com/lyzbcy/nettools/releases/download/v5.0.2/nettools-5.0.2-win-x64.zip` 是既定仓库的拟发布稳定地址，当前尚未发布，不是可下载回执。描述文件只供开发自查，现有中心不会自动读取；中心5.0.2下载、准备、打开及重开识别仍待独立验收。
+`launcher-adapter.json` 指向本次Windows ZIP；其中 `https://github.com/lyzbcy/nettools/releases/download/v5.0.2/nettools-5.0.2-win-x64.zip` 已是正式公开稳定地址，原字节回读见 `verification/release/public-receipt-5.0.2.json`。描述文件只供开发自查，现有中心不会自动读取；中心5.0.2下载、准备、打开及重开识别仍待独立验收。
 
 共享适配严格自查使用权威 `_skill_release_work/center-win-final`（0.8.10），结果退出码1：包哈希、ZIP布局、主程序及中心识别/便携映射通过；5项失败均为中心仍登记5.0.0的发行版本、哈希、URL、文件名和 publishedVersion，5.0.2中心接入尚未完成。报告位于工作区 `.delivery-runtime-20261014/task-evidence/nettools-launcher-adapter-5.0.2.json`；本机未执行Windows安装识别或产品启动。
 
 沿用原创飞天图标，并在共享 logo-registry.json 登记来源和哈希。未配 Developer ID / Windows 签名时如实说明安装提示；不能靠删除所有隔离标记作为“已签名”。
 
-发行顺序：验证最终包→上传不可变版本包→公网下载核验→更新元数据→同步原介绍页→回读全文与备份。5.0.0 已完成上述发行闭环，正式地址为 https://github.com/lyzbcy/nettools/releases/tag/v5.0.0 ，`/latest` 已核验。冻结与公开回执在 `verification/release/`。软件中心 Mac 0.9.3 / Windows 0.8.7 和两个原 WSHOTO 页已完成同步、公开核验及备份，详见 roadmap.md；原网址与其他产品保留。5.0.2 本次候选尚未公开或同步，须重新完成对应闭环。首次下载系统安全提示及真实 Mac 授权同意/取消仍待独立验收，CI sudo 不代表用户对话框通过。
+发行顺序：验证最终包→上传不可变版本包→公网下载核验→更新元数据→同步原介绍页→回读全文与备份。5.0.0 已完成上述发行闭环，正式地址为 https://github.com/lyzbcy/nettools/releases/tag/v5.0.0 ，`/latest` 已核验。冻结与公开回执在 `verification/release/`。软件中心 Mac 0.9.3 / Windows 0.8.7 和两个原 WSHOTO 页已完成同步、公开核验及备份，详见 roadmap.md；原网址与其他产品保留。5.0.2六包已正式公开并匿名原字节回读，软件中心与两个原介绍页同步闭环仍待完成。Mac arm64 真实授权同意/取消及浏览器首次下载启动已验收，CI sudo本身不作为用户对话框证据；Windows SmartScreen提示未单独观察。
 
 ## 历史5.0.0构建与验收记录
 
@@ -28,13 +28,13 @@ Mac 输出 arm64 / x64 独立 ZIP、DMG；ZIP 包含完整 .app。Windows 输出
 
 实际验收先运行安装版桌面，再走成功升级和故障回滚；Windows 最后实际调用原卸载器。CI 38085097075 三个作业均通过，两段更新保留设置、公司配置与哨兵原字节，ZIP/未打包目录前后指纹一致。合成 `4.99.0`、故障 `5.0.1` 仅在 CI 私有副本，传输标为 `fixture.local`；正式公开文件只有本次不变的 5.0.0 六资产。控制文件、助手日志和进程身份在清理前后分别保存。回滚提示经历实际缺陷与真实 Electron 回归修复，最终安装版截图证实恢复说明显示。详情见 [自身更新](updater.md)。
 
-## 真实旧助手迁移修正（2026-10-14，待新CI）
+## 真实旧助手迁移修正（2026-10-14，已通过新CI）
 
 用户完成真实系统授权后，本机已复制新版helper与grant，却因旧助手retirement返回AUTHORIZATION_FAILED。只读stat证实旧原版root/setuid助手的 `%u:%Lp` 为 `0:755`，此前与 `0:4755` 比较必然失败。改为 `%u:%Op` 精确匹配 `0:104755`，同时保留Swift lstat的root、regular、4755与固定SHA，以及授权脚本的非链接、完整mode和原字节SHA再次检查；未知旧助手仍拒绝。
 
 安装先完成新版stage准备，再把已核验旧助手暂存于本轮root私有stage；移动后再次核验非链接、root/regular/4755和固定SHA，清理前也复验。未知替换物保留在stage，不恢复到旧路径，也不删除或继续提交。随后才提交新grant/helper。命令失败时仅尝试恢复已核验旧助手，不覆盖同时出现的新对象；恢复失败保留stage并返回LEGACY_RECOVERY_REQUIRED，不能显示授权已完成。这只保护旧助手retirement，不宣称两次新版mv组成完整事务，也不把已有部分安装当作成功；最终仍须helperStatus验证。
 
-本地仅用自有惰性数据进行实际stat、生产函数编译和shell回归：非SUID/错误mode/目录/链接拒绝，成功清除、后续失败恢复、恢复冲突保留、预检后内容变化拒绝。没有触碰本机旧助手、触发OS授权、改网卡或重启。CI新增 `scripts/ci-macos-legacy.cjs`，从固定公开历史提交 `413a5f3d5c78adf10154907487a025ac858eba8b` 的原文件获取164704字节、SHA `9466607886a478331cd53669c799e7e02975840acedcc388c8657e5dd84df7a1`，只在目标原本不存在的隔离runner安装自有fixture并运行生产retirement/恢复片段。旧二进制绝不执行，Intel结果也不代表该历史arm64程序可运行。新候选需独立SPEC→QUALITY及三平台新CI后另行封存；原六包不重写。
+本地仅用自有惰性数据进行实际stat、生产函数编译和shell回归：非SUID/错误mode/目录/链接拒绝，成功清除、后续失败恢复、恢复冲突保留、预检后内容变化拒绝。没有触碰本机旧助手、触发OS授权、改网卡或重启。CI新增 `scripts/ci-macos-legacy.cjs`，从固定公开历史提交 `413a5f3d5c78adf10154907487a025ac858eba8b` 的原文件获取164704字节、SHA `9466607886a478331cd53669c799e7e02975840acedcc388c8657e5dd84df7a1`，只在目标原本不存在的隔离runner安装自有fixture并运行生产retirement/恢复片段。旧二进制绝不执行，Intel结果也不代表该历史arm64程序可运行。修正后的候选已通过独立 SPEC→QUALITY 及三平台 CI `38523318220`，并另行封存于 `release/final-cee61b6/`；原六包不重写。
 
 独立审查后的实际回归还覆盖“外部最终hash校验后、mv前替换”为未知文件：旧实现exit0且误清除，新实现失败并保留未知stage。INT/TERM/HUP显式转非零退出，实测可触发已核验旧助手恢复；SIGKILL实测仅保留stage，不能承诺自动恢复。现有nativeProcess默认150毫秒TERM→KILL上限及等待隔离进程组实际退出的屏障保持；恢复是受该上限约束的尝试，超时/取消仍为失败、授权状态未验证。不得把捕获信号的夹具通过解释为真实OS授权服务链的所有中断都能回滚，也不声称断电或强杀时恢复完成。
 
