@@ -1,8 +1,12 @@
 {
-  "version": "1.0.0",
-  "softwareVersion": "5.0.0",
-  "updatedAt": "2026-10-11",
+  "version": "1.0.1",
+  "softwareVersion": "5.0.2",
+  "updatedAt": "2026-10-14",
   "changelog": [
+    {
+      "date": "2026-10-14",
+      "text": "5.0.2：修正旧授权助手迁移，反馈按实际预览发送；保活、开机运行、自动重启默认关闭。"
+    },
     {
       "date": "2026-10-11",
       "text": "新增 Windows / Intel Mac、可选检查间隔与网络保活，修复超时默认不重启，更新失败可恢复旧版。"
