@@ -73,3 +73,5 @@ Updater 保留失败的私有 ready/download 清理身份，`cleanupPending` 阻
 本次本机完整结果：Node 24.21.0、官方 PowerShell 7.4.21、固定 Electron 44.7.0，285 tests / 284 pass / 0 fail / 1 Windows-only native-token skip。原有 PowerShell 尾部回归实际运行，没有运行时缺失跳过。外部删除的旧日志未重造，新日志保存于工作区共用 `.delivery-runtime-20261014/task-evidence/network-cancel-final.txt`。
 
 独立 SPEC 发现并复现最后一次下载 unlink 的 await 期间取消会清空 ready，但 stage 仍发布 ready 的竞态。修正为 unlink 返回后再次检查 AbortSignal 和原 ready 对象身份，再发布就绪；实际暂停 unlink、期间取消的回归先失败后通过。updater+实际main IPC 29/29。
+
+Windows CI 38510656355 的实际 Get-Acl 失败源于 Windows PowerShell 5.1 继承了 pwsh 7 的 PSModulePath，Microsoft.PowerShell.Security 无法加载。只在证明子进程的脚本首部将模块路径设为其自身 PSHOME/Modules 与 Machine 配置，与现有 handoff bootstrap 一致；不改变系统、父进程或 ACL。新增脚本次序契约与真正 Windows 下污染父 PSModulePath 后的 native proof 回归（也断言父值不变）。本机 updater/main/策略31 pass + 1 Windows-only pending；真实 Windows 结果待新CI，未放宽权限门槛。
