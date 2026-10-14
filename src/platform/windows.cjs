@@ -75,14 +75,19 @@ function createWindowsPlatform({configDir,resourcesDir,runner=runProcess,stateIO
   // /Run may dispatch the task before the launcher fails or times out. From
   // this point every error retains the lease until actual task exit is known.
   try{await runner(schtasks,['/Run','/TN',name],{timeoutMs:10000,maxOutput:32768});}catch(error){pendingFailure=error;}
+  const readResult=async()=>{try{const read=JSON.parse(await stateIO.readFile(status.resultFiles[action],'utf8'));if(read?.nonce===nonce)result=read;}catch(e){if(e.code!=='ENOENT'&&!(e instanceof SyntaxError))pendingFailure??=e;}};
   while(true){
    if(signal?.aborted)cancellation=true;
-   try{const read=JSON.parse(await stateIO.readFile(status.resultFiles[action],'utf8'));if(read.nonce===nonce)result=read;}catch(e){if(e.code!=='ENOENT'&&!(e instanceof SyntaxError))pendingFailure??=e;}
+   await readResult();
    if((cancellation||pendingFailure)&&!endSent){endSent=true;try{await runner(schtasks,['/End','/TN',name],{timeoutMs:10000,maxOutput:32768});}catch{}}
    // A result alone is not proof that the privileged worker has exited. Task
    // query failure leaves the promise pending and prevents overlapping actions.
    let task;try{task=await rpc('task-status',{taskAction:action});}catch{}
    if(task?.state==='Ready'||task?.state==='Disabled'){
+    // The worker may publish its atomic result while the task query is pending.
+    // Re-read after proven exit; Ready alone still cannot grant success.
+    if(!result)await readResult();
+    if(signal?.aborted)cancellation=true;
     if(pendingFailure)throw pendingFailure;
     if(cancellation)throw Object.assign(Error('修复已取消，后台任务已停止'),{code:'ABORT_ERR'});
     if(result)return nativeResult(JSON.stringify(result));

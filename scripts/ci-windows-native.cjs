@@ -7,6 +7,8 @@ async function run(){
  const report={platform:process.platform,version:require('../package.json').version,scope:'Actual Windows native RPC, private config round trip, SYSTEM grant install, DNS cache flush and grant removal; no reboot or adapter reconfiguration',steps:[],startedAt:new Date().toISOString()};
  const platform=createWindowsPlatform({configDir:root,resourcesDir:path.resolve(__dirname,'../src/platform')});
  let installed=false;
+ async function captureNativeState(){try{const executable=path.win32.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe'),value=await runProcess(executable,['-NoProfile','-NonInteractive','-File',path.resolve(__dirname,'ci-windows-native-snapshot.ps1')],{timeoutMs:30000,maxOutput:512*1024});report.beforeUninstall=JSON.parse(value.stdout.replace(/^\uFEFF/,''));}catch(error){report.snapshotError=error.message;}}
+
  async function step(name,fn,summary=v=>({ok:true})){report.currentStep=name;const start=Date.now();const value=await fn();report.steps.push({name,durationMs:Date.now()-start,...summary(value)});return value;}
  try{
   const settingsFile=path.join(root,'settings.json');saveSettings(settingsFile,{enabled:false,intervalMinutes:30,restartOnTimeout:false,launchAtLogin:false});
@@ -22,11 +24,13 @@ async function run(){
   await step('authorization-install',()=>platform.invoke('install-helper'));installed=true;
   await step('authorization-verified',()=>platform.invoke('helper-status'),v=>{if(!v.installed)throw Error('Authorization did not verify');return {ok:true,installed:v.installed};});
   await step('actual-system-dns-cache-flush',()=>platform.invoke('flush-dns'),v=>{if(v.ok!==true)throw Error('DNS cache flush did not succeed');return {ok:true};});
+  await captureNativeState();
   await step('authorization-uninstall',()=>platform.invoke('uninstall-helper'));installed=false;
   await step('authorization-removed',()=>platform.invoke('helper-status'),v=>{if(v.installed)throw Error('Authorization remains');return {ok:true,installed:v.installed};});
   report.ok=true;
  }catch(e){report.ok=false;report.error={code:e.code||'ACCEPTANCE_FAILED',message:e.message,stdout:String(e.stdout||'').slice(-4000),stderr:String(e.stderr||'').slice(-4000)};throw e;}
  finally{
+  if(installed&&!report.beforeUninstall)await captureNativeState();
   if(installed){try{await platform.invoke('uninstall-helper');report.cleanup=true;}catch(e){report.cleanup=false;report.cleanupError=e.code||e.message;}}
   await fs.rm(root,{recursive:true,force:true});report.finishedAt=new Date().toISOString();const output=path.resolve(__dirname,'../verification/windows');await fs.mkdir(output,{recursive:true});await fs.writeFile(path.join(output,'native-report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));
  }

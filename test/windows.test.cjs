@@ -89,3 +89,20 @@ test('bound successful direct and elevated completions release without querying,
   assert.equal((await platform.invoke('install-helper')).installed,true);assert.equal(platform.isCleanupPending(),false);await platform.invoke('install-helper');assert.notEqual(nonces[0],nonces[1]);
  }
 });
+test('task result published during terminal status query is read after exit and remains nonce-bound',async t=>{
+ for(const scenario of ['success','native-error','foreign','missing','malformed','io-error','cancel']){
+  let request,resultText,reads=0;const abort=new AbortController();const dir=fs.mkdtempSync(path.join(os.tmpdir(),'nettools-late-result-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const platform=api.createWindowsPlatform({configDir:dir,resourcesDir:dir,pollDelayMs:1,stateIO:{writeFile:async(_file,text)=>{request=JSON.parse(text);},rename:async()=>{},readFile:async()=>{reads++;if(reads>1&&scenario==='io-error')throw Object.assign(Error('denied'),{code:'EACCES'});if(resultText===undefined)throw Object.assign(Error('missing'),{code:'ENOENT'});return resultText;}},runner:async(_file,args,options)=>{
+   if(args.includes('/Run')||args.includes('/End'))return {stdout:''};const r=JSON.parse(options.input);
+   if(r.action==='helper-status')return {stdout:JSON.stringify({ok:true,data:{installed:true,sid:'S-1-5-21-1-2-3-1001',requestFile:path.join(dir,'request.json'),resultFiles:{'flush-dns':path.join(dir,'result.json')}}})};
+   assert.equal(r.action,'task-status');assert.equal(platform.isCleanupPending(),true);await assert.rejects(platform.invoke('get-status'),{code:'BUSY'});
+   resultText=scenario==='missing'?undefined:scenario==='malformed'?'{':JSON.stringify({nonce:scenario==='foreign'?'stale':request.nonce,...(scenario==='native-error'?{ok:false,error:{code:'NATIVE_DENIED',message:'refused'}}:{ok:true,data:{completed:true}})});if(scenario==='cancel')abort.abort();return {stdout:JSON.stringify({ok:true,data:{state:'Ready'}})};
+  }});
+  const promise=platform.invoke('flush-dns',{}, {signal:abort.signal});if(scenario==='success')assert.deepEqual(await promise,{completed:true});else await assert.rejects(promise,{code:scenario==='native-error'?'NATIVE_DENIED':scenario==='io-error'?'EACCES':scenario==='cancel'?'ABORT_ERR':'TASK_NO_RESULT'});assert.equal(reads,2);assert.equal(platform.isCleanupPending(),false);
+ }
+});
+test('CI failure snapshot is bounded, read-only, fixed to current SID and collected before uninstall',async t=>{
+ const source=fs.readFileSync(path.join(__dirname,'../scripts/ci-windows-native-snapshot.ps1'),'utf8'),runner=fs.readFileSync(path.join(__dirname,'../scripts/ci-windows-native.cjs'),'utf8');assert.match(source,/GITHUB_ACTIONS -ne 'true'/);assert.match(source,/GetCurrent\(\)\.User\.Value/);assert.match(source,/65536/);assert.match(source,/ReparsePoint/);assert.match(source,/flush-dns.result.json/);assert.doesNotMatch(source,/Set-Item|Remove-Item|Start-ScheduledTask|Stop-ScheduledTask|Set-Acl/);assert(runner.indexOf('if(installed&&!report.beforeUninstall)await captureNativeState()')<runner.indexOf("if(installed){try{await platform.invoke('uninstall-helper')"));
+ const pwsh=[path.join(__dirname,'../.local-tools/powershell/pwsh'),'/usr/local/bin/pwsh','/opt/homebrew/bin/pwsh'].find(file=>fs.existsSync(file));if(process.platform!=='win32'&&!pwsh){t.diagnostic('PowerShell parser unavailable here; Windows CI parses using fixed Windows PowerShell');return;}const script=path.join(__dirname,'../scripts/ci-windows-native-snapshot.ps1'),escaped=script.replaceAll("'","''"),command="$tokens=$null;$errors=$null;[System.Management.Automation.Language.Parser]::ParseFile('"+escaped+"',[ref]$tokens,[ref]$errors)|Out-Null;if($errors.Count){$errors|ForEach-Object ToString;exit 1}";
+ const result=await require('../src/platform/common.cjs').runProcess(process.platform==='win32'?path.win32.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe'):pwsh,['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(command,'utf16le').toString('base64')]);assert.equal(result.stdout.trim(),'');
+});
