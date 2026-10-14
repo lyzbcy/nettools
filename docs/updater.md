@@ -75,3 +75,7 @@ Updater 保留失败的私有 ready/download 清理身份，`cleanupPending` 阻
 独立 SPEC 发现并复现最后一次下载 unlink 的 await 期间取消会清空 ready，但 stage 仍发布 ready 的竞态。修正为 unlink 返回后再次检查 AbortSignal 和原 ready 对象身份，再发布就绪；实际暂停 unlink、期间取消的回归先失败后通过。updater+实际main IPC 29/29。
 
 Windows CI 38510656355 的实际 Get-Acl 失败源于 Windows PowerShell 5.1 继承了 pwsh 7 的 PSModulePath，Microsoft.PowerShell.Security 无法加载。只在证明子进程的脚本首部将模块路径设为其自身 PSHOME/Modules 与 Machine 配置，与现有 handoff bootstrap 一致；不改变系统、父进程或 ACL。新增脚本次序契约与真正 Windows 下污染父 PSModulePath 后的 native proof 回归（也断言父值不变）。本机 updater/main/策略31 pass + 1 Windows-only pending；真实 Windows 结果待新CI，未放宽权限门槛。
+
+Windows 暂存目录不再把 mkdir 的 0700 当作实际 DACL。仅本次 mkdir/mkdtemp 真正创建的目录，可在仍为同一 dev/ino、无 reparse 且 owner 对应当前用户/已提升 TokenOwner 时，通过禁止删除共享的对象 handle 设置受保护 DACL（当前 SID、SYSTEM、Administrators），不改 owner；随后按原路径重新读取并严格核验。现有 dataDir/updates 只读检查，不更改已有 ACL 或继承；其他身份仅有有效读取权限可以通过 write 安全要求，WriteData/Append/WriteEA/DeleteChild/WriteAttributes/Delete/ChangePermissions/TakeOwnership/GenericWrite/GenericAll 均拒绝。inherit-only ACE 与当前对象有效 ACE 分别判断；新 attempt 必须禁止继承并满足完整私有规则。
+
+失败附带 path/privateRequired、owner/tokenOwner/adminEnabled、protected、SDDL 和完整有界 ACE rights/flags 证明；GitHub Actions 驱动日志保留此诊断。它不向 renderer 暴露私有更新 token，也不把无法证明的权限当作通过。Mac 的既有写入安全规则保持不变；真实 Windows handle/DACL 效果仍需 Windows CI 实跑。
