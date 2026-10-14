@@ -32,6 +32,8 @@ Mac 输出 arm64 / x64 独立 ZIP、DMG；ZIP 包含完整 .app。Windows 输出
 
 用户完成真实系统授权后，本机已复制新版helper与grant，却因旧助手retirement返回AUTHORIZATION_FAILED。只读stat证实旧原版root/setuid助手的 `%u:%Lp` 为 `0:755`，此前与 `0:4755` 比较必然失败。改为 `%u:%Op` 精确匹配 `0:104755`，同时保留Swift lstat的root、regular、4755与固定SHA，以及授权脚本的非链接、完整mode和原字节SHA再次检查；未知旧助手仍拒绝。
 
-安装先完成新版stage准备，再把已核验旧助手暂存于本轮root私有stage，随后提交新grant/helper。命令失败时尝试恢复旧助手，不覆盖同时出现的新对象；恢复失败保留stage并返回LEGACY_RECOVERY_REQUIRED，不能显示授权已完成。这只保护旧助手retirement，不宣称两次新版mv组成完整事务，也不把已有部分安装当作成功；最终仍须helperStatus验证。
+安装先完成新版stage准备，再把已核验旧助手暂存于本轮root私有stage；移动后再次核验非链接、root/regular/4755和固定SHA，清理前也复验。未知替换物保留在stage，不恢复到旧路径，也不删除或继续提交。随后才提交新grant/helper。命令失败时仅尝试恢复已核验旧助手，不覆盖同时出现的新对象；恢复失败保留stage并返回LEGACY_RECOVERY_REQUIRED，不能显示授权已完成。这只保护旧助手retirement，不宣称两次新版mv组成完整事务，也不把已有部分安装当作成功；最终仍须helperStatus验证。
 
 本地仅用自有惰性数据进行实际stat、生产函数编译和shell回归：非SUID/错误mode/目录/链接拒绝，成功清除、后续失败恢复、恢复冲突保留、预检后内容变化拒绝。没有触碰本机旧助手、触发OS授权、改网卡或重启。CI新增 `scripts/ci-macos-legacy.cjs`，从固定公开历史提交 `413a5f3d5c78adf10154907487a025ac858eba8b` 的原文件获取164704字节、SHA `9466607886a478331cd53669c799e7e02975840acedcc388c8657e5dd84df7a1`，只在目标原本不存在的隔离runner安装自有fixture并运行生产retirement/恢复片段。旧二进制绝不执行，Intel结果也不代表该历史arm64程序可运行。新候选需独立SPEC→QUALITY及三平台新CI后另行封存；原六包不重写。
+
+独立审查后的实际回归还覆盖“外部最终hash校验后、mv前替换”为未知文件：旧实现exit0且误清除，新实现失败并保留未知stage。INT/TERM/HUP显式转非零退出，实测可触发已核验旧助手恢复；SIGKILL实测仅保留stage，不能承诺自动恢复。现有nativeProcess默认150毫秒TERM→KILL上限及等待隔离进程组实际退出的屏障保持；恢复是受该上限约束的尝试，超时/取消仍为失败、授权状态未验证。不得把捕获信号的夹具通过解释为真实OS授权服务链的所有中断都能回滚，也不声称断电或强杀时恢复完成。

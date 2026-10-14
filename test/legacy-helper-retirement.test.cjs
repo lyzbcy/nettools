@@ -46,3 +46,30 @@ test('historical helper CI is isolated, fixed-source/hash, and never executes th
  const ci=await fs.readFile(path.join(__dirname,'../scripts/ci-macos-legacy.cjs'),'utf8');assert.match(ci,/413a5f3d5c78adf10154907487a025ac858eba8b/);assert.match(ci,/SIZE=164704/);assert.match(ci,/HISTORICAL_BINARY_IDENTITY/);assert.doesNotMatch(ci,/run\(TARGET|execFile\(TARGET|spawn\(TARGET/);
  const workflow=await fs.readFile(path.join(__dirname,'../.github/workflows/validation.yml'),'utf8');assert(workflow.indexOf('node scripts/ci-macos-legacy.cjs')<workflow.indexOf('node scripts/ci-macos-native.cjs'));
 });
+test('hash-to-move replacement is retained as unknown instead of cleaned as successful retirement',{skip:process.platform!=='darwin'},async()=>{
+ const {compileEmitter,script,quote}=require('../scripts/legacy-retirement-harness.cjs'),crypto=require('node:crypto'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'nettools-legacy-race-')),file=path.join(dir,'legacy'),bytes=Buffer.from('known owned fixture\n');
+ try{
+  await fs.writeFile(file,bytes);await fs.chmod(file,0o4755);const binary=await compileEmitter(dir,{file,uid:process.getuid(),sha256:crypto.createHash('sha256').update(bytes).digest('hex')}),emission=JSON.parse((await run(binary,[])).stdout),stage=await fs.mkdtemp(path.join(dir,'stage-'));
+  const move=`/bin/mv ${quote(file)} "$stage/legacy-helper"`;assert(emission.retirement.includes(move));
+  emission.retirement=emission.retirement.replace(move,`printf unknown-after-final-hash > ${quote(file)}\nchmod 4755 ${quote(file)}\n${move}`);
+  let result;try{result=await run('/bin/sh',['-c',script(stage,emission)]);}catch(e){result=e;}
+  assert.notEqual(result.code??0,0,'a post-hash replacement cannot become successful retirement');
+  assert.equal(await fs.readFile(path.join(stage,'legacy-helper'),'utf8'),'unknown-after-final-hash');await assert.rejects(fs.lstat(file),{code:'ENOENT'});
+ }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+test('catchable shell interruption restores owned legacy and SIGKILL retains private stage',{skip:process.platform!=='darwin'},async()=>{
+ const {compileEmitter,script,quote}=require('../scripts/legacy-retirement-harness.cjs'),crypto=require('node:crypto'),{spawn}=require('node:child_process'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'nettools-legacy-signal-')),file=path.join(dir,'legacy'),bytes=Buffer.from('signal owned fixture\n');
+ try{
+  const binary=await compileEmitter(dir,{file,uid:process.getuid(),sha256:crypto.createHash('sha256').update(bytes).digest('hex')});
+  for(const signal of ['SIGTERM','SIGINT','SIGHUP','SIGKILL']){
+   await fs.writeFile(file,bytes);await fs.chmod(file,0o4755);const emission=JSON.parse((await run(binary,[])).stdout),stage=await fs.mkdtemp(path.join(dir,'stage-')),ready=path.join(dir,signal);
+   const child=spawn('/bin/sh',['-c',script(stage,emission,`printf ready > ${quote(ready)}\nwhile :; do :; done`)],{stdio:'ignore'});
+   try{
+    const ended=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('SIGNAL_CLEANUP_TIMEOUT')),3000);child.once('close',(code,sig)=>{clearTimeout(timer);resolve({code,sig});});});
+    for(let i=0;i<200;i++){try{await fs.access(ready);break;}catch{await new Promise(r=>setTimeout(r,5));}}await fs.access(ready);child.kill(signal);const result=await ended;assert.notEqual(result.code,0);
+    if(signal==='SIGKILL'){await assert.rejects(fs.lstat(file),{code:'ENOENT'});assert.deepEqual(await fs.readFile(path.join(stage,'legacy-helper')),bytes);}
+    else {assert.deepEqual(await fs.readFile(file),bytes);await assert.rejects(fs.lstat(stage),{code:'ENOENT'});}
+   }finally{child.kill('SIGKILL');}
+  }
+ }finally{await fs.rm(dir,{recursive:true,force:true});}
+});

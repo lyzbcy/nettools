@@ -11,19 +11,30 @@ func legacyRetirement(staged: Bool = false) throws -> String {
     guard lstat(legacyHelper, &st) == 0 else { guard errno == ENOENT else { throw fail("LEGACY_HELPER_UNVERIFIED", "无法检查旧版授权助手") }; return "" }
     guard st.st_uid == 0, st.st_mode & S_IFMT == S_IFREG, st.st_mode & 0o7777 == 0o4755,
           try sha256(legacyHelper) == legacyHelperHash else { throw fail("LEGACY_HELPER_UNVERIFIED", "旧授权文件不是已验证的原版助手；未修改它，请先通过旧版撤销授权") }
-    let retire = staged ? "/bin/mv " + shellQuote(legacyHelper) + " \"$stage/legacy-helper\"" : "/bin/rm -f " + shellQuote(legacyHelper)
-    return "test ! -L " + shellQuote(legacyHelper) + "\ntest \"$(/usr/bin/stat -f '%u:%Op' " + shellQuote(legacyHelper) + ")\" = '0:104755'\ntest \"$(/usr/bin/shasum -a 256 " + shellQuote(legacyHelper) + " | /usr/bin/cut -d ' ' -f 1)\" = " + shellQuote(legacyHelperHash) + "\n" + retire
+    let sourceProof = "if ! (" + legacyIdentityCheck(shellQuote(legacyHelper)) + "); then exit 1; fi"
+    if staged {
+        return sourceProof + "\n/bin/mv " + shellQuote(legacyHelper) + " \"$stage/legacy-helper\"\nif ! (" + legacyIdentityCheck("\"$stage/legacy-helper\"") + "); then exit 1; fi"
+    }
+    return sourceProof + "\n/bin/rm -f " + shellQuote(legacyHelper)
+}
+func legacyIdentityCheck(_ quotedPath: String) -> String {
+    // %Op includes both file type and SUID. The caller supplies only fixed paths.
+    return "test ! -L " + quotedPath + " && test \"$(/usr/bin/stat -f '%u:%Op' " + quotedPath + ")\" = '0:104755' && test \"$(/usr/bin/shasum -a 256 " + quotedPath + " | /usr/bin/cut -d ' ' -f 1)\" = " + shellQuote(legacyHelperHash)
 }
 func installationStageCleanup() -> String {
-    // The exact legacy helper stays in the private root-owned stage until commit.
-    // On failure restore it without replacing an object that appeared meanwhile.
+    // Never delete or restore an unknown object moved from the writable legacy parent.
+    // Catchable signals attempt recovery; forced termination can leave this stage behind.
     return [
         "installation_cleanup() {",
-        "result=$?", "trap - EXIT",
-        "if [ \"$result\" -ne 0 ] && [ -e \"$stage/legacy-helper\" ]; then",
+        "result=$?", "trap - EXIT", "trap '' INT TERM HUP",
+        "if [ -e \"$stage/legacy-helper\" ] || [ -L \"$stage/legacy-helper\" ]; then",
+        "if ! (" + legacyIdentityCheck("\"$stage/legacy-helper\"") + "); then",
+        "/usr/bin/printf '%s\\n' 'LEGACY_RESTORE_FAILED: unknown staged object retained' >&2", "exit 1", "fi",
+        "if [ \"$result\" -ne 0 ]; then",
         "if test ! -e " + shellQuote(legacyHelper) + " && test ! -L " + shellQuote(legacyHelper) + " && /bin/link \"$stage/legacy-helper\" " + shellQuote(legacyHelper) + " && /bin/rm \"$stage/legacy-helper\"; then :; else",
-        "/usr/bin/printf '%s\\n' 'LEGACY_RESTORE_FAILED: private installation stage retained' >&2", "exit 1", "fi", "fi",
-        "/bin/rm -rf \"$stage\"", "exit \"$result\"", "}", "trap installation_cleanup EXIT"
+        "/usr/bin/printf '%s\\n' 'LEGACY_RESTORE_FAILED: private installation stage retained' >&2", "exit 1", "fi", "fi", "fi",
+        "/bin/rm -rf \"$stage\"", "exit \"$result\"", "}", "trap installation_cleanup EXIT",
+        "trap 'exit 130' INT", "trap 'exit 143' TERM", "trap 'exit 129' HUP"
     ].joined(separator: "\n")
 }
 final class Engine {
