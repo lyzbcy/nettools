@@ -86,7 +86,7 @@ class Updater{
    const file=partial.slice(0,-5);await fsp.rename(partial,file);partial=null;this.downloadCleanup={file,stat:await fsp.lstat(file,{bigint:true}),parent:await fsp.lstat(this.downloadDir,{bigint:true})};
    this.status.state='preparing';this._publish();
    const ready=await this.prepare({...record,file},{signal});if(ready?.ready!==true)throw Error('更新准备失败，保留当前程序');
-   this.readyRecord={...record,...ready};if(signal.aborted){await this._discardReady();throw Error('更新已取消');}await this._removeDownload();this.status.cleanupPending=false;this.status.state='ready';this._publish();return this.readyRecord;
+   const preparedRecord={...record,...ready};this.readyRecord=preparedRecord;if(signal.aborted){await this._discardReady();throw Error('更新已取消');}await this._removeDownload();if(signal.aborted||this.readyRecord!==preparedRecord){if(this.readyRecord===preparedRecord)await this._discardReady();throw Error('更新已取消');}this.status.cleanupPending=false;this.status.state='ready';this._publish();return this.readyRecord;
   }catch(error){this.status.state='error';this.status.error=String(error.message||error);this._publish();throw error;}
   finally{try{if(partial)await fsp.rm(partial,{force:true});await this._removeDownload();}catch(error){this.status.cleanupPending=true;this.status.state='error';this.status.error=String(error.message||error);this._publish();throw error;}finally{this.stageRunning=false;this.controller=null;this.status.cleanupPending=!!this.downloadCleanup||(!!this.readyRecord&&this.status.state!=='ready');this._publish();settleStage();}}
  }

@@ -78,3 +78,8 @@ test('download cleanup rejects a replaced file and preserves its bytes for recov
 test('quit can await late preparation cleanup before ending the process',async t=>{
  let finish,enter;const started=new Promise(r=>enter=r),u=context(t,{prepare:()=>{enter();return new Promise(r=>finish=r);},onReadyInvalidated:async()=>{}});const staging=u.stage();await started;await u.cancel();let settled=false;const waiting=u.waitForStage().then(()=>settled=true);await new Promise(r=>setImmediate(r));assert.equal(settled,false);finish({ready:true});await assert.rejects(staging,/取消/);await waiting;assert.equal(settled,true);assert.equal(u.snapshot().cleanupPending,false);assert.deepEqual(fs.readdirSync(u.downloadDir),[]);
 });
+test('cancellation during final download unlink cannot revive readiness',async t=>{
+ const u=context(t);const unlink=fs.promises.unlink;let enter,resume;const started=new Promise(r=>enter=r),gate=new Promise(r=>resume=r);let paused=false;
+ fs.promises.unlink=async file=>{if(!paused&&String(file).startsWith(u.downloadDir)&&String(file).endsWith('.zip')){paused=true;enter();await gate;}return unlink(file);};t.after(()=>{fs.promises.unlink=unlink;});
+ const staging=u.stage();await started;await u.cancel();resume();await assert.rejects(staging,/取消/);assert.equal(u.readyRecord,null);assert.notEqual(u.snapshot().state,'ready');assert.equal(u.snapshot().cleanupPending,false);assert.deepEqual(fs.readdirSync(u.downloadDir),[]);
+});

@@ -71,3 +71,5 @@ Updater 保留失败的私有 ready/download 清理身份，`cleanupPending` 阻
 回归覆盖三次真实 prepare/cancel 无大型残留、原包生命周期、晚到结果、失效/取消/安装失败重试、被替换原包不删、锁竞争、主进程 IPC 不泄露 ready，以及固定 Electron 的实际 renderer 重试入口。测试没有触碰用户已安装应用或执行网络修改；完整候选仍需重新构建并跑三平台安装/更新验收，不能沿用 c0b44ab 的 CI 38507152751 作为本次修复证据。
 
 本次本机完整结果：Node 24.21.0、官方 PowerShell 7.4.21、固定 Electron 44.7.0，285 tests / 284 pass / 0 fail / 1 Windows-only native-token skip。原有 PowerShell 尾部回归实际运行，没有运行时缺失跳过。外部删除的旧日志未重造，新日志保存于工作区共用 `.delivery-runtime-20261014/task-evidence/network-cancel-final.txt`。
+
+独立 SPEC 发现并复现最后一次下载 unlink 的 await 期间取消会清空 ready，但 stage 仍发布 ready 的竞态。修正为 unlink 返回后再次检查 AbortSignal 和原 ready 对象身份，再发布就绪；实际暂停 unlink、期间取消的回归先失败后通过。updater+实际main IPC 29/29。
