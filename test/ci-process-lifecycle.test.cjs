@@ -21,3 +21,23 @@ test('Windows encoded attempt command remains bound without a Mac state',async()
 test('actual harness Mac identity query retains state with full creation semantics',async()=>{const harness=require('../scripts/ci-electron-update.cjs');let args;const result=await harness.processIdentity(2185,{platform:'darwin',run:async(file,argv)=>{assert.equal(file,'/bin/ps');args=argv;return {stdout:created+' Z <defunct>\n'};}});assert.deepEqual(args,['-ww','-p','2185','-o','lstart=,state=,command=']);assert.deepEqual(result,{exists:true,created,state:'Z',command:'<defunct>'});});
 test('actual harness exit wrapper uses the bound ready instance and records the rejected sample',async()=>{const harness=require('../scripts/ci-electron-update.cjs'),samples=[];await assert.rejects(harness.waitInstanceExit(2185,expected,100,{commandIncludes:attempt,query:async()=>({...expected,command:'/foreign'}),onSample:sample=>samples.push(sample)}),{code:'CI_PROCESS_IDENTITY'});assert.equal(samples[0].relation,'command-mismatch');});
 test('ready binding cannot omit the current attempt',()=>{for(const value of [undefined,''])assert.throws(()=>api().bindReadyIdentity(expected,value),{code:'CI_PROCESS_IDENTITY'});});
+
+const macExecutable='/private/ci/捞鱼的网络工具.app/Contents/MacOS/LaoyuNetTools',macExpected={exists:true,created,state:'S',command:macExecutable+' --nettools-data=/private/ci/data'},degraded={exists:true,created,state:'R',command:'(LaoyuNetTools)'};
+test('actual Mac observer resamples live to parenthesized command until disappearance, preserving every sample',async()=>{
+ const samples=[],rows=[macExpected,degraded,{exists:false}];let time=0;
+ const result=await require('../scripts/ci-electron-update.cjs').waitInstanceExit(32551,macExpected,5000,{platform:'darwin',macExitExecutable:macExecutable,query:async()=>rows.shift(),pause:async ms=>time+=ms,now:()=>time,onSample:s=>samples.push(s)});
+ assert.equal(result.relation,'disappeared');assert.deepEqual(samples.map(s=>s.relation),['live','command-degraded','disappeared']);assert.deepEqual(samples[1].observed,degraded);
+});
+test('persistent Mac parenthesized command fails a short bounded wait and never counts as exit',async()=>{
+ let time=0;const samples=[];await assert.rejects(api().waitBoundInstanceExit({pid:32551,expected:macExpected,platform:'darwin',macExitExecutable:macExecutable,timeout:180000,query:async()=>degraded,pause:async ms=>time+=ms,now:()=>time,onSample:s=>samples.push(s)}),e=>e.code==='CI_PROCESS_TIMEOUT'&&e.lifecycle.relation==='command-degraded');assert.ok(time<=1000);assert.ok(samples.length>1);assert.equal(samples.at(-1).observed.state,'R');
+});
+for(const [label,platform,executable,observed,relation] of [
+ ['Windows','win32',macExecutable,degraded,'command-mismatch'],
+ ['unknown executable','darwin',undefined,degraded,'command-mismatch'],
+ ['unbound executable','darwin','/other/LaoyuNetTools',degraded,'command-mismatch'],
+ ['different basename','darwin',macExecutable,{...degraded,command:'(foreign)'},'command-mismatch'],
+ ['ordinary foreign command','darwin',macExecutable,{...degraded,command:'/foreign'},'command-mismatch'],
+ ['missing creation','darwin',macExecutable,{...degraded,created:''},'current-creation-unavailable'],
+])test('Mac exit transient exception rejects '+label,async()=>{
+ const samples=[];await assert.rejects(api().waitBoundInstanceExit({pid:32551,expected:macExpected,platform,macExitExecutable:executable,query:async()=>observed,onSample:s=>samples.push(s)}),e=>e.code==='CI_PROCESS_IDENTITY'&&e.lifecycle.relation===relation);assert.equal(samples.length,1);
+});

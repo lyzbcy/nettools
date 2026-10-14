@@ -1,6 +1,6 @@
 'use strict';
 // Verification only: never signal a PID or alter a running update attempt.
-const {setTimeout:delay}=require('node:timers/promises');
+const {setTimeout:delay}=require('node:timers/promises'),path=require('node:path');
 function decodedCommand(identity){const match=identity?.command?.match(/-EncodedCommand\s+([a-z\d+/=]+)/i);return match?Buffer.from(match[1],'base64').toString('utf16le'):identity?.command||'';}
 const creation=identity=>typeof identity?.created==='string'&&identity.created.trim().length>0;
 function classifyInstance(expected,observed,{commandIncludes,queryError}={}){
@@ -18,16 +18,22 @@ function classifyInstance(expected,observed,{commandIncludes,queryError}={}){
 function lifecycleError(sample,timeout=false){return Object.assign(Error(timeout?'CI 已绑定进程退出等待超时':'CI 进程生命周期身份无法确认：'+sample.relation),{code:timeout?'CI_PROCESS_TIMEOUT':'CI_PROCESS_IDENTITY',lifecycle:sample});}
 function bindReadyIdentity(identity,attempt){const sample={expected:identity,observed:identity,relation:typeof attempt==='string'&&attempt.length?classifyInstance(identity,identity,{commandIncludes:attempt}):'command-mismatch'};if(sample.relation!=='live')throw lifecycleError(sample);return identity;}
 function parseMacProcessIdentity(output){const row=output.trim();if(!row)return {exists:false};const match=row.match(/^(.{24})\s+(\S+)(?:\s+(.*))?$/);if(!match)throw Error('CI Mac 进程创建身份无法读取');return {exists:true,created:match[1],state:match[2],command:match[3]||''};}
-async function waitBoundInstanceExit({pid,expected,commandIncludes,query,pause=delay,timeout=180000,now=Date.now,onSample=()=>{}}){
+async function waitBoundInstanceExit({pid,expected,commandIncludes,platform,macExitExecutable,query,pause=delay,timeout=180000,now=Date.now,onSample=()=>{}}){
  if(!Number.isInteger(pid)||pid<2||pid>2147483647)throw Error('CI 进程号无效');
- const end=now()+timeout;
+ const end=now()+timeout;let degradedAt=null;
+ // Only the explicitly known Mac observer executable may lose argv during exit.
+ // This is a resampling state, never evidence that the instance has exited.
+ const macBound=platform==='darwin'&&commandIncludes===undefined&&typeof macExitExecutable==='string'&&path.posix.isAbsolute(macExitExecutable)&&(expected?.command===macExitExecutable||expected?.command?.startsWith(macExitExecutable+' '));
  while(true){
   let observed=null,queryError=null;try{observed=await query(pid);}catch(error){queryError=error.message;}
   const sample={pid,expected,observed,relation:classifyInstance(expected,observed,{commandIncludes,queryError}),queryError,captureAt:new Date().toISOString()};
+  if(sample.relation==='command-mismatch'&&macBound&&typeof observed.state==='string'&&observed.state.length&&observed.command==='('+path.posix.basename(macExitExecutable)+')'){
+   sample.relation='command-degraded';sample.resampleReason='mac-exit-command-degraded';if(degradedAt===null)degradedAt=now();
+  }
   await onSample(sample);
   if(['disappeared','zombie','replaced'].includes(sample.relation))return sample;
-  if(sample.relation!=='live')throw lifecycleError(sample);
-  if(now()>=end)throw lifecycleError(sample,true);
+  if(sample.relation!=='live'&&sample.relation!=='command-degraded')throw lifecycleError(sample);
+  if((sample.relation==='command-degraded'&&now()-degradedAt>=1000)||now()>=end)throw lifecycleError(sample,true);
   await pause(100);
  }
 }

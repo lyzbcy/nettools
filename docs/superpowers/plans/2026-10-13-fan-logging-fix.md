@@ -41,3 +41,8 @@
 5.0.2候选2a4f5c7的真实CI 38385768198：Mac双架构成功；Windows job 115257053592的核心步骤259项中207通过、5失败、47按平台跳过。五个失败均在反馈主进程测试初始化时抛出 `app.setAppUserModelId is not a function`：测试Electron app替身遗漏Windows API，未进入反馈断言。生产Electron调用无需更改。
 
 仅补齐反馈测试的app替身，记录Windows应用ID，并让同一真实main启动夹具在每台主机分别执行win32/darwin分支，检查反馈IPC可预览、启动与预览不读取私有通道或发送。既有发送正文、一次性授权及拒绝条件断言保持原样，无新增skip或降低验收。新增回归先RED（9项中win32同因失败、其余8通过），补齐方法后9/9 GREEN；本机Node24.19.0完整261/261通过，0失败/取消/跳过。此为隔离夹具证据，不能替代后续真实Windows CI、候选打包和首次使用验收；未发送真实反馈、改网卡、操作helper或重启。未修改冻结5.0.1资产。
+
+
+## Intel 退出观察瞬态（2026-10-14）
+
+CI 38505007265 的 Windows/arm64 已通过，Intel 安装与更新结果实际 confirmed/visible，但 observer-exit 采样遇到同一创建时间的已绑定 LaoyuNetTools 从完整命令变为 state R、`(LaoyuNetTools)`，约0.4秒后消失；该样本不是 zombie。观察器现在仅在显式 darwin、已知完整可执行路径与原绑定命令吻合、创建时间相同、命令精确退化为该 basename 的括号形式时最多一秒重采样。退化本身不算通过；必须随后实际 disappeared、Z 或明确创建时间变化，持续退化超时、普通异命令/不同名称/缺失身份/Windows 均拒绝。原始样本和重采样原因保留，独立证据导出的严格命令分类仍保留。此修正仅属 CI 观察器，须新 Intel CI 验证，不改变产品退出或更新行为。
