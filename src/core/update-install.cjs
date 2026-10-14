@@ -5,11 +5,30 @@ const {runProcess}=require('../platform/common.cjs');
 const APP_NAME='捞鱼的网络工具.app',PRODUCT='laoyu-nettools',IDENTIFIER='com.laoyu.nettools';
 const LIMITS={files:20000,total:2*1024**3,file:512*1024**2,archive:1024**3,ratio:500};
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
+// This capability stays in the main process, including Updater's object spread.
+// Mutable payload JSON never grants recursive cleanup authority.
+const cleanupKey=Symbol('prepared-update-cleanup'),cleanupAuthorities=new WeakMap();
+async function cleanupIdentity(file,kind,privateRequired=false){
+ await noLink(file,kind);const stat=await fsp.lstat(file,{bigint:true}),identity={dev:String(stat.dev),ino:String(stat.ino),kind};
+ if(process.platform==='win32')await require('./update-private-path.cjs').verifyWindowsPath(file,{privateRequired});
+ else if(privateRequired&&((stat.mode&(privateRequired==='write'?0o022n:0o077n))!==0n||stat.uid!==BigInt(process.getuid())))throw Error('更新清理目录不再私有');
+ return identity;
+}
+async function captureCleanup({dataDir,attempt,archive,extracted,token}){
+ const entries=[];let current=attempt;
+ while(true){const privateRequired=current===attempt?true:(current===path.dirname(attempt)||current===dataDir)?'write':false;entries.push({file:current,kind:'dir',privateRequired,identity:await cleanupIdentity(current,'dir',privateRequired)});const parent=path.dirname(current);if(parent===current)break;current=parent;}
+ for(const [file,kind] of [[archive,'file'],[extracted,'dir']])entries.push({file,kind,privateRequired:false,identity:await cleanupIdentity(file,kind)});
+ return {token,attempt,archive,extracted,entries,removed:new Set(),claimed:false,pending:null};
+}
+async function verifyCleanup(authority){
+ for(const entry of authority.entries){if(authority.removed.has(entry.file))continue;const actual=await cleanupIdentity(entry.file,entry.kind,entry.privateRequired);if(JSON.stringify(actual)!==JSON.stringify(entry.identity))throw Error('更新清理对象已经变化，保留文件');}
+}
+
 const cancelled=signal=>{if(signal?.aborted)throw Object.assign(Error('更新已取消'),{code:'ABORT_ERR'});};
 const inside=(root,file)=>{const rel=path.relative(root,file);return rel!==''&&!rel.startsWith('..'+path.sep)&&rel!=='..'&&!path.isAbsolute(rel);};
 function absolute(value){if(typeof value!=='string'||!path.isAbsolute(value)||/[\x00-\x1f]/.test(value))throw Error('更新路径必须是完整且合法的本机路径');return path.resolve(value);}
 async function noLink(file,kind){const s=await fsp.lstat(file);if(s.isSymbolicLink()||(kind==='file'&&!s.isFile())||(kind==='dir'&&!s.isDirectory()))throw Error('更新路径类型无效或包含链接');return s;}
-async function privateDir(dir){await fsp.mkdir(dir,{recursive:true,mode:0o700});const s=await noLink(dir,'dir');if(process.platform!=='win32'&&((s.mode&0o022)!==0||s.uid!==process.getuid()))throw Error('更新暂存目录必须由当前用户独占写入');return fsp.realpath(dir);}
+async function privateDir(dir){await fsp.mkdir(dir,{recursive:true,mode:0o700});const s=await noLink(dir,'dir');if(process.platform!=='win32'&&((s.mode&0o022)!==0||s.uid!==process.getuid()))throw Error('更新暂存目录必须由当前用户独占写入');if(process.platform==='win32')await require('./update-private-path.cjs').verifyWindowsPath(dir,{privateRequired:true});return fsp.realpath(dir);}
 async function atomic(file,value){const temp=file+'.'+crypto.randomUUID()+'.tmp';try{await fsp.writeFile(temp,JSON.stringify(value)+'\n',{flag:'wx',mode:0o600});await fsp.rename(temp,file);}finally{await fsp.rm(temp,{force:true});}}
 async function readAt(fd,offset,size){const b=Buffer.alloc(size);const {bytesRead}=await fd.read(b,0,size,offset);if(bytesRead!==size)throw Error('ZIP 数据被截断');return b;}
 const crcTable=Array.from({length:256},(_,n)=>{let c=n;for(let i=0;i<8;i++)c=(c>>>1)^((c&1)?0xedb88320:0);return c>>>0;});
@@ -82,11 +101,33 @@ async function prepareUpdate(record,{signal,appPath,dataDir,platform=process.pla
  await identity(stage,{platform,arch,version:record.version,signal});const manifest=await treeManifest(stage,{signal});cancelled(signal);
  const scriptFile=path.join(attempt,platform==='darwin'?'worker.sh':'worker.ps1'),template=path.join(__dirname,'../../scripts',platform==='darwin'?'update-mac.sh':'update-win.ps1');let script=await fsp.readFile(template,'utf8');if(platform==='win32')script='\uFEFF'+script.replace(/^\uFEFF/,'');await fsp.writeFile(scriptFile,script,{mode:0o700,flag:'wx'});
  const payload={protocol:1,token,version:record.version,oldVersion:current.version,platform,arch,target:appPath,dataDir,attempt,stage,archive,sha256:record.sha256.toLowerCase(),size:record.size,manifest,scriptFile,oldExe:current.exe,backup:path.join(parent,'.nettools-backup-'+token),incoming:path.join(parent,'.nettools-incoming-'+token),readyFile:path.join(attempt,'ready.json'),commitFile:path.join(attempt,'commit.json'),abortFile:path.join(attempt,'abort.json'),resultFile:path.join(attempt,'result.json'),confirmFile:path.join(attempt,'confirmed.json'),confirmRequestFile:path.join(attempt,'confirm-request.json'),confirmationTimeoutMs:90000,oldExitTimeoutMs:30000};
- const payloadFile=path.join(attempt,'payload.json');await atomic(payloadFile,payload);await atomic(payload.confirmRequestFile,{protocol:1,token,version:record.version,target:appPath,dataDir,confirmFile:payload.confirmFile});return {ready:true,attempt,payloadFile,token,version:record.version,appPath,dataDir,file:archive};
+ const payloadFile=path.join(attempt,'payload.json');await atomic(payloadFile,payload);await atomic(payload.confirmRequestFile,{protocol:1,token,version:record.version,target:appPath,dataDir,confirmFile:payload.confirmFile});const capability={};cleanupAuthorities.set(capability,await captureCleanup({dataDir,attempt,archive,extracted,token}));return {ready:true,attempt,payloadFile,token,version:record.version,appPath,dataDir,file:archive,[cleanupKey]:capability};
  }catch(error){await fsp.rm(attempt,{recursive:true,force:true});throw error;}
 }
 async function readyPayload(ready){if(!ready?.ready||!/^[a-f0-9]{64}$/.test(ready.token||''))throw Error('更新尚未准备就绪');const file=absolute(ready.payloadFile);await noLink(file,'file');const p=JSON.parse(await fsp.readFile(file,'utf8'));if(p.protocol!==1||p.token!==ready.token||p.attempt!==path.dirname(file)||p.target!==ready.appPath||p.version!==ready.version)throw Error('更新交接身份不匹配');for(const field of ['readyFile','commitFile','abortFile','resultFile','confirmFile','confirmRequestFile','archive','scriptFile'])if(path.dirname(p[field])!==p.attempt)throw Error('更新交接文件越界');await noLink(p.attempt,'dir');return p;}
-async function abortUpdate(ready){const p=await readyPayload(ready);await atomic(p.abortFile,{token:p.token,status:'abort'});return {aborted:true};}
+async function abortUpdate(ready){
+ const authority=cleanupAuthorities.get(ready?.[cleanupKey]);
+ if(!authority)throw Error('更新取消缺少原始准备身份');
+ if(authority.pending)return authority.pending;
+ authority.pending=(async()=>{
+  await verifyCleanup(authority);const p=await readyPayload(ready);
+  if(p.token!==authority.token||p.attempt!==authority.attempt)throw Error('更新取消身份不匹配');
+  // Share the exclusive lock with handoff. A worker that already owns it may
+  // still be reading payload even before ready.json exists: only signal abort.
+  if(!authority.claimed){
+   try{const lock=await fsp.open(path.join(authority.attempt,'handoff.lock'),'wx',0o600);await lock.close();authority.claimed=true;}
+   catch(error){if(error.code!=='EEXIST')throw error;await atomic(p.abortFile,{token:p.token,status:'abort'});return {aborted:true,payloadRemoved:false};}
+  }
+  await atomic(p.abortFile,{token:p.token,status:'abort'});
+  await verifyCleanup(authority);
+  for(const file of [authority.archive,authority.extracted]){
+   if(authority.removed.has(file))continue;
+   await fsp.rm(file,{recursive:file===authority.extracted,force:false});authority.removed.add(file);
+  }
+  return {aborted:true,payloadRemoved:true};
+ })();
+ try{return await authority.pending;}finally{authority.pending=null;}
+}
 const psQuote=s=>"'"+s.replaceAll("'","''")+"'";
 async function handoffUpdate(ready,{oldPid,signal,spawnFn=spawn,timeoutMs=60000}={}){
  cancelled(signal);if(!Number.isInteger(oldPid)||oldPid<1||oldPid>2147483647)throw Error('旧进程标识无效');const p=await readyPayload(ready);if(fs.existsSync(p.abortFile)||fs.existsSync(p.commitFile))throw Error('此更新尝试已结束或已经交接');

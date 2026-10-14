@@ -128,3 +128,37 @@ test('Mac stale installed record is omitted from rollback startup after both fai
  const f=await macFixture(t,'no-confirm'),ready=await api.prepareUpdate(f.record,f),p=JSON.parse(await fs.readFile(ready.payloadFile));p.confirmationTimeoutMs=1000;await fs.writeFile(ready.payloadFile,JSON.stringify(p));let worker=await fs.readFile(p.scriptFile,'utf8');worker=worker.replace('const write=(f,o)=>{','const write=(f,o)=>{if(o.status==="failed"){console.log("fixture failed report write");throw Error("fixture failed report I/O");}');await fs.writeFile(p.scriptFile,worker);
  const handoff=await api.handoffUpdate(ready,{oldPid:2147483647,timeoutMs:20000});assert.equal(await waitFixtureProcesses(f.dir,x=>x.pid===handoff.helperPid),true);const started=await poll(path.join(f.dir,'fixture-old-start.json'),x=>x.version==='5.0.0');assert.ok(!started.args.some(x=>x.startsWith('--nettools-update-result=')));assert.equal((await poll(p.resultFile,()=>true)).status,'installed');assert.equal(await api.readUpdateStartupResult({version:'5.0.0',appPath:f.appPath,dataDir:f.dataDir,argv:started.args}),null);assert.equal((await fs.readFile(path.join(p.attempt,'worker.log'),'utf8')).split('fixture failed report write').length-1,2);assert.equal(JSON.parse(await fs.readFile(path.join(f.appPath,'Contents/Resources/app/package.json'),'utf8')).version,'5.0.0');assert.ok(macFixtureProcesses(f.dir).some(x=>x.pid===started.pid));
 });
+
+test('cancel before handoff removes only prepared payload and preserves status and user files',async t=>{
+ const dir=await fixture(t),appPath=await oldApp(dir),dataDir=path.join(dir,'data'),r=await record(dir),ready=await api.prepareUpdate(r,{appPath,dataDir,platform:'win32',arch:'x64'}),p=JSON.parse(await fs.readFile(ready.payloadFile));
+ await fs.writeFile(path.join(dataDir,'settings.json'),'keep');const sibling=path.join(dataDir,'updates','other-attempt');await fs.mkdir(sibling);await fs.writeFile(path.join(sibling,'keep'),'untouched');
+ const result=await api.abortUpdate({...ready});assert.equal(result.payloadRemoved,true);await assert.rejects(fs.access(p.archive),{code:'ENOENT'});await assert.rejects(fs.access(path.join(p.attempt,'extract')),{code:'ENOENT'});
+ assert.equal(JSON.parse(await fs.readFile(p.abortFile)).token,ready.token);assert.equal(await fs.readFile(path.join(dataDir,'settings.json'),'utf8'),'keep');assert.equal(await fs.readFile(path.join(sibling,'keep'),'utf8'),'untouched');assert.ok(await fs.readFile(r.file));
+ await api.abortUpdate(ready);await assert.rejects(api.handoffUpdate(ready,{oldPid:process.pid,spawnFn:()=>{throw Error('must not spawn');}}));
+});
+test('cancel with handoff lock retains worker payload even if no acknowledgement exists yet',async t=>{
+ const dir=await fixture(t),appPath=await oldApp(dir),dataDir=path.join(dir,'data'),ready=await api.prepareUpdate(await record(dir),{appPath,dataDir,platform:'win32',arch:'x64'}),p=JSON.parse(await fs.readFile(ready.payloadFile));
+ await fs.writeFile(path.join(p.attempt,'handoff.lock'),'');const result=await api.abortUpdate(ready);assert.equal(result.payloadRemoved,false);assert.ok(await fs.readFile(p.archive));assert.ok((await fs.stat(p.stage)).isDirectory());
+});
+test('cancel rejects a replaced extraction directory without deleting its new contents',async t=>{
+ const dir=await fixture(t),appPath=await oldApp(dir),dataDir=path.join(dir,'data'),ready=await api.prepareUpdate(await record(dir),{appPath,dataDir,platform:'win32',arch:'x64'}),p=JSON.parse(await fs.readFile(ready.payloadFile)),extracted=path.join(p.attempt,'extract');
+ await fs.rename(extracted,extracted+'-original');await fs.mkdir(extracted);await fs.writeFile(path.join(extracted,'keep'),'replacement');await assert.rejects(api.abortUpdate(ready));assert.equal(await fs.readFile(path.join(extracted,'keep'),'utf8'),'replacement');assert.ok(await fs.readFile(p.archive));
+});
+
+test('cancel never follows a replacement extract symlink or mutable payload cleanup path',async t=>{
+ const dir=await fixture(t),appPath=await oldApp(dir),dataDir=path.join(dir,'data'),ready=await api.prepareUpdate(await record(dir),{appPath,dataDir,platform:'win32',arch:'x64'}),p=JSON.parse(await fs.readFile(ready.payloadFile)),outside=path.join(dir,'outside');await fs.mkdir(outside);await fs.writeFile(path.join(outside,'keep'),'safe');
+ const extract=path.join(p.attempt,'extract');await fs.rename(extract,extract+'-original');await fs.symlink(outside,extract,process.platform==='win32'?'junction':'dir');await assert.rejects(api.abortUpdate(ready));assert.equal(await fs.readFile(path.join(outside,'keep'),'utf8'),'safe');await fs.unlink(extract);await fs.rename(extract+'-original',extract);
+ p.stage=outside;await fs.writeFile(ready.payloadFile,JSON.stringify(p));await api.abortUpdate(ready);assert.equal(await fs.readFile(path.join(outside,'keep'),'utf8'),'safe');await assert.rejects(fs.access(extract),{code:'ENOENT'});
+});
+test('cancel refuses copied serialized authority and no longer private attempt',async t=>{
+ const dir=await fixture(t),appPath=await oldApp(dir),dataDir=path.join(dir,'data'),ready=await api.prepareUpdate(await record(dir),{appPath,dataDir,platform:'win32',arch:'x64'}),p=JSON.parse(await fs.readFile(ready.payloadFile));
+ await assert.rejects(api.abortUpdate(JSON.parse(JSON.stringify(ready))));assert.ok(await fs.readFile(p.archive));
+ if(process.platform!=='win32'){await fs.chmod(p.attempt,0o755);try{await assert.rejects(api.abortUpdate(ready));assert.ok(await fs.readFile(p.archive));}finally{await fs.chmod(p.attempt,0o700);}}
+ await Promise.all([api.abortUpdate(ready),api.abortUpdate({...ready})]);await assert.rejects(fs.access(p.archive),{code:'ENOENT'});
+});
+test('three real prepare and cancel cycles leave no downloaded or extracted payload',async t=>{
+ const dir=await fixture(t),appPath=await oldApp(dir),dataDir=path.join(dir,'data'),r=await record(dir),base='https://github.com/lyzbcy/nettools/releases';const {Updater}=require('../src/core/updater.cjs');
+ const u=new Updater({version:'5.0.0',platform:'win32',arch:'x64',historyFile:path.join(dataDir,'history.json'),downloadDir:path.join(dataDir,'updates/downloads'),getRelease:async()=>({tag_name:'v'+r.version,html_url:base+'/tag/v'+r.version,assets:[{name:r.name,browser_download_url:base+'/download/v'+r.version+'/'+r.name,size:r.size,digest:'sha256:'+r.sha256}]}),download:async(_r,file)=>fs.copyFile(r.file,file),prepare:(record,options)=>api.prepareUpdate(record,{...options,appPath,dataDir,platform:'win32',arch:'x64'}),onReadyInvalidated:api.abortUpdate});
+ for(let i=0;i<3;i++){const ready=await u.stage();await Promise.all([u.cancel(),u.cancel()]);assert.equal(u.snapshot().cleanupPending,false);assert.deepEqual(await fs.readdir(u.downloadDir),[]);await assert.rejects(fs.access(path.join(ready.attempt,'source.zip')),{code:'ENOENT'});await assert.rejects(fs.access(path.join(ready.attempt,'extract')),{code:'ENOENT'});assert.ok(await fs.readFile(ready.payloadFile));}
+ assert.ok(await fs.readFile(r.file));assert.equal(JSON.parse(await fs.readFile(path.join(appPath,'resources/app/package.json'),'utf8')).version,'5.0.0');
+});

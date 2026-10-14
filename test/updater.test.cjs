@@ -32,13 +32,13 @@ test('verified package alone reaches prepare and returns readiness without claim
  const result=await u.stage();assert.equal(prepared,1);assert.equal(result.ready,true);assert.equal(u.snapshot().state,'ready');assert.ok(!u.snapshot().installed);
 });
 test('cancelled readiness cannot install, duplicate handoff is refused, and handoff failures can be retried',async t=>{
- const u=context(t);assert.throws(()=>u.beginInstall());await u.stage();u.cancel();assert.equal(u.snapshot().state,'available');assert.throws(()=>u.beginInstall());await u.stage();u.beginInstall();assert.equal(u.snapshot().state,'installing');assert.throws(()=>u.beginInstall());u.failInstall(Error('helper readiness failed'));assert.equal(u.snapshot().state,'error');assert.equal(u.snapshot().error,'helper readiness failed');await u.stage();assert.equal(u.snapshot().state,'ready');
+ const u=context(t);assert.throws(()=>u.beginInstall());await u.stage();await u.cancel();assert.equal(u.snapshot().state,'available');assert.throws(()=>u.beginInstall());await u.stage();u.beginInstall();assert.equal(u.snapshot().state,'installing');assert.throws(()=>u.beginInstall());u.failInstall(Error('helper readiness failed'));assert.equal(u.snapshot().state,'error');assert.equal(u.snapshot().error,'helper readiness failed');await u.stage();assert.equal(u.snapshot().state,'ready');
 });
 test('checking the same release preserves readiness while a changed release explicitly invalidates preparation',async t=>{
  const invalidated=[];const u=context(t,{onReadyInvalidated:async ready=>invalidated.push(ready.version)});await u.stage();await u.check({manual:true});assert.equal(u.snapshot().state,'ready');assert.deepEqual(invalidated,[]);u.getRelease=async()=>release('5.2.0');await u.check({manual:true});assert.equal(u.snapshot().state,'available');assert.deepEqual(invalidated,['5.1.0']);assert.throws(()=>u.beginInstall());await u.stage();u.beginInstall();await assert.rejects(u.check({manual:true}),/交接/);
 });
 test('cancelling while rechecking cannot revive an aborted ready package',async t=>{
- const u=context(t);await u.stage();let finish;u.getRelease=()=>new Promise(r=>finish=r);const check=u.check({manual:true});await new Promise(r=>setImmediate(r));u.cancel();finish(release());await check;assert.equal(u.readyRecord,null);assert.equal(u.snapshot().state,'available');assert.throws(()=>u.beginInstall());u.getRelease=async()=>release();await u.stage();assert.equal(u.snapshot().state,'ready');
+ const u=context(t);await u.stage();let finish;u.getRelease=()=>new Promise(r=>finish=r);const check=u.check({manual:true});await new Promise(r=>setImmediate(r));await u.cancel();finish(release());await check;assert.equal(u.readyRecord,null);assert.equal(u.snapshot().state,'available');assert.throws(()=>u.beginInstall());u.getRelease=async()=>release();await u.stage();assert.equal(u.snapshot().state,'ready');
 });
 test('a failed recheck aborts old readiness and permits the visible retry action',async t=>{
  const aborted=[];const u=context(t,{onReadyInvalidated:async ready=>aborted.push(ready.version)});await u.stage();u.getRelease=async()=>{throw Error('offline');};await assert.rejects(u.check({manual:true}),/offline/);assert.equal(u.readyRecord,null);assert.equal(u.snapshot().state,'error');assert.deepEqual(aborted,['5.1.0']);u.getRelease=async()=>release();await u.stage();assert.equal(u.snapshot().state,'ready');
@@ -50,8 +50,31 @@ test('wrong hash deletes partial package and never prepares',async t=>{
 test('duplicate update is rejected and cancellation never prepares',{timeout:10000},async t=>{
  let began,prepared=0;const started=new Promise(resolve=>{began=resolve;});
  const u=context(t,{download:async(r,file,{signal})=>new Promise((res,rej)=>{began();signal.addEventListener('abort',()=>rej(Object.assign(Error('cancelled'),{code:'ABORT_ERR'})),{once:true});}),prepare:async()=>{prepared++;}});
- const pending=u.stage();await Promise.race([started,pending.then(()=>{throw Error('stage ended before download');})]);await assert.rejects(u.stage(),/正在/);u.cancel();await assert.rejects(pending);assert.equal(prepared,0);
+ const pending=u.stage();await Promise.race([started,pending.then(()=>{throw Error('stage ended before download');})]);await assert.rejects(u.stage(),/正在/);await u.cancel();await assert.rejects(pending);assert.equal(prepared,0);
 });
 test('fresh staging checks latest rather than reusing old cached record',async t=>{
  let version='5.1.0';const u=context(t,{getRelease:async()=>release(version)});await u.check();version='5.2.0';const r=await u.stage();assert.equal(r.version,'5.2.0');
+});
+test('original downloads are removed after successful and failed prepare',async t=>{
+ for(const fail of [false,true]){let downloaded;const u=context(t,{prepare:async r=>{downloaded=r.file;if(fail)throw Error('prepare failed');return {ready:true};}});if(fail)await assert.rejects(u.stage(),/prepare failed/);else await u.stage();assert.equal(fs.existsSync(downloaded),false);assert.deepEqual(fs.readdirSync(u.downloadDir),[]);}
+});
+test('late preparation after cancellation is invalidated instead of abandoned',async t=>{
+ let finish,entered;const started=new Promise(r=>entered=r),invalidated=[];const ready={ready:true,token:'private-token'};const u=context(t,{prepare:()=>{entered();return new Promise(r=>finish=r);},onReadyInvalidated:async value=>invalidated.push(value)});const pending=u.stage();await started;await u.cancel();finish(ready);await assert.rejects(pending,/取消/);assert.equal(invalidated.length,1);assert.equal(invalidated[0].token,ready.token);assert.equal(u.readyRecord,null);assert.deepEqual(fs.readdirSync(u.downloadDir),[]);
+});
+test('failed cancellation retains readiness privately and blocks new stages until retry succeeds',async t=>{
+ let fail=true;const u=context(t,{onReadyInvalidated:async()=>{if(fail)throw Error('cleanup denied');}});const ready=await u.stage();await assert.rejects(u.cancel(),/cleanup denied/);assert.equal(u.snapshot().cleanupPending,true);assert.equal(u.readyRecord,ready);assert.throws(()=>u.beginInstall());await assert.rejects(u.stage());fail=false;await u.cancel();assert.equal(u.readyRecord,null);assert.equal(u.snapshot().cleanupPending,false);await u.stage();
+});
+
+test('late cancellation cleanup failure remains retryable after prepare settles',async t=>{
+ let finish,enter,fail=true;const start=new Promise(r=>enter=r);const u=context(t,{prepare:()=>{enter();return new Promise(r=>finish=r);},onReadyInvalidated:async()=>{if(fail)throw Error('late cleanup denied');}});const pending=u.stage();await start;await u.cancel();finish({ready:true,token:'late-private'});await assert.rejects(pending,/late cleanup denied/);assert.equal(u.snapshot().cleanupPending,true);assert.equal(u.readyRecord.token,'late-private');assert.deepEqual(fs.readdirSync(u.downloadDir),[]);fail=false;await u.cancel();assert.equal(u.snapshot().cleanupPending,false);
+});
+test('failed release invalidation retains private cleanup authority until explicit retry',async t=>{
+ let fail=true;const u=context(t,{onReadyInvalidated:async()=>{if(fail)throw Error('release cleanup denied');}});const ready=await u.stage();u.getRelease=async()=>release('5.2.0');await assert.rejects(u.check({manual:true}),/release cleanup denied/);assert.equal(u.readyRecord,ready);assert.equal(u.snapshot().cleanupPending,true);fail=false;await u.cancel();await u.stage();assert.equal(u.snapshot().state,'ready');
+});
+test('download cleanup rejects a replaced file and preserves its bytes for recovery',async t=>{
+ let original;const u=context(t,{prepare:async r=>{original=r.file;fs.renameSync(original,original+'.owned');fs.writeFileSync(original,'unrelated replacement');return {ready:true};}});await assert.rejects(u.stage(),/身份已变化/);assert.equal(fs.readFileSync(original,'utf8'),'unrelated replacement');assert.equal(u.snapshot().cleanupPending,true);await assert.rejects(u.cancel(),/身份已变化/);assert.equal(fs.readFileSync(original,'utf8'),'unrelated replacement');fs.unlinkSync(original);fs.renameSync(original+'.owned',original);await u.cancel();assert.equal(fs.existsSync(original),false);
+});
+
+test('quit can await late preparation cleanup before ending the process',async t=>{
+ let finish,enter;const started=new Promise(r=>enter=r),u=context(t,{prepare:()=>{enter();return new Promise(r=>finish=r);},onReadyInvalidated:async()=>{}});const staging=u.stage();await started;await u.cancel();let settled=false;const waiting=u.waitForStage().then(()=>settled=true);await new Promise(r=>setImmediate(r));assert.equal(settled,false);finish({ready:true});await assert.rejects(staging,/取消/);await waiting;assert.equal(settled,true);assert.equal(u.snapshot().cleanupPending,false);assert.deepEqual(fs.readdirSync(u.downloadDir),[]);
 });

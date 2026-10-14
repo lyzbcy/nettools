@@ -57,3 +57,17 @@ Windows 两段更新后核对原卸载器哈希、登记版本与路径，再实
 驱动报告只表示更新已准备，写入时间早于实际安装点击；此时 payload 还可能没有交接的 oldPid，助手 ready 文件也尚未产生。验证脚本在最多 120 秒内等待真实物理 ready 握手，期间继续读取绑定 actor 失败；文件出现后核对 token、版本、状态和 PID，再重新读取已交接 payload 核对旧 PID，然后绑定助手创建身份和本次 attempt 命令，最后等待旧进程关闭及更新结果。错误握手、查询失败或超时不会被当成正常等待。Mac 查询保留完整 `lstart` 并增加 `state`；Windows 保持原有 UTC StartTime ticks、可执行文件及命令查询。退出检查使用已绑定身份：消失、同创建身份的 Z 状态、完整不同创建身份的替代 PID 都表示原实例不再运行；不会等待或终止替代 PID。同实例正确命令仍运行时继续等待，错误命令、缺失预期/当前创建身份、查询失败和等待超时均保留失败。
 
 每次检查在判定或抛错前保存完整状态、分类和时间到私有 `update-report.json`。证据采集器继续校验 plan/driver/payload/token 和固定源文件路径，并将角色/PID/预期创建身份匹配的生命周期样本存入清理前后 manifest；后续“进程已消失”的查询不会覆盖失败瞬间的样本。诊断不加入产品日志，也不向终端打印用户路径或 token。`scripts/ci-process-lifecycle.cjs` 仅供验收脚本复用，不改变生产更新助手。合成竞态回归及本地完整测试只证明验证逻辑，实际平台证据仍需新 CI。审计见 `verification/helper-lifecycle-audit-20261013.md`。
+
+## 5.0.2 候选：取消暂存回收与私有就绪状态
+
+2026-10-14：复现了 prepare 后取消只写 abort、仍遗留 source.zip/extract，以及下载原 ZIP 在 rename 后没有回收的问题。现在原下载 ZIP 在 prepare 成功或失败后按捕获的文件/父目录 bigint dev+ino 身份 unlink；被替换时保留并报错，不能删除替代文件。取消后晚到的 ready 进入同一清理流程；退出等待准备完成并再次检查清理，避免提前结束进程留下晚到 payload。
+
+prepare 返回的内存 Symbol/WeakMap capability 捕获 attempt、source.zip、extract 及祖先身份，传播只限主进程对象展开。JSON 不能授权删除。取消与 handoff 竞争同一个独占锁；取消先占锁才删除原 archive/extract，保留小型握手/诊断记录。已有 handoff 锁时只写 abort 并保留助手可能还在读取的 payload，锁后结束态的回收未冒充完成。替换目录、符号链接、祖先变化、权限变化与复制序列化 ready 均拒绝；并发/重复取消安全。
+
+Unix 维持已有 app data/updates 祖先的当前用户独占写权限要求，attempt 额外要求 0700；不强改用户目录权限。Windows 新增只读 Get-Acl/reparse 与当前令牌核验：普通令牌只接受自身 owner；已有提升运行时仅当 TokenOwner=Administrators 且该组实际启用才接受 Administrators owner（deny-only 不可）。Allow 仅当前 SID、SYSTEM、Administrators；不 takeown、不修改 ACL。Windows hosted 原验收是提升令牌，不能称为普通用户验收；真正 Windows token/目录/链接测试仅 Windows 运行，本机策略测试不代替它。
+
+Updater 保留失败的私有 ready/download 清理身份，`cleanupPending` 阻止再次下载或安装，允许显式重试。查新导致旧 ready 失效、晚到 ready、取消和安装失败均遵守该规则。main 的 update-stage IPC 只返回正常公开 state，不再返回路径、token、payload 或 capability；内部 CI getReady 保持主进程私有。实际 renderer 的 banner 可重新打开失败清理入口，显示“重试取消并清理暂存”，隐藏再次下载/安装。
+
+回归覆盖三次真实 prepare/cancel 无大型残留、原包生命周期、晚到结果、失效/取消/安装失败重试、被替换原包不删、锁竞争、主进程 IPC 不泄露 ready，以及固定 Electron 的实际 renderer 重试入口。测试没有触碰用户已安装应用或执行网络修改；完整候选仍需重新构建并跑三平台安装/更新验收，不能沿用 c0b44ab 的 CI 38507152751 作为本次修复证据。
+
+本次本机完整结果：Node 24.21.0、官方 PowerShell 7.4.21、固定 Electron 44.7.0，285 tests / 284 pass / 0 fail / 1 Windows-only native-token skip。原有 PowerShell 尾部回归实际运行，没有运行时缺失跳过。外部删除的旧日志未重造，新日志保存于工作区共用 `.delivery-runtime-20261014/task-evidence/network-cancel-final.txt`。

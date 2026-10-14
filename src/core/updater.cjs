@@ -26,13 +26,15 @@ class Updater{
   parsedVersion(version);for(const [k,v]of Object.entries({getRelease,download,prepare}))if(typeof v!=='function')throw TypeError(k+' must be a function');
   Object.assign(this,{version,platform,arch,historyFile,downloadDir,getRelease,download,prepare,onProgress,onReadyInvalidated,now});
   this.record=null;this.readyRecord=null;this.stageRunning=false;this.pendingCheck=null;this.controller=null;
-  this.status={state:'idle',lastAttemptDay:null,lastSuccessDay:null,error:null,progress:null,release:null};
+  this.pendingCancel=null;this.downloadCleanup=null;this.stageSettled=Promise.resolve();
+  this.status={cleanupPending:false,state:'idle',lastAttemptDay:null,lastSuccessDay:null,error:null,progress:null,release:null};
   notLink(historyFile);try{const history=JSON.parse(fs.readFileSync(historyFile,'utf8'));for(const key of ['lastAttemptDay','lastSuccessDay'])if(/^\d{4}-\d{2}-\d{2}$/.test(history[key]||''))this.status[key]=history[key];}catch(e){if(e.code!=='ENOENT'&&!(e instanceof SyntaxError))throw e;}
  }
  snapshot(){return structuredClone(this.status);}
  _publish(){try{this.onProgress?.(this.snapshot());}catch{}}
  _history(){atomicJson(this.historyFile,{lastAttemptDay:this.status.lastAttemptDay,lastSuccessDay:this.status.lastSuccessDay});}
  check({manual=false}={}){
+  if(this.status.cleanupPending)return Promise.reject(Error('请先重试取消并清理暂存'));
   if(this.status.state==='installing')return Promise.reject(Error('正在交接安装，请等待完成后再检查更新'));
   if(this.stageRunning&&['downloading','verifying','preparing'].includes(this.status.state))return Promise.reject(Error('正在准备更新包，请完成或取消后再检查'));
   if(this.pendingCheck)return this.pendingCheck;
@@ -41,18 +43,36 @@ class Updater{
   this.pendingCheck=Promise.resolve().then(()=>this.getRelease()).then(async release=>{
    const record=selectRelease(release,this.version,this.platform,this.arch),ready=this.readyRecord;
    const sameReady=ready&&record.hasUpdate&&['version','name','url','sha256','size'].every(key=>ready[key]===record[key]);
-   if(ready&&!sameReady){this.readyRecord=null;await this.onReadyInvalidated?.(ready);}
+   if(ready&&!sameReady)await this._discardReady();
    this.record=record;this.status.release=record;this.status.lastSuccessDay=day;this.status.state=sameReady?'ready':record.hasUpdate?'available':'current';this._history();this._publish();return record;
-  },error=>{throw error;}).catch(async error=>{const ready=this.readyRecord;this.readyRecord=null;if(ready)try{await this.onReadyInvalidated?.(ready);}catch{}this.status.state='error';this.status.error=String(error.message||error);this._publish();throw error;}).finally(()=>{this.pendingCheck=null;});
+  },error=>{throw error;}).catch(async error=>{if(this.readyRecord&&!this.status.cleanupPending)try{await this._discardReady();}catch{}this.status.state='error';this.status.error=String(error.message||error);this._publish();throw error;}).finally(()=>{this.pendingCheck=null;});
   return this.pendingCheck;
  }
- cancel(){this.controller?.abort();if(this.readyRecord){this.readyRecord=null;this.status.state='available';this.status.progress=null;this._publish();}}
- beginInstall(){if(this.status.state!=='ready'||this.stageRunning)throw Error('更新尚未准备就绪');this.readyRecord=null;this.status.state='installing';this.status.error=null;this._publish();}
- failInstall(error){this.status.state='error';this.status.error=String(error?.message||error||'更新安装未完成');this._publish();}
+ async _discardReady(){
+  const ready=this.readyRecord;if(!ready)return;
+  this.status.cleanupPending=true;
+  try{await this.onReadyInvalidated?.(ready);if(this.readyRecord===ready)this.readyRecord=null;this.status.cleanupPending=!!this.downloadCleanup;}
+  catch(error){this.status.cleanupPending=true;throw error;}
+ }
+ async _removeDownload(){
+  const owned=this.downloadCleanup;if(!owned)return;
+  const parent=await fsp.lstat(this.downloadDir,{bigint:true}),actual=await fsp.lstat(owned.file,{bigint:true});
+  if(parent.isSymbolicLink()||!parent.isDirectory()||parent.dev!==owned.parent.dev||parent.ino!==owned.parent.ino||actual.isSymbolicLink()||!actual.isFile()||actual.dev!==owned.stat.dev||actual.ino!==owned.stat.ino)throw Error('下载暂存文件身份已变化，保留文件');
+  await fsp.unlink(owned.file);this.downloadCleanup=null;
+ }
+ cancel(){
+  this.controller?.abort();if(this.pendingCancel)return this.pendingCancel;
+  if(this.readyRecord||this.downloadCleanup){this.status.cleanupPending=true;this.status.state='available';this.status.progress=null;this._publish();}
+  this.pendingCancel=(async()=>{try{await this._discardReady();if(!this.stageRunning)await this._removeDownload();this.status.cleanupPending=!!this.readyRecord||!!this.downloadCleanup;this._publish();}catch(error){this.status.cleanupPending=true;this.status.state='error';this.status.error=String(error.message||error);this._publish();throw error;}finally{this.pendingCancel=null;}})();return this.pendingCancel;
+ }
+ beginInstall(){if(this.status.state!=='ready'||this.stageRunning||this.status.cleanupPending)throw Error('更新尚未准备就绪');this.readyRecord=null;this.status.state='installing';this.status.error=null;this._publish();}
+ failInstall(error,ready){if(ready){this.readyRecord=ready;this.status.cleanupPending=true;}this.status.state='error';this.status.error=String(error?.message||error||'更新安装未完成');this._publish();}
+ waitForStage(){return this.stageSettled;}
  async stage(){
+  if(this.status.cleanupPending||this.pendingCancel)throw Error('请先重试取消并清理暂存');
   if(this.stageRunning)throw Error('正在准备更新，请等待');
   if(this.readyRecord)throw Error('已有准备好的更新，请直接安装或先取消');
-  this.stageRunning=true;this.controller=new AbortController();const signal=this.controller.signal;let partial;
+  let settleStage;this.stageSettled=new Promise(resolve=>settleStage=resolve);this.stageRunning=true;this.controller=new AbortController();const signal=this.controller.signal;let partial;
   try{
    const record=await this.check({manual:true});if(signal.aborted)throw Error('更新已取消');if(!record?.hasUpdate)throw Error('当前没有可用的正式更新');
    await fsp.mkdir(this.downloadDir,{recursive:true,mode:0o700});notLink(this.downloadDir);
@@ -63,12 +83,12 @@ class Updater{
    this.status.state='verifying';this._publish();
    const stat=await fsp.lstat(partial);if(!stat.isFile()||stat.isSymbolicLink()||stat.size!==record.size||await hashFile(partial)!==record.sha256)throw Error('更新包 SHA-256 或大小校验失败，未执行更新');
    if(signal.aborted)throw Error('更新已取消');
-   const file=partial.slice(0,-5);await fsp.rename(partial,file);partial=null;
+   const file=partial.slice(0,-5);await fsp.rename(partial,file);partial=null;this.downloadCleanup={file,stat:await fsp.lstat(file,{bigint:true}),parent:await fsp.lstat(this.downloadDir,{bigint:true})};
    this.status.state='preparing';this._publish();
-   const ready=await this.prepare({...record,file},{signal});if(signal.aborted)throw Error('更新已取消');if(ready?.ready!==true)throw Error('更新准备失败，保留当前程序');
-   this.readyRecord={...record,file,...ready};this.status.state='ready';this._publish();return this.readyRecord;
+   const ready=await this.prepare({...record,file},{signal});if(ready?.ready!==true)throw Error('更新准备失败，保留当前程序');
+   this.readyRecord={...record,...ready};if(signal.aborted){await this._discardReady();throw Error('更新已取消');}await this._removeDownload();this.status.cleanupPending=false;this.status.state='ready';this._publish();return this.readyRecord;
   }catch(error){this.status.state='error';this.status.error=String(error.message||error);this._publish();throw error;}
-  finally{if(partial)await fsp.rm(partial,{force:true});this.stageRunning=false;this.controller=null;}
+  finally{try{if(partial)await fsp.rm(partial,{force:true});await this._removeDownload();}catch(error){this.status.cleanupPending=true;this.status.state='error';this.status.error=String(error.message||error);this._publish();throw error;}finally{this.stageRunning=false;this.controller=null;this.status.cleanupPending=!!this.downloadCleanup||(!!this.readyRecord&&this.status.state!=='ready');this._publish();settleStage();}}
  }
 }
 module.exports={Updater,compareVersions,selectRelease,dayInShanghai,hashFile,RELEASE_PAGE};
