@@ -6,12 +6,25 @@ func shellQuote(_ text: String) -> String { "'" + text.replacingOccurrences(of: 
 func appleQuote(_ text: String) -> String { "\"" + text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\"" }
 let legacyHelper = "/usr/local/bin/netrepair-helper"
 let legacyHelperHash = "9466607886a478331cd53669c799e7e02975840acedcc388c8657e5dd84df7a1"
-func legacyRetirement() throws -> String {
+func legacyRetirement(staged: Bool = false) throws -> String {
     var st = stat()
     guard lstat(legacyHelper, &st) == 0 else { guard errno == ENOENT else { throw fail("LEGACY_HELPER_UNVERIFIED", "无法检查旧版授权助手") }; return "" }
     guard st.st_uid == 0, st.st_mode & S_IFMT == S_IFREG, st.st_mode & 0o7777 == 0o4755,
           try sha256(legacyHelper) == legacyHelperHash else { throw fail("LEGACY_HELPER_UNVERIFIED", "旧授权文件不是已验证的原版助手；未修改它，请先通过旧版撤销授权") }
-    return "test ! -L " + shellQuote(legacyHelper) + "\ntest \"$(/usr/bin/stat -f '%u:%Lp' " + shellQuote(legacyHelper) + ")\" = '0:4755'\ntest \"$(/usr/bin/shasum -a 256 " + shellQuote(legacyHelper) + " | /usr/bin/cut -d ' ' -f 1)\" = " + shellQuote(legacyHelperHash) + "\n/bin/rm -f " + shellQuote(legacyHelper)
+    let retire = staged ? "/bin/mv " + shellQuote(legacyHelper) + " \"$stage/legacy-helper\"" : "/bin/rm -f " + shellQuote(legacyHelper)
+    return "test ! -L " + shellQuote(legacyHelper) + "\ntest \"$(/usr/bin/stat -f '%u:%Op' " + shellQuote(legacyHelper) + ")\" = '0:104755'\ntest \"$(/usr/bin/shasum -a 256 " + shellQuote(legacyHelper) + " | /usr/bin/cut -d ' ' -f 1)\" = " + shellQuote(legacyHelperHash) + "\n" + retire
+}
+func installationStageCleanup() -> String {
+    // The exact legacy helper stays in the private root-owned stage until commit.
+    // On failure restore it without replacing an object that appeared meanwhile.
+    return [
+        "installation_cleanup() {",
+        "result=$?", "trap - EXIT",
+        "if [ \"$result\" -ne 0 ] && [ -e \"$stage/legacy-helper\" ]; then",
+        "if test ! -e " + shellQuote(legacyHelper) + " && test ! -L " + shellQuote(legacyHelper) + " && /bin/link \"$stage/legacy-helper\" " + shellQuote(legacyHelper) + " && /bin/rm \"$stage/legacy-helper\"; then :; else",
+        "/usr/bin/printf '%s\\n' 'LEGACY_RESTORE_FAILED: private installation stage retained' >&2", "exit 1", "fi", "fi",
+        "/bin/rm -rf \"$stage\"", "exit \"$result\"", "}", "trap installation_cleanup EXIT"
+    ].joined(separator: "\n")
 }
 final class Engine {
     let configDir: String; let resourcesDir: String; let network = Network()
@@ -57,6 +70,7 @@ final class Engine {
     }
     func admin(_ command: String) throws {
         let result = try network.command("/usr/bin/osascript", ["-e", "do shell script " + appleQuote(command) + " with administrator privileges"], timeout: 120, allowFailure: true)
+        if result.status != 0, result.output.contains("LEGACY_RESTORE_FAILED") { throw fail("LEGACY_RECOVERY_REQUIRED", "旧授权助手恢复未完成；安装暂存已保留，授权状态未验证") }
         guard result.status == 0 else { throw fail(result.output.contains("(-128)") ? "AUTH_CANCELLED" : "AUTHORIZATION_FAILED", "系统授权未完成；授权状态未验证") }
     }
     func install() throws -> [String: Any] {
@@ -71,7 +85,7 @@ final class Engine {
         let grant = try jsonData(["version": nativeVersion, "installerUID": Int(getuid()), "engineHash": engineHash, "helperHash": helperHash]).base64EncodedString()
         // Only explicit install invokes this fixed script. All variable paths are
         // shell-quoted, and the root copy is checked again before atomic rename.
-        let retirement = try legacyRetirement()
+        let retirement = try legacyRetirement(staged: true)
         let script = [
             "set -eu", "umask 077",
             "test ! -L /Library/PrivilegedHelperTools", "test ! -L " + shellQuote(privilegedState),
@@ -79,13 +93,14 @@ final class Engine {
             "test \"$(/usr/bin/stat -f '%u' /Library/PrivilegedHelperTools)\" = 0", "test \"$(/usr/bin/stat -f '%u' " + shellQuote(privilegedState) + ")\" = 0",
             "test ! -L " + shellQuote(installedHelper), "test ! -L " + shellQuote(grantFile),
             "/bin/chmod 755 /Library/PrivilegedHelperTools", "/bin/chmod 700 " + shellQuote(privilegedState),
-            "stage=$(/usr/bin/mktemp -d /Library/PrivilegedHelperTools/.nettools-install.XXXXXX)", "trap '/bin/rm -rf \"$stage\"' EXIT",
+            "stage=$(/usr/bin/mktemp -d /Library/PrivilegedHelperTools/.nettools-install.XXXXXX)", installationStageCleanup(),
             "/bin/cp " + shellQuote(bundled) + " \"$stage/helper\"",
             "test \"$(/usr/bin/shasum -a 256 \"$stage/helper\" | /usr/bin/cut -d ' ' -f 1)\" = " + shellQuote(helperHash),
             "test \"$(/usr/bin/shasum -a 256 " + shellQuote(engine) + " | /usr/bin/cut -d ' ' -f 1)\" = " + shellQuote(engineHash),
             "/usr/bin/printf %s " + shellQuote(grant) + " | /usr/bin/base64 -D > \"$stage/grant\"",
             "/usr/sbin/chown root:wheel \"$stage/helper\" \"$stage/grant\"", "/bin/chmod 4755 \"$stage/helper\"", "/bin/chmod 600 \"$stage/grant\"",
-            "/bin/mv -f \"$stage/grant\" " + shellQuote(grantFile), "/bin/mv -f \"$stage/helper\" " + shellQuote(installedHelper), retirement
+            retirement,
+            "/bin/mv -f \"$stage/grant\" " + shellQuote(grantFile), "/bin/mv -f \"$stage/helper\" " + shellQuote(installedHelper)
         ].joined(separator: "\n")
         try admin(script)
         let status = helperStatus(); guard status["installed"] as? Bool == true else { throw fail("VERIFY_FAILED", "授权安装后身份校验失败") }

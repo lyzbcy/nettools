@@ -51,6 +51,8 @@ jobs:
         env:
           NETTOOLS_RAW_FS_REQUIRE_ELECTRON: 'true'
         run: node --test test/update-raw-fs.test.cjs test/electron-update-ui.test.cjs
+      - name: Actual verified historical helper retirement and failure recovery
+        run: node scripts/ci-macos-legacy.cjs
       - name: Actual packaged native helper and cleanup
         run: node scripts/ci-macos-native.cjs
       - name: Actual installed desktop and persisted preferences

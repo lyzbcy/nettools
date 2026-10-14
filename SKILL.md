@@ -10,6 +10,8 @@ description: Use when developing, repairing, packaging or releasing the 捞鱼�
 
 技术：Electron 本地界面与主进程、Node CommonJS；Mac Swift 原生执行层，Windows 固定动作 PowerShell。版本源为 `package.json.version`。正式 5.0.0 与冻结 5.0.1 包保持不可变；本次 5.0.2 为日志、反馈预览及平台可靠性修复候选，三平台候选CI已通过，尚未公开。软件中心 Mac 0.9.3 / Windows 0.8.7 及两个原网址已完成对 5.0.0 的同步。
 
+后续本机真实迁移发现旧助手完整权限判定缺陷：当前修复待独立复审与新三平台CI，不能用此前 `fd8a9a7` 六包作为修复后发行包；`release/final-fd8a9a7/` 保持不可变，仍未公开。
+
 ## 目录与入口
 
 - `docs/agent.md`：唯一文档导航；接手和改模块前先查对应文档。
