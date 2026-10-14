@@ -17,7 +17,8 @@ async function main(){
   const {stdout:bytes}=await run('/usr/bin/git',['show',`${COMMIT}:${OBJECT}`],{cwd:root,encoding:'buffer',maxBuffer:1024*1024});
   if(bytes.length!==SIZE||hash(bytes)!==HASH)throw Error('HISTORICAL_BINARY_IDENTITY');
   const fixture=path.join(temp,'historical-helper');await fs.writeFile(fixture,bytes,{mode:0o600});
-  const emitter=await compileEmitter(temp);
+  const targets={installedHelper:path.join(temp,'current-helper'),grantFile:path.join(temp,'current-grant')};
+  const emitter=await compileEmitter(temp,undefined,targets);
   created=true;await run('/usr/bin/sudo',['/usr/bin/install','-o','root','-g','wheel','-m','4755',fixture,TARGET]);await exact(TARGET);
   const stat=(await run('/usr/bin/stat',['-f','%u:%Op',TARGET])).stdout.trim();if(stat!=='0:104755')throw Error('FULL_MODE_MISMATCH');report.fullStat=stat;
   const emission=JSON.parse((await run(emitter,[])).stdout);
@@ -28,6 +29,29 @@ async function main(){
    if(failure){if(exit!==19)throw Error('LEGACY_FAILURE_NOT_PROPAGATED');await exact(TARGET);report.steps.push({name:'actual-root-original-restored-after-post-retirement-failure',ok:true});}
    else{if(exit!==0||!await absent(TARGET))throw Error('LEGACY_RETIREMENT_NOT_COMMITTED');report.steps.push({name:'actual-root-original-retired-after-commit',ok:true});}
    await run('/usr/bin/sudo',['/bin/sh','-c',`test ! -e ${quote(stage)}`]);
+  }
+  // Exercise the actual production uninstall assembly; only current destinations
+  // and private stage location point at these CI-owned fixtures.
+  await run('/usr/bin/sudo',['/usr/bin/install','-o','root','-g','wheel','-m','4755',fixture,TARGET]);
+  for(const failure of [true,false]){
+   await exact(TARGET);for(const target of Object.values(targets))await fs.writeFile(target,'CI owned current authorization');
+   const uninstall=JSON.parse((await run(emitter,[])).stdout).uninstall;
+   const stage=(await run('/usr/bin/sudo',['/usr/bin/mktemp','-d','/private/tmp/nettools-legacy-ci-stage.XXXXXX'])).stdout.trim();
+   if(!/^\/private\/tmp\/nettools-legacy-ci-stage\.[A-Za-z0-9]+$/.test(stage))throw Error('INVALID_STAGE');stages.push(stage);
+   let command=uninstall.replace('stage=$(/usr/bin/mktemp -d /private/tmp/.nettools-uninstall.XXXXXX)',`stage=${quote(stage)}`);
+   const removal=`/bin/rm -f ${quote(targets.installedHelper)} ${quote(targets.grantFile)}`;
+   if(!command.includes(removal)||command===uninstall)throw Error('UNINSTALL_ASSEMBLY_CHANGED');
+   if(failure)command=command.replace(removal,'exit 19');
+   let exit=0;try{await run('/usr/bin/sudo',['/bin/sh','-c',command]);}catch(e){exit=e.code;}
+   if(failure){
+    if(exit!==19)throw Error('UNINSTALL_FAILURE_NOT_PROPAGATED');await exact(TARGET);
+    for(const target of Object.values(targets))if(await fs.readFile(target,'utf8')!=='CI owned current authorization')throw Error('CURRENT_AUTHORIZATION_CHANGED');
+   }else{
+    if(exit!==0||!await absent(TARGET))throw Error('UNINSTALL_RETIREMENT_FAILED');
+    for(const target of Object.values(targets))if(!await absent(target))throw Error('CURRENT_AUTHORIZATION_NOT_REMOVED');
+   }
+   await run('/usr/bin/sudo',['/bin/sh','-c',`test ! -e ${quote(stage)}`]);
+   report.steps.push({name:failure?'actual-uninstall-restores-original-and-preserves-current-on-failure':'actual-uninstall-retires-original-before-removing-current',ok:true});
   }
   report.ok=true;
  }catch(error){report.error={code:error.code||'LEGACY_CI_FAILED',message:String(error.message).slice(0,2048)};throw error;}

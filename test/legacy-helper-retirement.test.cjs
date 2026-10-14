@@ -21,7 +21,7 @@ test('fixed legacy identity gates remain strict and retirement precedes new gran
  assert(install.indexOf('retirement,')<install.indexOf('/bin/mv -f'),'legacy failure must precede new grant/helper commit');
 });
 test('installation stages old helper and restores it on failure instead of deleting it before commit',async()=>{
- const swift=await source();assert.match(swift,/func installationStageCleanup\(\)/);assert.match(swift,/legacyRetirement\(staged: true\)/);
+ const swift=await source();assert.match(swift,/func installationStageCleanup\(\)/);assert.match(swift,/legacyRetirement\(\)/);
  assert.match(swift,/LEGACY_RESTORE_FAILED/);assert.match(swift,/LEGACY_RECOVERY_REQUIRED/);assert.match(swift,/legacy-helper/);assert.match(swift,/trap installation_cleanup EXIT/);assert.match(swift,/\/bin\/link/);
 });
 test('compiled production retirement shell commits or restores only owned inert fixture',{skip:process.platform!=='darwin'},async()=>{
@@ -71,5 +71,32 @@ test('catchable shell interruption restores owned legacy and SIGKILL retains pri
     else {assert.deepEqual(await fs.readFile(file),bytes);await assert.rejects(fs.lstat(stage),{code:'ENOENT'});}
    }finally{child.kill('SIGKILL');}
   }
+ }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+test('uninstall cannot delete a post-hash replacement through an unstaged retirement branch',{skip:process.platform!=='darwin'},async()=>{
+ const {compileEmitter,quote}=require('../scripts/legacy-retirement-harness.cjs'),crypto=require('node:crypto'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'nettools-uninstall-red-')),file=path.join(dir,'legacy'),bytes=Buffer.from('owned uninstall fixture\n');
+ try{await fs.writeFile(file,bytes);await fs.chmod(file,0o4755);const binary=await compileEmitter(dir,{file,uid:process.getuid(),sha256:crypto.createHash('sha256').update(bytes).digest('hex')}),emission=JSON.parse((await run(binary,['unstaged'])).stdout);assert(!emission.retirement.includes(`/bin/rm -f ${quote(file)}`),'uninstall exposes direct hash-to-delete branch');}finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+test('actual uninstall assembly retires safely before deleting current owned authorization',{skip:process.platform!=='darwin'},async()=>{
+ const {compileEmitter,quote}=require('../scripts/legacy-retirement-harness.cjs'),crypto=require('node:crypto'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'nettools-uninstall-')),file=path.join(dir,'legacy'),bytes=Buffer.from('owned uninstall original\n'),targets={installedHelper:path.join(dir,'current-helper'),grantFile:path.join(dir,'grant')};
+ try{
+  const binary=await compileEmitter(dir,{file,uid:process.getuid(),sha256:crypto.createHash('sha256').update(bytes).digest('hex')},targets);
+  for(const scenario of ['success','failure','replacement','collision']){
+   await fs.writeFile(file,bytes);await fs.chmod(file,0o4755);for(const target of Object.values(targets))await fs.writeFile(target,'current authorization');
+   const emission=JSON.parse((await run(binary,[])).stdout),stage=await fs.mkdtemp(path.join(dir,'stage-'));let command=emission.uninstall.replace('stage=$(/usr/bin/mktemp -d /private/tmp/.nettools-uninstall.XXXXXX)',`stage=${quote(stage)}`);
+   const removal=`/bin/rm -f ${quote(targets.installedHelper)} ${quote(targets.grantFile)}`,move=`/bin/mv ${quote(file)} "$stage/legacy-helper"`;
+   assert(command.indexOf(move)<command.indexOf(removal));
+   if(scenario==='failure')command=command.replace(removal,'exit 19');
+   if(scenario==='replacement')command=command.replace(move,`printf unknown > ${quote(file)}\nchmod 4755 ${quote(file)}\n${move}`);
+   if(scenario==='collision')command=command.replace(removal,`printf collision > ${quote(file)}\nexit 19`);
+   if(scenario==='success'){await run('/bin/sh',['-c',command]);for(const target of [file,stage,...Object.values(targets)])await assert.rejects(fs.lstat(target),{code:'ENOENT'});}
+   else{
+    await assert.rejects(run('/bin/sh',['-c',command]),e=>e.code===(scenario==='failure'?19:1));for(const target of Object.values(targets))assert.equal(await fs.readFile(target,'utf8'),'current authorization');
+    if(scenario==='failure'){assert.deepEqual(await fs.readFile(file),bytes);await assert.rejects(fs.lstat(stage),{code:'ENOENT'});}
+    if(scenario==='replacement'){assert.equal(await fs.readFile(path.join(stage,'legacy-helper'),'utf8'),'unknown');await assert.rejects(fs.lstat(file),{code:'ENOENT'});}
+    if(scenario==='collision'){assert.equal(await fs.readFile(file,'utf8'),'collision');assert.deepEqual(await fs.readFile(path.join(stage,'legacy-helper')),bytes);}
+   }
+  }
+  const swift=await source();assert.match(swift,/try admin\(uninstallationScript\(retirement\)\)/);assert.doesNotMatch(swift,/staged: Bool|legacyRetirement\(staged:/);
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });

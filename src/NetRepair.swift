@@ -6,16 +6,13 @@ func shellQuote(_ text: String) -> String { "'" + text.replacingOccurrences(of: 
 func appleQuote(_ text: String) -> String { "\"" + text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\"" }
 let legacyHelper = "/usr/local/bin/netrepair-helper"
 let legacyHelperHash = "9466607886a478331cd53669c799e7e02975840acedcc388c8657e5dd84df7a1"
-func legacyRetirement(staged: Bool = false) throws -> String {
+func legacyRetirement() throws -> String {
     var st = stat()
     guard lstat(legacyHelper, &st) == 0 else { guard errno == ENOENT else { throw fail("LEGACY_HELPER_UNVERIFIED", "无法检查旧版授权助手") }; return "" }
     guard st.st_uid == 0, st.st_mode & S_IFMT == S_IFREG, st.st_mode & 0o7777 == 0o4755,
           try sha256(legacyHelper) == legacyHelperHash else { throw fail("LEGACY_HELPER_UNVERIFIED", "旧授权文件不是已验证的原版助手；未修改它，请先通过旧版撤销授权") }
     let sourceProof = "if ! (" + legacyIdentityCheck(shellQuote(legacyHelper)) + "); then exit 1; fi"
-    if staged {
-        return sourceProof + "\n/bin/mv " + shellQuote(legacyHelper) + " \"$stage/legacy-helper\"\nif ! (" + legacyIdentityCheck("\"$stage/legacy-helper\"") + "); then exit 1; fi"
-    }
-    return sourceProof + "\n/bin/rm -f " + shellQuote(legacyHelper)
+    return sourceProof + "\n/bin/mv " + shellQuote(legacyHelper) + " \"$stage/legacy-helper\"\nif ! (" + legacyIdentityCheck("\"$stage/legacy-helper\"") + "); then exit 1; fi"
 }
 func legacyIdentityCheck(_ quotedPath: String) -> String {
     // %Op includes both file type and SUID. The caller supplies only fixed paths.
@@ -35,6 +32,15 @@ func installationStageCleanup() -> String {
         "/usr/bin/printf '%s\\n' 'LEGACY_RESTORE_FAILED: private installation stage retained' >&2", "exit 1", "fi", "fi", "fi",
         "/bin/rm -rf \"$stage\"", "exit \"$result\"", "}", "trap installation_cleanup EXIT",
         "trap 'exit 130' INT", "trap 'exit 143' TERM", "trap 'exit 129' HUP"
+    ].joined(separator: "\n")
+}
+func uninstallationScript(_ retirement: String) -> String {
+    return [
+        "set -eu", "umask 077",
+        "test ! -L " + shellQuote(installedHelper), "test ! -L " + shellQuote(grantFile),
+        "stage=$(/usr/bin/mktemp -d /private/tmp/.nettools-uninstall.XXXXXX)", installationStageCleanup(),
+        retirement,
+        "/bin/rm -f " + shellQuote(installedHelper) + " " + shellQuote(grantFile)
     ].joined(separator: "\n")
 }
 final class Engine {
@@ -81,7 +87,7 @@ final class Engine {
     }
     func admin(_ command: String) throws {
         let result = try network.command("/usr/bin/osascript", ["-e", "do shell script " + appleQuote(command) + " with administrator privileges"], timeout: 120, allowFailure: true)
-        if result.status != 0, result.output.contains("LEGACY_RESTORE_FAILED") { throw fail("LEGACY_RECOVERY_REQUIRED", "旧授权助手恢复未完成；安装暂存已保留，授权状态未验证") }
+        if result.status != 0, result.output.contains("LEGACY_RESTORE_FAILED") { throw fail("LEGACY_RECOVERY_REQUIRED", "旧授权助手恢复未完成；授权暂存已保留，授权状态未验证") }
         guard result.status == 0 else { throw fail(result.output.contains("(-128)") ? "AUTH_CANCELLED" : "AUTHORIZATION_FAILED", "系统授权未完成；授权状态未验证") }
     }
     func install() throws -> [String: Any] {
@@ -96,7 +102,7 @@ final class Engine {
         let grant = try jsonData(["version": nativeVersion, "installerUID": Int(getuid()), "engineHash": engineHash, "helperHash": helperHash]).base64EncodedString()
         // Only explicit install invokes this fixed script. All variable paths are
         // shell-quoted, and the root copy is checked again before atomic rename.
-        let retirement = try legacyRetirement(staged: true)
+        let retirement = try legacyRetirement()
         let script = [
             "set -eu", "umask 077",
             "test ! -L /Library/PrivilegedHelperTools", "test ! -L " + shellQuote(privilegedState),
@@ -122,7 +128,7 @@ final class Engine {
         for path in [installedHelper, grantFile] where fm.fileExists(atPath: path) { try securePath(path, uid: 0, directory: false) }
         // Snapshot state is intentionally retained for a later authorized restore.
         let retirement = try legacyRetirement()
-        try admin("set -eu\ntest ! -L " + shellQuote(installedHelper) + "\ntest ! -L " + shellQuote(grantFile) + "\n/bin/rm -f " + shellQuote(installedHelper) + " " + shellQuote(grantFile) + "\n" + retirement)
+        try admin(uninstallationScript(retirement))
         guard !fm.fileExists(atPath: installedHelper), !fm.fileExists(atPath: grantFile) else { throw fail("VERIFY_FAILED", "授权撤销未完成") }
         return ["installed": false, "message": "网络授权已撤销；原始恢复快照保留"]
     }
